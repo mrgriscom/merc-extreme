@@ -9,20 +9,9 @@ window.requestAnimFrame = (function(callback){
         };
     })();
  
-function animate(lastTime, angularSpeed, three){
-    // update
-     
-    // render
-    three.renderer.render(three.scene, three.camera);
- 
-    // request new frame
-    //    requestAnimFrame(function(){
-    //        animate(lastTime, angularSpeed, three);
-    //    });
-}
-
 function tile_url(x, y, z) {
     return 'https://mts1.google.com/vt/lyrs=m&x=' + x + '&y=' + y + '&z=' + z;
+    //return 'https://khms1.google.com/kh/v=121&x=' + x + '&y=' + y + '&z=' + z;
 }
 
 function init() {
@@ -36,9 +25,6 @@ function init() {
     ctx.fillStyle = 'blue';
     ctx.fillRect(0, 0, 1024, 1024);
 
-    var image = new Image();
-    image.src = $tx.toDataURL('image/png');
-
     var angularSpeed = 0.2; // revolutions per second
     var lastTime = 0;
     
@@ -49,18 +35,26 @@ function init() {
     // camera
     var camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / -2, -1, 1);
     
+    var tx = new THREE.Texture($tx);
+    tx.needsUpdate = true;
+    var vertShader = document.getElementById('vertexShader').innerHTML;
+    var fragShader = document.getElementById('fragmentShader').innerHTML;
+    var uniforms = {
+        texture1: { type: "t", value: tx }
+    };
+    var material = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: vertShader,
+            fragmentShader: fragShader
+    });
+
     // scene
     var scene = new THREE.Scene();
     
-    document.body.appendChild(image);
-    var tx = new THREE.Texture($tx); //image);
-    tx.needsUpdate = true;
-    console.log(tx.height, tx.width);
-
     // plane
-    var plane = new THREE.Mesh(new THREE.PlaneGeometry(1024, 1024), new THREE.MeshBasicMaterial({
+    var plane = new THREE.Mesh(new THREE.PlaneGeometry(1024, 1024), material); /*new THREE.MeshBasicMaterial({
                 map: tx
-            }));
+                }));*/
     scene.add(plane);
 
     var i = -1;
@@ -78,7 +72,7 @@ function init() {
                         };
                         img.crossOrigin = 'anonymous';
                         img.src = tile_url(74 + e[0], 92 + e[1], 8);
-                    }, (i + 1) * 20);
+                    }, (i + 1) * 100);
             })(x, y);
         }
     }
