@@ -102,19 +102,19 @@ function launch(render) {
     requestAnimationFrame(cb);
 }
 
-QuadGeometry = function(x0, y0, x1, y1) {
+QuadGeometry = function(x0, y0, width, height) {
 	THREE.Geometry.call(this);
     var g = this;
 
     this.x0 = x0;
-    this.x1 = x1;
     this.y0 = y0;
-    this.y1 = y1;
-    this.width = x1 - x0;
-    this.height = y1 - y0;
+    this.width = width;
+    this.height = height;
+    this.x1 = x0 + width;
+    this.y1 = y0 + height;
 
-    $.each([y0, y1], function(i, y) {
-            $.each([x0, x1], function(j, x) {
+    $.each([g.y0, g.y1], function(i, y) {
+            $.each([g.x0, g.x1], function(j, x) {
                     g.vertices.push(new THREE.Vector3(x, y, 0));
                 });
         });
@@ -142,6 +142,11 @@ function init2() {
 
     var MERC_EXTENT_N = 2.5;
     var MERC_EXTENT_S = 0.5;
+    var LON_OFFSET = 0;
+
+    var MERC_EXTENT = MERC_EXTENT_S + MERC_EXTENT_N;
+    var LON_EXTENT = MERC_EXTENT / ASPECT;
+    var PX_SCALE = W_PX / MERC_EXTENT;
 
     var renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -160,19 +165,13 @@ function init2() {
             fragmentShader: fragShader
     });
 
+    var quad = new QuadGeometry(LON_OFFSET, -MERC_EXTENT_S, LON_EXTENT, MERC_EXTENT);
     
-    var quad = new QuadGeometry(-.5, .25, 1.5, 1.25);
-    quad.applyMatrix(new THREE.Matrix4().makeRotationZ(.25 * Math.PI));
-    quad.applyMatrix(new THREE.Matrix4().makeScale(200, 100, 1));
-    quad.applyMatrix(new THREE.Matrix4().makeScale(2, 4, 1));
-    quad.applyMatrix(new THREE.Matrix4().makeTranslation(100, 100, 0));
-
-
-
+    quad.applyMatrix(new THREE.Matrix4().makeTranslation(-LON_EXTENT, MERC_EXTENT_S, 0));
+    quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
+    quad.applyMatrix(new THREE.Matrix4().makeScale(PX_SCALE, PX_SCALE, 1));
 
     var plane = new THREE.Mesh(quad, material);
-
-
 
     var scene = new THREE.Scene();
     scene.add(plane);
