@@ -25,9 +25,6 @@ function init() {
     ctx.fillStyle = 'blue';
     ctx.fillRect(0, 0, 1024, 1024);
 
-    var angularSpeed = 0.2; // revolutions per second
-    var lastTime = 0;
-    
     var renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
@@ -52,9 +49,7 @@ function init() {
     var scene = new THREE.Scene();
     
     // plane
-    var plane = new THREE.Mesh(new THREE.PlaneGeometry(1024, 1024), material); /*new THREE.MeshBasicMaterial({
-                map: tx
-                }));*/
+    var plane = new THREE.Mesh(new THREE.PlaneGeometry(1024, 1024), material);
     scene.add(plane);
 
     var i = -1;
@@ -105,4 +100,114 @@ function launch(render) {
         requestAnimationFrame(cb);
     }
     requestAnimationFrame(cb);
+}
+
+QuadGeometry = function(x0, y0, x1, y1) {
+	THREE.Geometry.call(this);
+    var g = this;
+
+    this.x0 = x0;
+    this.x1 = x1;
+    this.y0 = y0;
+    this.y1 = y1;
+    this.width = x1 - x0;
+    this.height = y1 - y0;
+
+    $.each([y0, y1], function(i, y) {
+            $.each([x0, x1], function(j, x) {
+                    g.vertices.push(new THREE.Vector3(x, y, 0));
+                });
+        });
+    var face = new THREE.Face4(0, 1, 3, 2);
+
+	var normal = new THREE.Vector3(0, 0, 1);
+    face.normal.copy(normal);
+    var UVs = [];
+    $.each(['a', 'b', 'c', 'd'], function(i, e) {
+            var v = g.vertices[face[e]];
+            UVs.push(new THREE.UV(v.x, v.y));
+            face.vertexNormals.push(normal.clone());        
+        });
+    this.faceVertexUvs[0].push(UVs);
+
+    this.faces.push(face);
+	this.computeCentroids();
+};
+QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
+
+function init2() {
+    var W_PX = window.innerWidth;
+    var H_PX = window.innerHeight;
+    var ASPECT = W_PX / H_PX;
+
+    var MERC_EXTENT_N = 2.5;
+    var MERC_EXTENT_S = 0.5;
+
+    var renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    
+    var camera = new THREE.OrthographicCamera(0, W_PX, H_PX, 0, -1, 1);
+    console.log('w ' + W_PX + ' h ' + H_PX + ' aspect ' + ASPECT);
+
+    var vertShader = document.getElementById('vertexShader').innerHTML;
+    var fragShader = document.getElementById('fragmentShader').innerHTML;
+    var uniforms = {
+    };
+    var material = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: vertShader,
+            fragmentShader: fragShader
+    });
+
+    
+    var quad = new QuadGeometry(-.5, .25, 1.5, 1.25);
+    quad.applyMatrix(new THREE.Matrix4().makeRotationZ(.25 * Math.PI));
+    quad.applyMatrix(new THREE.Matrix4().makeScale(200, 100, 1));
+    quad.applyMatrix(new THREE.Matrix4().makeScale(2, 4, 1));
+    quad.applyMatrix(new THREE.Matrix4().makeTranslation(100, 100, 0));
+
+
+
+
+    var plane = new THREE.Mesh(quad, material);
+
+
+
+    var scene = new THREE.Scene();
+    scene.add(plane);
+
+
+    /*
+    plane.scale.set(100, 100, 1);
+    plane.updateMatrix();
+    plane.scale.set(100, 100, 1);
+    plane.updateMatrix();
+    */
+
+    //    plane.position.set(0.5, 0.5, 0);
+    //a.scale.set(100, 100, 1);
+
+    /*
+    plane.scale.set(10, 10, 1);
+    plane.scale.set(10, 10, 1);
+    plane.position.set(312, 312, 0);
+    plane.rotation.z = 45 * Math.PI / 180;
+    */
+
+    // create wrapper object that contains three.js objects
+    var three = {
+        renderer: renderer,
+        camera: camera,
+        scene: scene,
+        plane: plane
+    };
+    
+    var render = function(timestamp) {
+        three.renderer.render(three.scene, three.camera);
+    }
+
+    launch(render);
+
+
 }

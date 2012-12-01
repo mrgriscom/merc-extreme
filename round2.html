@@ -1,0 +1,46 @@
+<html>
+<head>
+<title>webgl demo</title>
+
+<script src="https://raw.github.com/mrdoob/three.js/master/build/three.js"></script>
+<script src="http://code.jquery.com/jquery-latest.min.js"></script>
+<script src="webgl.js"></script>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+    varying vec2 vUv;
+
+    void main() {
+        vUv = uv;
+
+        gl_Position =   projectionMatrix * 
+                        modelViewMatrix * 
+                        vec4(position,1.0);
+    }
+</script>
+<script id="fragmentShader" type="x-shader/x-fragment">
+    varying vec2 vUv;
+
+    void main() {
+        gl_FragColor = vec4(1., vUv.s, vUv.t, 1.0); // Works; Displays Flat Color
+    }
+</script>
+
+<script>
+
+$(document).ready(init2);
+
+</script>
+
+</head>
+<body>
+
+<style>
+
+body {
+  margin: 0;
+}
+
+</style>
+
+</body>
+</html>
