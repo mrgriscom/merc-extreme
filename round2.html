@@ -22,6 +22,11 @@
 
     // lat/lon degrees
     uniform vec2 pole;
+    // pixels per earth circumference (undistorted)
+    uniform float scale;
+    // overzoom is capped at 2^bias
+    uniform float bias;
+
     // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
     varying vec2 merc;
 
@@ -75,11 +80,11 @@
         vec2 abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.));
         abs_map.x = mod(abs_map.x, 1.);
 
+        bool oob = (abs_map.t < 0. || abs_map.t >= 1.);
 
 
-
+    /*
         vec2 k = abs_map;
-
         float z;
         if (k.t < 0. || k.t > 1.) {
           z = .7;
@@ -87,7 +92,25 @@
           z = 1.;
         }
 
-        gl_FragColor = vec4(z, k.s, k.t, 1.); // Works; Displays Flat Color
+        gl_FragColor = vec4(z, k.s, k.t, 1.);
+*/
+
+        if (oob) {
+          gl_FragColor = vec4(.7, .7, .7, 1.);
+        } else {
+          float res = PI2 / scale * cos(geo_rad.t);
+          float base_res = PI2 / 256.;
+          float fzoom = log2(base_res / res);
+          float zoom = ceil(fzoom - bias);
+          if (zoom < 0.) {
+            zoom = 0.;
+          }
+
+          float tx = floor(abs_map.s * pow(2., zoom));
+          float ty = floor(abs_map.t * pow(2., zoom));
+
+          gl_FragColor = vec4(.04 * zoom, mod(tx + ty, 2.), 0, 1);
+        }
 
     }
 </script>

@@ -158,6 +158,8 @@ function init2() {
     var vertShader = document.getElementById('vertexShader').innerHTML;
     var fragShader = document.getElementById('fragmentShader').innerHTML;
     var uniforms = {
+        scale: {type: 'f', value: PX_SCALE},
+        bias: {type: 'f', value: 1.},
         pole: {type: 'v2', value: new THREE.Vector2(45, 45)}
     };
     var material = new THREE.ShaderMaterial({
@@ -186,7 +188,7 @@ function init2() {
     };
     
     var render = function(timestamp) {
-        uniforms.pole.value = new THREE.Vector2(45., 45 + 15*timestamp);
+        uniforms.pole.value = new THREE.Vector2(-72.59, 41.63 + 3.*timestamp);
         three.renderer.render(three.scene, three.camera);
     }
 
