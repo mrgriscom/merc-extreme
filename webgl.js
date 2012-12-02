@@ -37,7 +37,7 @@ function init() {
     var vertShader = document.getElementById('vertexShader').innerHTML;
     var fragShader = document.getElementById('fragmentShader').innerHTML;
     var uniforms = {
-        texture1: { type: "t", value: tx }
+        pole: { type: "v2", value: new THREE.Vector2( 0.3, 1 ) },
     };
     var material = new THREE.ShaderMaterial({
             uniforms: uniforms,

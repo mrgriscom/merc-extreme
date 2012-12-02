@@ -35,6 +35,8 @@
     }
 
     void main() {
+        vec2 rpole = radians(vec2(30, 0)); //radians(pole);
+
         // projected mercator radians: lon:[-180:180] => x:[-pi, pi]
         vec2 merc_rad = (merc + vec2(-.5, 0)) * PI2;
         // geographic coordinates, radians
@@ -44,7 +46,17 @@
         vec2 abs_geo_rad;
         vec3 xyz;
         llr_to_xyz(geo_rad, xyz);
-        xyz_to_llr(xyz, abs_geo_rad);
+        float latrot = .5 * PI - rpole.t;
+        vec3 trans_xyz = mat3(
+          cos(rpole.s), sin(rpole.s), 0,
+          -sin(rpole.s), cos(rpole.s), 0,
+          0, 0, 1
+        ) * mat3(
+          cos(latrot), 0, sin(latrot),
+          0, 1, 0,
+          -sin(latrot), 0, cos(latrot)
+        ) * xyz;
+        xyz_to_llr(trans_xyz, abs_geo_rad);
 
         // projected mercator coordinates, radians
         vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + .25 * PI)));
@@ -70,6 +82,7 @@
         }
 
         gl_FragColor = vec4(z, k.s, k.t, 1.); // Works; Displays Flat Color
+
     }
 </script>
 
