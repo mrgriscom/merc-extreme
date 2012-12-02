@@ -98,10 +98,15 @@
         if (oob) {
           gl_FragColor = vec4(.7, .7, .7, 1.);
         } else {
-          float res = PI2 / scale * cos(geo_rad.t);
-          float base_res = PI2 / 256.;
-          float fzoom = log2(base_res / res);
-          float zoom = ceil(fzoom - bias);
+          // compensate for the fact the map imagery is mercator projected, and
+          // has higher resolution towards the poles
+          float base_distortion = cos(abs_geo_rad.t);
+          //float base_distortion = 1.; // don't compensate
+
+          float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
+          float base_res = PI2 / 256. * base_distortion; // radians per pixel offered by the lowest zoom layer
+          float fzoom = log2(base_res / res); // necessary zoom level (on a continuous scale)
+          float zoom = ceil(fzoom - bias); // round to a discrete zoom level
           if (zoom < 0.) {
             zoom = 0.;
           }
