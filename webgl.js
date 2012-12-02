@@ -37,7 +37,7 @@ function init() {
     var vertShader = document.getElementById('vertexShader').innerHTML;
     var fragShader = document.getElementById('fragmentShader').innerHTML;
     var uniforms = {
-        pole: { type: "v2", value: new THREE.Vector2( 0.3, 1 ) },
+        texture1: { type: "t", value: tx }
     };
     var material = new THREE.ShaderMaterial({
             uniforms: uniforms,
@@ -158,6 +158,7 @@ function init2() {
     var vertShader = document.getElementById('vertexShader').innerHTML;
     var fragShader = document.getElementById('fragmentShader').innerHTML;
     var uniforms = {
+        pole: {type: 'v2', value: new THREE.Vector2(45, 45)}
     };
     var material = new THREE.ShaderMaterial({
             uniforms: uniforms,
@@ -176,24 +177,6 @@ function init2() {
     var scene = new THREE.Scene();
     scene.add(plane);
 
-
-    /*
-    plane.scale.set(100, 100, 1);
-    plane.updateMatrix();
-    plane.scale.set(100, 100, 1);
-    plane.updateMatrix();
-    */
-
-    //    plane.position.set(0.5, 0.5, 0);
-    //a.scale.set(100, 100, 1);
-
-    /*
-    plane.scale.set(10, 10, 1);
-    plane.scale.set(10, 10, 1);
-    plane.position.set(312, 312, 0);
-    plane.rotation.z = 45 * Math.PI / 180;
-    */
-
     // create wrapper object that contains three.js objects
     var three = {
         renderer: renderer,
@@ -203,6 +186,7 @@ function init2() {
     };
     
     var render = function(timestamp) {
+        uniforms.pole.value = new THREE.Vector2(45., 45 + 15*timestamp);
         three.renderer.render(three.scene, three.camera);
     }
 

@@ -34,9 +34,27 @@
         llr = vec2(atan(xyz.y, xyz.x), atan(xyz.z, length(vec2(xyz.x, xyz.y))));
     }
 
-    void main() {
-        vec2 rpole = radians(vec2(30, 0)); //radians(pole);
+    // remap lat/lon llr to llr_trans, shifting lat/lon 90,0 to coordinates of fake_pole
+    void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
+        vec2 rpole = radians(fake_pole);
+        vec3 xyz;
+        llr_to_xyz(llr, xyz);
 
+        float latrot = rpole.t - .5 * PI;
+        float lonrot = rpole.s;
+        vec3 trans_xyz = mat3( // second, shift (pole lat, 0) to (pole lat, pole lon)
+          cos(lonrot), sin(lonrot), 0,
+          -sin(lonrot), cos(lonrot), 0,
+          0, 0, 1
+        ) * mat3( // first, shift lat +90 to pole lat
+          cos(latrot), 0, sin(latrot),
+          0, 1, 0,
+          -sin(latrot), 0, cos(latrot)
+        ) * xyz;
+        xyz_to_llr(trans_xyz, llr_trans);
+    }
+
+    void main() {
         // projected mercator radians: lon:[-180:180] => x:[-pi, pi]
         vec2 merc_rad = (merc + vec2(-.5, 0)) * PI2;
         // geographic coordinates, radians
@@ -44,19 +62,7 @@
 
         // do pole transformation here
         vec2 abs_geo_rad;
-        vec3 xyz;
-        llr_to_xyz(geo_rad, xyz);
-        float latrot = .5 * PI - rpole.t;
-        vec3 trans_xyz = mat3(
-          cos(rpole.s), sin(rpole.s), 0,
-          -sin(rpole.s), cos(rpole.s), 0,
-          0, 0, 1
-        ) * mat3(
-          cos(latrot), 0, sin(latrot),
-          0, 1, 0,
-          -sin(latrot), 0, cos(latrot)
-        ) * xyz;
-        xyz_to_llr(trans_xyz, abs_geo_rad);
+        translate_pole(geo_rad, pole, abs_geo_rad);
 
         // projected mercator coordinates, radians
         vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + .25 * PI)));
