@@ -7,21 +7,48 @@
 <script src="webgl.js"></script>
 
 <script id="vertexShader" type="x-shader/x-vertex">
-    varying vec2 vUv;
+    varying vec2 merc;
 
     void main() {
-        vUv = uv;
-
-        gl_Position =   projectionMatrix * 
-                        modelViewMatrix * 
-                        vec4(position,1.0);
+        merc = uv;
+        gl_Position = projectionMatrix * 
+                      modelViewMatrix * 
+                      vec4(position, 1.0);
     }
 </script>
 <script id="fragmentShader" type="x-shader/x-fragment">
-    varying vec2 vUv;
+    #define PI  3.1415926535
+    #define PI2 6.2831853071
+
+    uniform vec2 pole;
+    varying vec2 merc;
 
     void main() {
-        gl_FragColor = vec4(1., vUv.s, vUv.t, 1.0); // Works; Displays Flat Color
+        vec2 merc_rad = (merc + vec2(-.5, 0)) * PI2;
+        vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - .5 * PI);
+
+        // do pole transformation here
+        vec2 abs_geo_rad = geo_rad;
+
+        vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + .25 * PI)));
+        mat3 merc_map_tx = mat3(
+          1./PI2, 0, 0,
+          0, -1./PI2, 0,
+          .5, .5, 1
+        );
+        vec2 abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.));
+        abs_map.x = mod(abs_map.x, 1.);
+
+        vec2 k = abs_map;
+
+        float z;
+        if (k.t < 0. || k.t > 1.) {
+          z = .7;
+        } else {
+          z = 1.;
+        }
+
+        gl_FragColor = vec4(z, k.s, k.t, 1.); // Works; Displays Flat Color
     }
 </script>
 
