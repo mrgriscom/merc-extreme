@@ -10,8 +10,8 @@ window.requestAnimFrame = (function(callback){
     })();
  
 function tile_url(x, y, z) {
-    return 'https://mts1.google.com/vt/lyrs=m&x=' + x + '&y=' + y + '&z=' + z;
-    //return 'https://khms1.google.com/kh/v=121&x=' + x + '&y=' + y + '&z=' + z;
+    //return 'https://mts1.google.com/vt/lyrs=m&x=' + x + '&y=' + y + '&z=' + z;
+    return 'https://khms1.google.com/kh/v=121&x=' + x + '&y=' + y + '&z=' + z;
 }
 
 function init() {
@@ -135,23 +135,91 @@ QuadGeometry = function(x0, y0, width, height) {
 };
 QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
 
+function mk_tex_test(size) {
+    var $tx = $('<canvas />');
+    $tx.attr('width', size);
+    $tx.attr('height', size);
+    $tx = $tx[0];
+    var ctx = $tx.getContext('2d');
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(0, 0, size, size);
+
+    var tx = new THREE.Texture($tx);
+    tx.needsUpdate = true;
+    return {tx: tx, ctx: ctx};
+}
+
+function tex_load_img(tx, ctx, size, z, x0, y0) {
+    var num = size / 256;
+    for (var y = 0; y < num; y++) {
+        for (var x = 0; x < num; x++) {
+            (function(x, y) {
+                var img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 256 * x, 256 * y);
+                    tx.needsUpdate = true;
+                };
+                img.crossOrigin = 'anonymous';
+                img.src = tile_url(x0 + x, y0 + y, z);
+            })(x, y);
+        }
+    }
+}
+
 function init2() {
+
+    var w = new Worker('worker.js');
+    w.addEventListener('message', function(e) {
+            console.log('worker result', e.data);
+        }, false);
+
     var W_PX = window.innerWidth;
     var H_PX = window.innerHeight;
     var ASPECT = W_PX / H_PX;
 
+    var SAMPLE_FREQ = 1/4.;
+    var SW_PX = Math.round(W_PX * SAMPLE_FREQ);
+    var SH_PX = Math.round(H_PX * SAMPLE_FREQ);
+
     var MERC_EXTENT_N = 2.5;
-    var MERC_EXTENT_S = 0.5;
+    var MERC_EXTENT_S = 2.5;
     var LON_OFFSET = 0;
 
     var MERC_EXTENT = MERC_EXTENT_S + MERC_EXTENT_N;
-    var LON_EXTENT = MERC_EXTENT / ASPECT;
+    var LON_EXTENT = 1; //MERC_EXTENT / ASPECT;
     var PX_SCALE = W_PX / MERC_EXTENT;
 
     var renderer = new THREE.WebGLRenderer();
+    var ctx = renderer.context;
+    console.log('max size', ctx.getParameter(ctx.MAX_TEXTURE_SIZE));
+    console.log('max #', ctx.getParameter(ctx.MAX_TEXTURE_IMAGE_UNITS));
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    var target = new THREE.WebGLRenderTarget(SW_PX, SH_PX);
+
+    stats = new Stats();
+    stats.domElement.style.position = 'absolute';
+    stats.domElement.style.top = '0px';
+    document.body.appendChild( stats.domElement );
+
     
+    var texes = [];
+    for (var k = 0; k < 16; k++) {
+        var tx = mk_tex_test(1024);
+        tx.tx.ctx = tx.ctx;
+        texes.push(tx.tx);
+    }
+    var X0 = .3;
+    var Y0 = .37;
+    $.each(texes, function(k, tx) {
+            var z = 2 + k;
+            var x0 = Math.max(Math.floor(X0 * Math.pow(2., z)) - 1, 0);
+            var y0 = Math.max(Math.floor(Y0 * Math.pow(2., z)) - 1, 0);
+            tex_load_img(tx, tx.ctx, 1024, z, x0, y0);
+            tx.needsUpdate = true;
+        });
+
     var camera = new THREE.OrthographicCamera(0, W_PX, H_PX, 0, -1, 1);
     console.log('w ' + W_PX + ' h ' + H_PX + ' aspect ' + ASPECT);
 
@@ -160,7 +228,8 @@ function init2() {
     var uniforms = {
         scale: {type: 'f', value: PX_SCALE},
         bias: {type: 'f', value: 1.},
-        pole: {type: 'v2', value: new THREE.Vector2(45, 45)}
+        pole: {type: 'v2', value: new THREE.Vector2(45, 45)},
+        txtest: {type: 'tv', value: texes}
     };
     var material = new THREE.ShaderMaterial({
             uniforms: uniforms,
@@ -187,12 +256,30 @@ function init2() {
         plane: plane
     };
     
+    var buff = new Uint8Array(SW_PX * SH_PX * 4);
+
+    var last = null;
+
     var render = function(timestamp) {
-        uniforms.pole.value = new THREE.Vector2(-72.59, 41.63 + 3.*timestamp);
+        uniforms.pole.value = new THREE.Vector2(-72.59, 41.63 +.005*timestamp);
         three.renderer.render(three.scene, three.camera);
+
+        if (last == null || timestamp - last > 0.1) {
+            three.renderer.render(three.scene, three.camera, target);
+            var gl = three.renderer.getContext();
+            gl.readPixels(0, 0, SW_PX, SH_PX, gl.RGBA, gl.UNSIGNED_BYTE, buff);
+            
+            w.postMessage(buff);
+
+            last = timestamp;
+            console.log(timestamp);
+        }
+
+        stats.update();
     }
 
     launch(render);
 
 
 }
+

@@ -5,6 +5,7 @@
 <script src="https://raw.github.com/mrdoob/three.js/master/build/three.js"></script>
 <script src="http://code.jquery.com/jquery-latest.min.js"></script>
 <script src="webgl.js"></script>
+<script src="http://mrdoob.github.com/three.js/examples/js/libs/stats.min.js"></script>
 
 <script id="vertexShader" type="x-shader/x-vertex">
     varying vec2 merc;
@@ -30,6 +31,8 @@
     // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
     varying vec2 merc;
 
+    uniform sampler2D txtest[16];
+
     void llr_to_xyz(in vec2 llr, out vec3 xyz) {
         xyz = vec3(cos(llr.s) * cos(llr.t), sin(llr.s) * cos(llr.t), sin(llr.t));
     }
@@ -47,6 +50,7 @@
 
         float latrot = rpole.t - .5 * PI;
         float lonrot = rpole.s;
+        //TODO could replace this matrix mult with a simple addition to lon
         vec3 trans_xyz = mat3( // second, shift (pole lat, 0) to (pole lat, pole lon)
           cos(lonrot), sin(lonrot), 0,
           -sin(lonrot), cos(lonrot), 0,
@@ -82,19 +86,6 @@
 
         bool oob = (abs_map.t < 0. || abs_map.t >= 1.);
 
-
-    /*
-        vec2 k = abs_map;
-        float z;
-        if (k.t < 0. || k.t > 1.) {
-          z = .7;
-        } else {
-          z = 1.;
-        }
-
-        gl_FragColor = vec4(z, k.s, k.t, 1.);
-*/
-
         if (oob) {
           gl_FragColor = vec4(.7, .7, .7, 1.);
         } else {
@@ -110,11 +101,55 @@
           if (zoom < 0.) {
             zoom = 0.;
           }
+                     
+          vec2 t = abs_map * pow(2., zoom);
+          vec2 k = vec2((mod(t.s / 4., 1.), mod((1. - t.t) / 4., 1.)));
 
-          float tx = floor(abs_map.s * pow(2., zoom));
-          float ty = floor(abs_map.t * pow(2., zoom));
+          float zz = mod(zoom, 16.);
 
-          gl_FragColor = vec4(.04 * zoom, mod(tx + ty, 2.), 0, 1);
+                     /*
+
+      if (zz == 0.) {
+        gl_FragColor = texture2D(txtest[0], k);
+      } else if (zz == 1.) {
+        gl_FragColor = texture2D(txtest[1], k);
+      } else if (zz == 2.) {
+        gl_FragColor = texture2D(txtest[2], k);
+      } else if (zz == 3.) {
+        gl_FragColor = texture2D(txtest[3], k);
+      } else if (zz == 4.) {
+        gl_FragColor = texture2D(txtest[4], k);
+      } else if (zz == 5.) {
+        gl_FragColor = texture2D(txtest[5], k);
+      } else if (zz == 6.) {
+        gl_FragColor = texture2D(txtest[6], k);
+      } else if (zz == 7.) {
+        gl_FragColor = texture2D(txtest[7], k);
+      } else if (zz == 8.) {
+        gl_FragColor = texture2D(txtest[8], k);
+      } else if (zz == 9.) {
+        gl_FragColor = texture2D(txtest[9], k);
+      } else if (zz == 10.) {
+        gl_FragColor = texture2D(txtest[10], k);
+      } else if (zz == 11.) {
+        gl_FragColor = texture2D(txtest[11], k);
+      } else if (zz == 12.) {
+        gl_FragColor = texture2D(txtest[12], k);
+      } else if (zz == 13.) {
+        gl_FragColor = texture2D(txtest[13], k);
+      } else if (zz == 14.) {
+        gl_FragColor = texture2D(txtest[14], k);
+      } else if (zz == 15.) {
+        gl_FragColor = texture2D(txtest[15], k);
+      }
+
+*/
+
+                     gl_FragColor = vec4(zoom / 256., 0., 0., 1.);
+
+       //   gl_FragColor = texture2D(txtest[0], vec2(mod(t.s / 4., 1.), mod((1. - t.t) / 4., 1.)));
+
+//          gl_FragColor = vec4(.04 * zoom, .75 * mod(tx + ty, 2.), .75 * mod(tx + ty, 2.), 1);
         }
 
     }
