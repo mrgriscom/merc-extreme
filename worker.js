@@ -6,10 +6,12 @@ self.addEventListener('message', function(e) {
     }, false);
 
 function process_buffer(buff) {
-    zooms = {};
+    tiles = {};
     for (var i = 0; i < buff.length; i += 4) {
         var z = buff[i];
-        zooms[z] = true;
+        var dx = buff[i + 1];
+        var dy = buff[i + 2];
+        tiles[z + ':' + dx + ':' + dy] = true;
     }
-    return zooms;
+    return tiles;
 }

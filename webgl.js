@@ -26,6 +26,14 @@ function launch(render) {
     requestAnimationFrame(cb);
 }
 
+function ll_to_xy(lat, lon) {
+    var x = lon / 360. + .5;
+    var rlat = lat * Math.PI / 180.;
+    var merc_y = Math.log(Math.tan(.5 * rlat + .25 * Math.PI));
+    var y = .5 - merc_y / (2. * Math.PI);
+    return {x: x, y: y};
+}
+
 QuadGeometry = function(x0, y0, width, height) {
 	THREE.Geometry.call(this);
     var g = this;
@@ -59,35 +67,8 @@ QuadGeometry = function(x0, y0, width, height) {
 };
 QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
 
-function mk_tex_test(size) {
-    var $tx = $('<canvas />');
-    $tx.attr('width', size);
-    $tx.attr('height', size);
-    $tx = $tx[0];
-    var ctx = $tx.getContext('2d');
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(0, 0, size, size);
-
-    var tx = new THREE.Texture($tx);
-    tx.needsUpdate = true;
-    return {tx: tx, ctx: ctx};
-}
-
-function tex_load_img(tx, ctx, size, z, x0, y0) {
-    var num = size / 256;
-    for (var y = 0; y < num; y++) {
-        for (var x = 0; x < num; x++) {
-            (function(x, y) {
-                var img = new Image();
-                img.onload = function() {
-                    ctx.drawImage(img, 256 * x, 256 * y);
-                    tx.needsUpdate = true;
-                };
-                img.crossOrigin = 'anonymous';
-                img.src = tile_url(x0 + x, y0 + y, z);
-            })(x, y);
-        }
-    }
+function loadShader(name) {
+    return $('#' + name).text();
 }
 
 function init2() {
@@ -147,12 +128,13 @@ function init2() {
     var camera = new THREE.OrthographicCamera(0, W_PX, H_PX, 0, -1, 1);
     console.log('w ' + W_PX + ' h ' + H_PX + ' aspect ' + ASPECT);
 
-    var vertShader = document.getElementById('vertexShader').innerHTML;
-    var fragShader = document.getElementById('fragmentShader').innerHTML;
+    var vertShader = loadShader('vertexShader');
+    var fragShader = loadShader('fragmentShader');
     var uniforms = {
         scale: {type: 'f', value: PX_SCALE},
         bias: {type: 'f', value: 1.},
-        pole: {type: 'v2', value: new THREE.Vector2(45, 45)},
+        pole: {type: 'v2', value: null},
+        pole_t: {type: 'v2', value: null},
         txtest: {type: 'tv', value: texes}
     };
     var material = new THREE.ShaderMaterial({
@@ -160,6 +142,12 @@ function init2() {
             vertexShader: vertShader,
             fragmentShader: fragShader
     });
+
+    var setPole = function(lat, lon) {
+        var t = ll_to_xy(lat, lon);
+        uniforms.pole.value = new THREE.Vector2(lon, lat);
+        uniforms.pole_t.value = new THREE.Vector2(t.x, t.y);
+    };
 
     var quad = new QuadGeometry(LON_OFFSET, -MERC_EXTENT_S, LON_EXTENT, MERC_EXTENT);
     
@@ -185,7 +173,7 @@ function init2() {
     var last = null;
 
     var render = function(timestamp) {
-        uniforms.pole.value = new THREE.Vector2(-72.59, 41.63 +.005*timestamp);
+        setPole(41.63 +.005*timestamp, -72.59);
         three.renderer.render(three.scene, three.camera);
 
         if (last == null || timestamp - last > 0.1) {
@@ -205,5 +193,45 @@ function init2() {
     launch(render);
 
 
+}
+
+
+
+
+
+
+
+
+
+
+function mk_tex_test(size) {
+    var $tx = $('<canvas />');
+    $tx.attr('width', size);
+    $tx.attr('height', size);
+    $tx = $tx[0];
+    var ctx = $tx.getContext('2d');
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(0, 0, size, size);
+
+    var tx = new THREE.Texture($tx);
+    tx.needsUpdate = true;
+    return {tx: tx, ctx: ctx};
+}
+
+function tex_load_img(tx, ctx, size, z, x0, y0) {
+    var num = size / 256;
+    for (var y = 0; y < num; y++) {
+        for (var x = 0; x < num; x++) {
+            (function(x, y) {
+                var img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 256 * x, 256 * y);
+                    tx.needsUpdate = true;
+                };
+                img.crossOrigin = 'anonymous';
+                img.src = tile_url(x0 + x, y0 + y, z);
+            })(x, y);
+        }
+    }
 }
 
