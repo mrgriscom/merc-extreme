@@ -68,13 +68,17 @@ function TextureLayer(context, tilefunc) {
     this.context = context;
     this.tilefunc = tilefunc;
 
+    /* if this is too low, there is a chance that visible tiles will be missed and
+       not loaded. how low you can get away with closely relates to how much buffer
+       zone is set in the tile cache
+    */
     var SAMPLE_FREQ = 1/4.;
-    var SW_PX = Math.round(this.context.width_px * SAMPLE_FREQ);
-    var SH_PX = Math.round(this.context.height_px * SAMPLE_FREQ);
-    this.target = new THREE.WebGLRenderTarget(SW_PX, SH_PX);
+    this.sample_width = Math.round(this.context.width_px * SAMPLE_FREQ);
+    this.sample_height = Math.round(this.context.height_px * SAMPLE_FREQ);
+    this.target = new THREE.WebGLRenderTarget(this.sample_width, this.sample_height, {format: THREE.RGBFormat});
+    this.target.generateMipmaps = false; // not working
 
     this.worker = new Worker('coverage-worker.js');
-    this.sampleBuff = new Uint8Array(SW_PX * SH_PX * 4);
 
     this.tex_z0;
     this.tex_atlas = [];
@@ -88,12 +92,15 @@ function TextureLayer(context, tilefunc) {
     }
 
     this.sample_coverage = function() {
-        this.context.renderer.render(this.context.scene, this.context.camera, this.target);
-        this.context.glContext.readPixels(0, 0, SW_PX, SH_PX, gl.RGBA, gl.UNSIGNED_BYTE, this.sampleBuff);            
-        this.worker.postMessage(this.sampleBuff);
+        if (!this.sampleBuff) {
+            this.sampleBuff = new Uint8Array(this.sample_width * this.sample_height * 4);
+        }
 
-        last = timestamp;
-        console.log(timestamp);
+        var gl = this.context.glContext;
+        this.context.renderer.render(this.context.scene, this.context.camera, this.target);
+        gl.readPixels(0, 0, this.sample_width, this.sample_height, gl.RGBA, gl.UNSIGNED_BYTE, this.sampleBuff); // RGBA required by spec
+        this.worker.postMessage(this.context.pole_t);
+        this.worker.postMessage(this.sampleBuff);
     }
 
     this.sample_coverage_postprocess = function(data) {
@@ -160,7 +167,18 @@ function TextureLayer(context, tilefunc) {
 
     }
 
+    this.sampler_material = function() {
+        return new THREE.ShaderMaterial({
+                uniforms: this.uniforms,
+                vertexShader: configureShader(vertex_shader),
+                fragmentShader: configureShader(fragment_shader, {MODE_TILE: null})
+            });
+    }
+
     this.init();
+    this._material = this.material();
+    this._sampler_material = this.sampler_material();
+
 }
 
 function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, extentS, lonOffset, lonExtent) {
@@ -197,39 +215,34 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
-        this.layer = new TextureLayer(this, tile_url('map'));
+        this.layer = new TextureLayer(this, tile_url('sat'));
 
-        var plane = new THREE.Mesh(quad, this.layer.material());
+        this.plane = new THREE.Mesh(quad, this.layer._material);
 
         this.scene = new THREE.Scene();
-        this.scene.add(plane);
+        this.scene.add(this.plane);
     }
 
-    var last = null;
     this.render = function(timestamp) {
         this.setPole(41.63 +.05*timestamp, -72.59 + 0.02*timestamp);
         this.renderer.render(this.scene, this.camera);
 
-        /*
-        if (last == null || timestamp - last > 0.1) {
-            three.renderer.render(three.scene, three.camera, target);
-            var gl = three.renderer.getContext();
-            gl.readPixels(0, 0, SW_PX, SH_PX, gl.RGBA, gl.UNSIGNED_BYTE, buff);
-            
-            w.postMessage(buff);
-
-            last = timestamp;
-            console.log(timestamp);
+        var sample_freq = 0.1;
+        if (this.last_sampling == null || timestamp - this.last_sampling > sample_freq) {
+            this.plane.material = this.layer._sampler_material;
+            this.layer.sample_coverage();
+            this.plane.material = this.layer._material;
+            this.last_sampling = timestamp;
         }
-        */
 
         _stats.update();
     }
 
     this.setPole = function(lat, lon) {
-        var t = ll_to_xy(lat, lon);
+        this.pole = [lat, lon];
+        this.pole_t = ll_to_xy(lat, lon);
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
-        this.layer.uniforms.pole_t.value = new THREE.Vector2(t.x, t.y);
+        this.layer.uniforms.pole_t.value = new THREE.Vector2(this.pole_t.x, this.pole_t.y);
     };
 
 
@@ -283,8 +296,8 @@ function tex_load_img(urlfunc, tx, ctx, size, z, x0, y0) {
 
 function tile_url(type) {
     return {
-        map: function(z, x, y) { return 'https://mts1.google.com/vt/lyrs=m&x=' + x + '&y=' + y + '&z=' + z; },
-        sat: function(z, x, y) { return 'https://khms1.google.com/kh/v=123&x=' + x + '&y=' + y + '&z=' + z; },
+        map: function(z, x, y) { return 'https://mts' + ((x + y) % 4) + '.google.com/vt/lyrs=m&x=' + x + '&y=' + y + '&z=' + z; },
+        sat: function(z, x, y) { return 'https://khms' + ((x + y) % 4) + '.google.com/kh/v=123&x=' + x + '&y=' + y + '&z=' + z; },
     }[type];
 }
 
