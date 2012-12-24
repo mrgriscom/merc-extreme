@@ -30,7 +30,9 @@ function process_buffer(buff) {
         }
         var x = (buff[i + 1] - 128) + pole_tile.x;
         var y = (buff[i + 2] - 128) + pole_tile.y;
-        tiles[z + ':' + x + ':' + y] = true;
+        var anti = (z >= 64 ? 1 : 0);
+        z = z % 64;
+        tiles[anti + ':' + z + ':' + x + ':' + y] = true;
     }
     return tiles;
 }

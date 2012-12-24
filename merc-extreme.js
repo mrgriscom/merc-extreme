@@ -110,18 +110,27 @@ function TextureLayer(context, tilefunc) {
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
+        for (var i = 0; i < 30; i++) {
+            for (var j = 0; j < 2; j++) {
+                ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
+                ctx.fillRect(32 * i, 32 * j, 32, 32);
+            }
+        }
+
+        var count = 0;
         $.each(data, function(k, v) {
                 var pcs = k.split(':');
-                var z = +pcs[0];
-                var anti = z >= 64;
-                z = z % 64;
-                
-                var dx = +pcs[1] - 128;
-                var dy = +pcs[2] - 128;
+                var anti = +pcs[0];
+                var z = +pcs[1];
+                var dx = pcs[2] % 32;
+                var dy = pcs[3] % 32;
                 
                 ctx.fillStyle = 'white';
-                ctx.fillRect(32 * (z + .5) + dx, 32 * ((anti ? 1 : 0) + .5) + dy, 1, 1);
+                ctx.fillRect(32 * z + dx, 32 * ((anti ? 1 : 0)) + dy, 1, 1);
+
+                count++;
             });
+        console.log(count);
     }
 
     this.material = function() {
@@ -215,7 +224,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
-        this.layer = new TextureLayer(this, tile_url('sat'));
+        this.layer = new TextureLayer(this, tile_url('map'));
 
         this.plane = new THREE.Mesh(quad, this.layer._material);
 
