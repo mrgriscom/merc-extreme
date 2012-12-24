@@ -1,28 +1,3 @@
-<html>
-<head>
-<title>webgl demo</title>
-
-<script src="lib/three.js"></script>
-<script src="lib/jquery-latest.min.js"></script>
-<script src="webgl.js"></script>
-<script src="lib/stats.min.js"></script>
-
-<script id="vertexShader" type="x-shader/x-vertex">
-
-varying vec2 merc;
-
-void main() {
-    merc = uv;
-    gl_Position = projectionMatrix * 
-                  modelViewMatrix * 
-                  vec4(position, 1.0);
-}
-
-</script>
-<script id="fragmentShader" type="x-shader/x-fragment">
-
-#define MODE_TILE
-
 #define PI  3.1415926535
 #define PI2 6.2831853071
 
@@ -34,7 +9,7 @@ uniform float bias;   // overzoom is capped at 2^bias
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
 
 uniform sampler2D txtest[16];
-  
+
 void llr_to_xyz(in vec2 llr, out vec3 xyz) {
     xyz = vec3(cos(llr.s) * cos(llr.t), sin(llr.s) * cos(llr.t), sin(llr.t));
 }
@@ -107,7 +82,7 @@ void main() {
         }
 
         vec2 pole_tile = floor(pole_t2 * pow(2., z));
-        tile_enc = tile - pole_tile + 128.;
+        tile_enc = (tile - pole_tile) + 128.;
     }
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
@@ -116,18 +91,31 @@ void main() {
 
 #ifdef MODE_TEX
 
-          float zoom = ceil(fzoom); // round to a discrete zoom level
-          if (zoom < 0.) {
-            zoom = 0.;
-          }
-                     
-          vec2 t = abs_map * pow(2., zoom);
-          vec2 k = vec2((mod(t.s / 4., 1.), mod((1. - t.t) / 4., 1.)));
+    // TODO maybe: blending across zoom level transitions
 
-        if (out_of_bounds) {
-          gl_FragColor = vec4(.7, .7, .7, 1.);
-        } else {
-          float zz = mod(zoom, 16.);
+    float z = ceil(fzoom);
+    z = max(z, 0.); // TODO mipmap for zoom level 0 (-z is lod)
+
+    vec2 tile = floor(abs_map * pow(2., z));
+
+    // TODO want to support linear blending -- means must be incorporated into tile cache texture
+    if (out_of_bounds) {
+        gl_FragColor = vec4(1, 0, 0, 1);
+    } else {
+     
+//combine z+antipode into a cell index
+//inside cell, deref dx,dy on indirection texture
+
+/*
+texid 4 bits
+cellx 5 bits
+celly 5 bits
+zoffset 5 bits
+*/
+
+          vec2 k = vec2((mod(tile.s / 4., 1.), mod((1. - tile.t) / 4., 1.)));
+
+          float zz = mod(z, 16.);
 
       if (zz == 0.) {
         gl_FragColor = texture2D(txtest[0], k);
@@ -163,30 +151,8 @@ void main() {
         gl_FragColor = texture2D(txtest[15], k);
       }
 
-   }
-
+    }
 #endif
 
 }
 
-</script>
-
-<script>
-
-$(document).ready(init2);
-
-</script>
-
-</head>
-<body>
-
-<style>
-
-body {
-  margin: 0;
-}
-
-</style>
-
-</body>
-</html>
