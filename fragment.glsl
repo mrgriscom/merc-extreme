@@ -1,5 +1,6 @@
 #define PI  3.1415926535
 #define PI2 6.2831853071
+#define TILE_SIZE 256.
 
 uniform vec2 pole;    // lat/lon degrees
 uniform vec2 pole_t;  // maptile coordinates
@@ -57,7 +58,7 @@ void main() {
 
     // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
     float base_distortion = cos(abs_geo_rad.t);
-    float base_res = PI2 / 256. * base_distortion; // radians per pixel offered by the lowest zoom layer
+    float base_res = PI2 / TILE_SIZE * base_distortion; // radians per pixel offered by the lowest zoom layer
     float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
 
 #ifdef MODE_TILE
@@ -96,7 +97,9 @@ void main() {
     float z = ceil(fzoom);
     z = max(z, 0.); // TODO mipmap for zoom level 0 (-z is lod)
 
-    vec2 tile = floor(abs_map * pow(2., z));
+    vec2 abs_map_z = abs_map * pow(2., z);
+    vec2 tile = floor(abs_map_z);
+    vec2 tile_p = mod(abs_map_z, 1.);
 
     // TODO want to support linear blending -- means must be incorporated into tile cache texture
     if (out_of_bounds) {
@@ -113,7 +116,7 @@ celly 5 bits
 zoffset 5 bits
 */
 
-          vec2 k = vec2((mod(tile.s / 4., 1.), mod((1. - tile.t) / 4., 1.)));
+        vec2 k = vec2(tile_p.s, 1. - tile_p.t);
 
           float zz = mod(z, 16.);
 

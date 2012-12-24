@@ -223,11 +223,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
     this.setPole = function(lat, lon) {
         var t = ll_to_xy(lat, lon);
-        debugger;
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
         this.layer.uniforms.pole_t.value = new THREE.Vector2(t.x, t.y);
-        console.log(this.layer.uniforms.pole.value);
-        console.log(this.layer.uniforms.pole_t.value);
     };
 
 
