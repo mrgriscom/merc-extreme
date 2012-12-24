@@ -116,7 +116,7 @@ celly 5 bits
 zoffset 5 bits
 */
 
-        vec2 k = vec2(tile_p.s, 1. - tile_p.t);
+        vec2 k = vec2(mod(tile.s + tile_p.s, 4.) / 4., mod(-tile.t - tile_p.t, 4.) / 4.);
 
           float zz = mod(z, 16.);
 

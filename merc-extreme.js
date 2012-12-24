@@ -126,6 +126,11 @@ function TextureLayer(context, tilefunc) {
         for (var k = 0; k < 16; k++) {
             var tx = mk_tex_test(1024);
             tx.tx.ctx = tx.ctx;
+
+            tx.tx.generateMipmaps = false;
+            tx.tx.magFilter = THREE.LinearFilter;
+            tx.tx.minFilter = THREE.LinearFilter;
+
             texes.push(tx.tx);
         }
         var X0 = .3;
@@ -202,7 +207,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
     var last = null;
     this.render = function(timestamp) {
-        this.setPole(41.63 +.05*timestamp, -72.59 + 0*timestamp);
+        this.setPole(41.63 +.05*timestamp, -72.59 + 0.02*timestamp);
         this.renderer.render(this.scene, this.camera);
 
         /*
