@@ -2,6 +2,12 @@ var _stats;
 var vertex_shader;
 var fragment_shader;
 
+var MAX_ZOOM = 22; // max zoom level to attempt to fetch image tiles
+// size of the texture index for a single zoom level; the maximum visible area
+// at a single zoom level should never span more than half this number of tiles
+var TEX_Z_IX_SIZE = 64;
+var TEX_IX_SIZE = 512; // overall size of the texture index texture; should be >= sqrt(2 * MAX_ZOOM) * TEX_Z_IX_SIZE
+
 function init() {
     vertex_shader = loadShader('vertex-default');
     fragment_shader = loadShader('fragment');
@@ -63,6 +69,29 @@ QuadGeometry = function(x0, y0, width, height) {
 };
 QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
 
+function TexBuffer(size, texopts) {
+    this.size = size;
+
+    var $tx = $('<canvas />');
+    $tx.attr('width', size);
+    $tx.attr('height', size);
+    this.$tx = $tx[0];
+
+    this.ctx = this.$tx.getContext('2d');
+
+    this.tx = new THREE.Texture(this.$tx);
+    var texbuf = this;
+    $.each(texopts || {}, function(k, v) {
+            texbuf.tx[k] = v;
+        });
+    this.tx.needsUpdate = true;
+
+    this.update = function(draw) {
+        draw(this.ctx, this.size, this.size);
+        this.tx.needsUpdate = true;
+    }
+}
+
 function TextureLayer(context, tilefunc) {
 
     this.context = context;
@@ -76,7 +105,7 @@ function TextureLayer(context, tilefunc) {
     this.sample_width = Math.round(this.context.width_px * SAMPLE_FREQ);
     this.sample_height = Math.round(this.context.height_px * SAMPLE_FREQ);
     this.target = new THREE.WebGLRenderTarget(this.sample_width, this.sample_height, {format: THREE.RGBFormat});
-    this.target.generateMipmaps = false; // not working
+    this.target.generateMipmaps = false;
 
     this.worker = new Worker('coverage-worker.js');
 
@@ -104,33 +133,53 @@ function TextureLayer(context, tilefunc) {
     }
 
     this.sample_coverage_postprocess = function(data) {
-        console.log('worker result', data);
-        var canvas = $('#tileovl')[0];
-        var ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        //debug overlay
+        (function() {
+            console.log('worker result', data);
+            var canvas = $('#tileovl')[0];
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        for (var i = 0; i < 30; i++) {
-            for (var j = 0; j < 2; j++) {
-                ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
-                ctx.fillRect(32 * i, 32 * j, 32, 32);
+            for (var i = 0; i < 30; i++) {
+                for (var j = 0; j < 2; j++) {
+                    ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
+                    ctx.fillRect(32 * i, 32 * j, 32, 32);
+                }
             }
-        }
 
-        var count = 0;
-        $.each(data, function(k, v) {
-                var pcs = k.split(':');
-                var anti = +pcs[0];
-                var z = +pcs[1];
-                var dx = pcs[2] % 32;
-                var dy = pcs[3] % 32;
-                
-                ctx.fillStyle = 'white';
-                ctx.fillRect(32 * z + dx, 32 * ((anti ? 1 : 0)) + dy, 1, 1);
+            var count = 0;
+            $.each(data, function(k, v) {
+                    var pcs = k.split(':');
+                    var anti = +pcs[0];
+                    var z = +pcs[1];
+                    var dx = pcs[2] % 32;
+                    var dy = pcs[3] % 32;
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(32 * z + dx, 32 * ((anti ? 1 : 0)) + dy, 1, 1);
+                    
+                    count++;
+                });
+            console.log(count);
+        })();
 
-                count++;
-            });
-        console.log(count);
+        /*
+
+          iterate through each tile
+          does tile already exist in the texture cache?
+          if not:
+            create js image object with onload handler. if in cache, will 'load' immediately
+            onload, find an available slot
+            if no slot available, find an occupied slot whose tile is no longer needed (LRU). use this slot
+            if no such slot, abort for now (future: add new texture buffer)
+            load image into texture slot (todo: skirt) .. set tex needsupdate / gl texupdatesubimage
+
+            set loc in lookup texture and update
+            cell and z-level offset -- if range spills, copy over and update offset
+            
+         */
+
     }
 
     this.material = function() {
@@ -140,23 +189,21 @@ function TextureLayer(context, tilefunc) {
         //debug stuff
         var texes = [];
         for (var k = 0; k < 16; k++) {
-            var tx = mk_tex_test(1024);
-            tx.tx.ctx = tx.ctx;
+            var texbuf = new TexBuffer(1024, {
+                    generateMipmaps: false,
+                    magFilter: THREE.LinearFilter,
+                    minFilter: THREE.LinearFilter,
+                });
 
-            tx.tx.generateMipmaps = false;
-            tx.tx.magFilter = THREE.LinearFilter;
-            tx.tx.minFilter = THREE.LinearFilter;
-
-            texes.push(tx.tx);
+            texes.push(texbuf);
         }
         var X0 = .3;
         var Y0 = .37;
-        $.each(texes, function(k, tx) {
+        $.each(texes, function(k, tb) {
                 var z = 2 + k;
                 var x0 = Math.max(Math.floor(X0 * Math.pow(2., z)) - 1, 0);
                 var y0 = Math.max(Math.floor(Y0 * Math.pow(2., z)) - 1, 0);
-                tex_load_img(tex.tilefunc, tx, tx.ctx, 1024, z, x0, y0);
-                tx.needsUpdate = true;
+                tex_load_img(tex.tilefunc, tb, z, x0, y0);
             });
         ////
 
@@ -166,7 +213,7 @@ function TextureLayer(context, tilefunc) {
             bias: {type: 'f', value: 1.},
             pole: {type: 'v2', value: null},
             pole_t: {type: 'v2', value: null},
-            txtest: {type: 'tv', value: texes}
+            txtest: {type: 'tv', value: $.map(texes, function(e) { return e.tx; })}
         };
         return new THREE.ShaderMaterial({
                 uniforms: this.uniforms,
@@ -270,29 +317,16 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
 
 
-function mk_tex_test(size) {
-    var $tx = $('<canvas />');
-    $tx.attr('width', size);
-    $tx.attr('height', size);
-    $tx = $tx[0];
-    var ctx = $tx.getContext('2d');
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(0, 0, size, size);
-
-    var tx = new THREE.Texture($tx);
-    tx.needsUpdate = true;
-    return {tx: tx, ctx: ctx};
-}
-
-function tex_load_img(urlfunc, tx, ctx, size, z, x0, y0) {
-    var num = size / 256;
+function tex_load_img(urlfunc, texbuf, z, x0, y0) {
+    var num = texbuf.size / 256;
     for (var y = 0; y < num; y++) {
         for (var x = 0; x < num; x++) {
             (function(x, y) {
                 var img = new Image();
                 img.onload = function() {
-                    ctx.drawImage(img, 256 * x, 256 * y);
-                    tx.needsUpdate = true;
+                    texbuf.update(function(ctx, w, h) {
+                            ctx.drawImage(img, 256 * x, 256 * y);
+                        });
                 };
                 img.crossOrigin = 'anonymous';
                 img.src = urlfunc(z, x0 + x, y0 + y);
