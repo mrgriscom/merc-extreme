@@ -9,7 +9,8 @@ uniform float bias;   // overzoom is capped at 2^bias
 
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
 
-uniform sampler2D txtest[16];
+uniform sampler2D tx_ix;
+uniform sampler2D tx_atlas[1];
 
 void llr_to_xyz(in vec2 llr, out vec3 xyz) {
     xyz = vec3(cos(llr.s) * cos(llr.t), sin(llr.s) * cos(llr.t), sin(llr.t));
@@ -116,43 +117,17 @@ celly 5 bits
 zoffset 5 bits
 */
 
-        vec2 k = vec2(mod(tile.s + tile_p.s, 4.) / 4., mod(-tile.t - tile_p.t, 4.) / 4.);
+        vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+63.) + .5) / 512.);
+        vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+62.) + .5) / 512.);
+        vec2 offset = vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
+                           256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
 
-          float zz = mod(z, 16.);
+        vec4 slot_enc = texture2D(tx_ix, (64. * vec2(mod(z, 8.), floor(z / 8.) + 4. * float(anti_pole)) - 32. * offset + tile + .5) / 512.);
+        int slot_x = int(255. * slot_enc.g);
+        int slot_y = int(255. * slot_enc.b);
+        vec2 atlas_p = (vec2(slot_x, slot_y) + tile_p) / 16.;
 
-      if (zz == 0.) {
-        gl_FragColor = texture2D(txtest[0], k);
-      } else if (zz == 1.) {
-        gl_FragColor = texture2D(txtest[1], k);
-      } else if (zz == 2.) {
-        gl_FragColor = texture2D(txtest[2], k);
-      } else if (zz == 3.) {
-        gl_FragColor = texture2D(txtest[3], k);
-      } else if (zz == 4.) {
-        gl_FragColor = texture2D(txtest[4], k);
-      } else if (zz == 5.) {
-        gl_FragColor = texture2D(txtest[5], k);
-      } else if (zz == 6.) {
-        gl_FragColor = texture2D(txtest[6], k);
-      } else if (zz == 7.) {
-        gl_FragColor = texture2D(txtest[7], k);
-      } else if (zz == 8.) {
-        gl_FragColor = texture2D(txtest[8], k);
-      } else if (zz == 9.) {
-        gl_FragColor = texture2D(txtest[9], k);
-      } else if (zz == 10.) {
-        gl_FragColor = texture2D(txtest[10], k);
-      } else if (zz == 11.) {
-        gl_FragColor = texture2D(txtest[11], k);
-      } else if (zz == 12.) {
-        gl_FragColor = texture2D(txtest[12], k);
-      } else if (zz == 13.) {
-        gl_FragColor = texture2D(txtest[13], k);
-      } else if (zz == 14.) {
-        gl_FragColor = texture2D(txtest[14], k);
-      } else if (zz == 15.) {
-        gl_FragColor = texture2D(txtest[15], k);
-      }
+        gl_FragColor = texture2D(tx_atlas[0], vec2(atlas_p.s, 1. - atlas_p.t));
 
     }
 #endif
