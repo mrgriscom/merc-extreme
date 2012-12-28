@@ -113,6 +113,7 @@ function TextureLayer(context, tilefunc) {
     var ATLAS_TEX_SIZE = 4096;
     this.tex_z0;
     this.tex_atlas = [new TexBuffer(ATLAS_TEX_SIZE, {
+                // want to mipmap, but it causes creases
                 generateMipmaps: false,
                 magFilter: THREE.LinearFilter,
                 minFilter: THREE.LinearFilter,
@@ -319,7 +320,7 @@ function TextureLayer(context, tilefunc) {
 
         this.uniforms = {
             scale: {type: 'f', value: this.context.scale_px},
-            bias: {type: 'f', value: 1.},
+            bias: {type: 'f', value: 1.}, //1.
             pole: {type: 'v2', value: null},
             pole_t: {type: 'v2', value: null},
             tx_ix: {type: 't', value: this.tex_index.tx},
@@ -413,7 +414,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
-        this.layer = new TextureLayer(this, tile_url('sat'));
+        this.layer = new TextureLayer(this, tile_url('osm'));
 
         this.plane = new THREE.Mesh(quad, this.layer._material);
 
@@ -422,7 +423,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     }
 
     this.render = function(timestamp) {
-        this.setPole(41.63 +.000005*timestamp, -72.59 + 0.000002*timestamp);
+        this.setPole(41.63 + .1 * Math.cos(.05*timestamp), -72.59 + .1 / .7 * Math.sin(.05*timestamp));
+        //this.layer.uniforms.bias.value = 0.5 + 1.5*Math.cos(timestamp);
         this.renderer.render(this.scene, this.camera);
 
         var sample_freq = 0.1;
@@ -482,10 +484,13 @@ function tex_load_img(urlfunc, texbuf, z, x0, y0) {
 //=== TILE SERVICES ===
 
 function tile_url(type) {
-    return {
-        map: function(z, x, y) { return 'https://mts' + ((x + y) % 4) + '.google.com/vt/lyrs=m&x=' + x + '&y=' + y + '&z=' + z; },
-        sat: function(z, x, y) { return 'https://khms' + ((x + y) % 4) + '.google.com/kh/v=123&x=' + x + '&y=' + y + '&z=' + z; },
-    }[type];
+    var specs = {
+        map: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        sat: 'https://khms{s:0-3}.google.com/kh/v=123&x={x}&y={y}&z={z}',
+        terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+        osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    };
+    return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
 }
 
 //=== UTIL ===
@@ -534,4 +539,61 @@ function renderLoop(render) {
         requestAnimationFrame(cb);
     }
     requestAnimationFrame(cb);
+}
+
+
+
+
+
+
+
+
+
+function _tile_url(spec, zoom, point) {
+    var replace = function(key, sub) {
+        spec = spec.replace(new RegExp('{' + key + '(:[^}]+)?}', 'g'), function(match, submatch) {
+                return sub(submatch == null || submatch.length == 0 ? null : submatch.substring(1));
+            });
+    }
+
+    replace('z', function() { return zoom; });
+    replace('x', function() { return point.x; });
+    replace('y', function() { return point.y; });
+    replace('-y', function() { return Math.pow(2, zoom) - 1 - point.y; });
+    replace('s', function(arg) {
+            var k = point.x + point.y;
+            if (arg.indexOf('-') == -1) {
+                return arg.split('')[k % arg.length];
+            } else {
+                var bounds = arg.split('-');
+                var min = +bounds[0];
+                var max = +bounds[1];
+                return min + k % (max - min + 1);
+            }
+        });
+    replace('qt', function(arg) {
+            var bin_digit = function(h, i) {
+                return Math.floor(h / Math.pow(2, i) % 2);
+            }
+
+            var qt = '';
+            for (var i = zoom - 1; i >= 0; i--) {
+                var q = 2 * bin_digit(point.y, i) + bin_digit(point.x, i);
+                qt += (arg != null ? arg[q] : q);
+            }
+            return qt;
+        });
+    replace('custom', function(arg) {
+            // note: this blocks the browser due to need for synchronous request to server
+            var url = null;
+            $.ajax('/tileurl/' + arg + '/' + zoom + '/' + point.x + ',' + point.y, {
+                    success: function(data) {
+                        url = data;
+                    },
+                    async: false
+                });
+            return url;
+        });
+
+    return spec;
 }
