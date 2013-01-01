@@ -127,7 +127,7 @@ zoffset 5 bits
         int slot_y = int(255. * slot_enc.b);
         vec2 atlas_p = (vec2(slot_x, slot_y) + tile_p) / 16.;
 
-        gl_FragColor = texture2D(tx_atlas[0], vec2(atlas_p.s, 1. - atlas_p.t));
+        gl_FragColor = texture2D(tx_atlas[0], atlas_p);
 
     }
 #endif

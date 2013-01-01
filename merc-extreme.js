@@ -25,7 +25,6 @@ function init() {
 }
 
 
-
  
 
 
@@ -87,9 +86,22 @@ function TexBuffer(size, texopts) {
         });
     this.tx.needsUpdate = true;
 
+    this.incrUpdates = [];
+    var texbuf = this;
+    this.tx.incrementalUpdate = function(updatefunc) {
+        $.each(texbuf.incrUpdates, function(i, e) {
+                updatefunc(e.img, e.xo, e.yo);
+            });
+        texbuf.incrUpdates = [];
+    }
+
     this.update = function(draw) {
         draw(this.ctx, this.size, this.size);
         this.tx.needsUpdate = true;
+    }
+
+    this.incrementalUpdate = function(image, xo, yo) {
+        this.incrUpdates.push({img: image, xo: xo, yo: yo});
     }
 }
 
@@ -117,11 +129,13 @@ function TextureLayer(context, tilefunc) {
                 generateMipmaps: false,
                 magFilter: THREE.LinearFilter,
                 minFilter: THREE.LinearFilter,
+                flipY: false,
             })];
     this.tex_index = new TexBuffer(TEX_IX_SIZE, {
             generateMipmaps: false,
             magFilter: THREE.NearestFilter,
             minFilter: THREE.NearestFilter,
+            flipY: false,
         });
 
     //debug
@@ -218,7 +232,7 @@ function TextureLayer(context, tilefunc) {
 
         $.each(tiles, function(i, tile) {
                 //debug to reduce bandwidth (high zoom levels move out of view too fast)
-                if (tile.z > 15) {
+                if (tile.z > 16) {
                     return;
                 }
 
@@ -268,9 +282,7 @@ function TextureLayer(context, tilefunc) {
                         }
 
                         console.log('loading', tilekey(tile));
-                        layer.tex_atlas[slot.tex].update(function(ctx, w, h) {
-                                ctx.drawImage(img, TILE_SIZE * slot.x, TILE_SIZE * slot.y);
-                            });
+                        layer.tex_atlas[slot.tex].incrementalUpdate(img, TILE_SIZE * slot.x, TILE_SIZE * slot.y);
                         ix_entry.slot = slot;
                         layer.slot_index[slot.tex + ':' + slot.x + ':' + slot.y] = true;
 
@@ -313,13 +325,13 @@ function TextureLayer(context, tilefunc) {
                 buf.data[1] = xo % 256;
                 buf.data[2] = 0;
                 buf.data[3] = 255;
-                ctx.putImageData(buf, px, h - 1 - py);
+                ctx.putImageData(buf, px, py);
 
                 buf.data[0] = Math.floor(yo / 256.);
                 buf.data[1] = yo % 256;
                 buf.data[2] = 0;
                 buf.data[3] = 255;
-                ctx.putImageData(buf, px, h - 1 - (py - 1));
+                ctx.putImageData(buf, px, py - 1);
             });
     }
 
@@ -337,7 +349,7 @@ function TextureLayer(context, tilefunc) {
                 buf.data[1] = slot.x;
                 buf.data[2] = slot.y;
                 buf.data[3] = 255;
-                ctx.putImageData(buf, px, h - 1 - py);
+                ctx.putImageData(buf, px, py);
             });
     }
 
@@ -423,6 +435,35 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     this.renderer = new THREE.WebGLRenderer();
     this.glContext = this.renderer.getContext();
 
+    // monkeypatch to support tex update sub-image
+    var _setTexture = this.renderer.setTexture;
+    this.renderer.setTexture = function(texture, slot) {
+        _setTexture(texture, slot);
+
+        if (texture.incrementalUpdate) {
+            var renderer = this;
+            var _gl = this.getContext();
+
+            var glFormat = paramThreeToGL(texture.format, _gl);
+            var glType = paramThreeToGL(texture.type, _gl);
+
+            var first = true;
+            var updatefunc = function(image, xoffset, yoffset) {
+                if (first) {
+                    // texture should already be bound from default setTexture behavior
+
+                    _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, texture.flipY);
+                    _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, texture.premultiplyAlpha);
+
+                    first = false;
+                }
+                
+                _gl.texSubImage2D(_gl.TEXTURE_2D, 0, xoffset, yoffset, glFormat, glType, image);
+            };
+
+            texture.incrementalUpdate(updatefunc);
+        }
+    }
 
     this.init = function() {
         console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect);
@@ -441,7 +482,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
-        this.layer = new TextureLayer(this, tile_url('sat'));
+        this.layer = new TextureLayer(this, tile_url('map'));
 
         this.plane = new THREE.Mesh(quad, this.layer._material);
 
@@ -613,3 +654,65 @@ function _tile_url(spec, zoom, point) {
 
     return spec;
 }
+
+
+
+
+
+
+
+
+
+// couldn't get a reference to this function inside the three.js code; copied
+function paramThreeToGL (p, _gl) {
+
+    if ( p === THREE.RepeatWrapping ) return _gl.REPEAT;
+    if ( p === THREE.ClampToEdgeWrapping ) return _gl.CLAMP_TO_EDGE;
+    if ( p === THREE.MirroredRepeatWrapping ) return _gl.MIRRORED_REPEAT;
+    
+    if ( p === THREE.NearestFilter ) return _gl.NEAREST;
+    if ( p === THREE.NearestMipMapNearestFilter ) return _gl.NEAREST_MIPMAP_NEAREST;
+    if ( p === THREE.NearestMipMapLinearFilter ) return _gl.NEAREST_MIPMAP_LINEAR;
+    
+    if ( p === THREE.LinearFilter ) return _gl.LINEAR;
+    if ( p === THREE.LinearMipMapNearestFilter ) return _gl.LINEAR_MIPMAP_NEAREST;
+    if ( p === THREE.LinearMipMapLinearFilter ) return _gl.LINEAR_MIPMAP_LINEAR;
+    
+    if ( p === THREE.UnsignedByteType ) return _gl.UNSIGNED_BYTE;
+    if ( p === THREE.UnsignedShort4444Type ) return _gl.UNSIGNED_SHORT_4_4_4_4;
+    if ( p === THREE.UnsignedShort5551Type ) return _gl.UNSIGNED_SHORT_5_5_5_1;
+    if ( p === THREE.UnsignedShort565Type ) return _gl.UNSIGNED_SHORT_5_6_5;
+    
+    if ( p === THREE.ByteType ) return _gl.BYTE;
+    if ( p === THREE.ShortType ) return _gl.SHORT;
+    if ( p === THREE.UnsignedShortType ) return _gl.UNSIGNED_SHORT;
+    if ( p === THREE.IntType ) return _gl.INT;
+    if ( p === THREE.UnsignedIntType ) return _gl.UNSIGNED_INT;
+    if ( p === THREE.FloatType ) return _gl.FLOAT;
+    
+    if ( p === THREE.AlphaFormat ) return _gl.ALPHA;
+    if ( p === THREE.RGBFormat ) return _gl.RGB;
+    if ( p === THREE.RGBAFormat ) return _gl.RGBA;
+    if ( p === THREE.LuminanceFormat ) return _gl.LUMINANCE;
+    if ( p === THREE.LuminanceAlphaFormat ) return _gl.LUMINANCE_ALPHA;
+    
+    if ( p === THREE.AddEquation ) return _gl.FUNC_ADD;
+    if ( p === THREE.SubtractEquation ) return _gl.FUNC_SUBTRACT;
+    if ( p === THREE.ReverseSubtractEquation ) return _gl.FUNC_REVERSE_SUBTRACT;
+    
+    if ( p === THREE.ZeroFactor ) return _gl.ZERO;
+    if ( p === THREE.OneFactor ) return _gl.ONE;
+    if ( p === THREE.SrcColorFactor ) return _gl.SRC_COLOR;
+    if ( p === THREE.OneMinusSrcColorFactor ) return _gl.ONE_MINUS_SRC_COLOR;
+    if ( p === THREE.SrcAlphaFactor ) return _gl.SRC_ALPHA;
+    if ( p === THREE.OneMinusSrcAlphaFactor ) return _gl.ONE_MINUS_SRC_ALPHA;
+    if ( p === THREE.DstAlphaFactor ) return _gl.DST_ALPHA;
+    if ( p === THREE.OneMinusDstAlphaFactor ) return _gl.ONE_MINUS_DST_ALPHA;
+    
+    if ( p === THREE.DstColorFactor ) return _gl.DST_COLOR;
+    if ( p === THREE.OneMinusDstColorFactor ) return _gl.ONE_MINUS_DST_COLOR;
+    if ( p === THREE.SrcAlphaSaturateFactor ) return _gl.SRC_ALPHA_SATURATE;
+    
+    return 0;
+
+};
