@@ -217,6 +217,11 @@ function TextureLayer(context, tilefunc) {
             });
 
         $.each(tiles, function(i, tile) {
+                //debug to reduce bandwidth (high zoom levels move out of view too fast)
+                if (tile.z > 15) {
+                    return;
+                }
+
                 if (layer.tile_index[tilekey(tile)] != null) {
                     return;
                 }
@@ -238,10 +243,28 @@ function TextureLayer(context, tilefunc) {
                                 }
                             });
                         if (slot == null) {
-                            // bump an old tile (based on MRU counter)
+                            var oldest_key = null;
+                            var oldest = null;
+                            $.each(layer.tile_index, function(k, v) {
+                                    if (v.status != 'loaded') {
+                                        return;
+                                    }
 
-                            // for now, treat as cache full (TODO add extra atlas textures)
-                            return;
+                                    if (oldest == null || v.mru < oldest.mru) {
+                                        oldest_key = k;
+                                        oldest = v;
+                                    }
+                                });
+
+                            if (oldest.mru == MRU_counter) {
+                                // tile cache is full (TODO provision extra space?)
+                                console.log('tile cache is full!');
+                                return;
+                            }
+
+                            slot = oldest.slot;
+                            delete layer.tile_index[oldest_key];
+                            // remove from index texture too
                         }
 
                         console.log('loading', tilekey(tile));
@@ -252,7 +275,11 @@ function TextureLayer(context, tilefunc) {
                         layer.slot_index[slot.tex + ':' + slot.x + ':' + slot.y] = true;
 
                         layer.set_tile_ix(tile, slot);
-                        //update MRU?
+                        //hack -- need to handle that same tile may be indexed from both hemispheres
+                        if (tile.z <= 1) {
+                            layer.set_tile_ix({anti: !tile.anti, z: tile.z, x: tile.x, y: tile.y}, slot);
+                        }
+                        ix_entry.mru = MRU_counter;
                     });
             });
 
@@ -320,7 +347,7 @@ function TextureLayer(context, tilefunc) {
 
         this.uniforms = {
             scale: {type: 'f', value: this.context.scale_px},
-            bias: {type: 'f', value: 1.}, //1.
+            bias: {type: 'f', value: 0.}, //1.
             pole: {type: 'v2', value: null},
             pole_t: {type: 'v2', value: null},
             tx_ix: {type: 't', value: this.tex_index.tx},
@@ -414,7 +441,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
-        this.layer = new TextureLayer(this, tile_url('osm'));
+        this.layer = new TextureLayer(this, tile_url('sat'));
 
         this.plane = new THREE.Mesh(quad, this.layer._material);
 
@@ -423,7 +450,10 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     }
 
     this.render = function(timestamp) {
-        this.setPole(41.63 + .1 * Math.cos(.05*timestamp), -72.59 + .1 / .7 * Math.sin(.05*timestamp));
+        //var pos = [41.63, -72.59];
+        //var pos = [-33.92, 18.42];
+        var pos = [38.93, -74.91];
+        this.setPole(pos[0] + .04 * Math.cos(.2*timestamp), pos[1] + .04 / .7 * Math.sin(.2*timestamp));
         //this.layer.uniforms.bias.value = 0.5 + 1.5*Math.cos(timestamp);
         this.renderer.render(this.scene, this.camera);
 
@@ -466,20 +496,6 @@ function load_image(url, onload) {
     img.src = url;
 }
 
-function tex_load_img(urlfunc, texbuf, z, x0, y0) {
-    var num = texbuf.size / TILE_SIZE;
-    for (var y = 0; y < num; y++) {
-        for (var x = 0; x < num; x++) {
-            (function(x, y) {
-                load_image(urlfunc(z, x0 + x, y0 + y), function(img) {
-                        texbuf.update(function(ctx, w, h) {
-                                ctx.drawImage(img, TILE_SIZE * x, TILE_SIZE * y);
-                            });
-                    });
-            })(x, y);
-        }
-    }
-}
 
 //=== TILE SERVICES ===
 

@@ -14,7 +14,7 @@ function update_pole(pole_t) {
     for (var z = 0; z <= 22; z++) {
         self.pole_tiles[z] = {x: Math.floor(Math.pow(2., z) * pole_t.x), y: Math.floor(Math.pow(2., z) * pole_t.y)};
     }
-    for (var z = 1; z <= 22; z++) {
+    for (var z = 0; z <= 22; z++) {
         var antipole_t = {x: (pole_t.x + .5) % 1., y: 1. - pole_t.y};
         self.pole_tiles[64 + z] = {x: Math.floor(Math.pow(2., z) * antipole_t.x), y: Math.floor(Math.pow(2., z) * antipole_t.y)};
     }
