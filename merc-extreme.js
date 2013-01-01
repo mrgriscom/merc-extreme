@@ -288,7 +288,7 @@ function TextureLayer(context, tilefunc) {
 
                         layer.set_tile_ix(tile, slot);
                         //hack -- need to handle that same tile may be indexed from both hemispheres
-                        if (tile.z <= 1) {
+                        if (tile.z <= 2) {
                             layer.set_tile_ix({anti: !tile.anti, z: tile.z, x: tile.x, y: tile.y}, slot);
                         }
                         ix_entry.mru = MRU_counter;
@@ -345,7 +345,7 @@ function TextureLayer(context, tilefunc) {
 
         this.tex_index.update(function(ctx, w, h) {
                 var buf = ctx.createImageData(1, 1);
-                buf.data[0] = slot.tex;
+                buf.data[0] = slot.tex + 1;
                 buf.data[1] = slot.x;
                 buf.data[2] = slot.y;
                 buf.data[3] = 255;
@@ -492,8 +492,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
     this.render = function(timestamp) {
         //var pos = [41.63, -72.59];
-        //var pos = [-33.92, 18.42];
-        var pos = [38.93, -74.91];
+        var pos = [-33.92, 18.42];
+        //var pos = [38.93, -74.91];
         this.setPole(pos[0] + .04 * Math.cos(.2*timestamp), pos[1] + .04 / .7 * Math.sin(.2*timestamp));
         //this.layer.uniforms.bias.value = 0.5 + 1.5*Math.cos(timestamp);
         this.renderer.render(this.scene, this.camera);

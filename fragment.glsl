@@ -123,12 +123,16 @@ zoffset 5 bits
                            256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
 
         vec4 slot_enc = texture2D(tx_ix, (64. * vec2(mod(z, 8.), floor(z / 8.) + 4. * float(anti_pole)) - 32. * offset + tile + .5) / 512.);
+        int tex_id = int(255. * slot_enc.r) - 1;
         int slot_x = int(255. * slot_enc.g);
         int slot_y = int(255. * slot_enc.b);
         vec2 atlas_p = (vec2(slot_x, slot_y) + tile_p) / 16.;
 
-        gl_FragColor = texture2D(tx_atlas[0], atlas_p);
-
+        if (tex_id >= 0) {
+            gl_FragColor = texture2D(tx_atlas[0], atlas_p);
+        } else {
+            gl_FragColor = vec4(.65, .7, .75, 1.);
+        }
     }
 #endif
 
