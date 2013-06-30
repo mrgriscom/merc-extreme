@@ -25,9 +25,8 @@ function init() {
 }
 
 
- 
 
-
+/* xy is google style upper left=(0, 0), lower right=(1, 1) */
 function ll_to_xy(lat, lon) {
     var x = lon / 360. + .5;
     var rlat = lat * Math.PI / 180.;
@@ -35,6 +34,39 @@ function ll_to_xy(lat, lon) {
     var y = .5 - merc_y / (2. * Math.PI);
     return {x: x, y: y};
 }
+
+/* xy is x:0,1 == -180,180, y:equator=0 */
+function xy_to_ll(x, y) {
+    var lon = (x - .5) * 360.;
+    var merc_y = 2. * Math.PI * y;
+    var rlat = 2. * Math.atan(Math.exp(merc_y)) - .5 * Math.PI;
+    var lat = rlat * 180. / Math.PI;
+    return [lat, lon];
+}
+
+function ll_to_xyz(lat, lon) {
+    var rlat = lat * Math.PI / 180.;
+    var rlon = lon * Math.PI / 180.;
+    return [Math.cos(rlon) * Math.cos(rlat), Math.sin(rlon) * Math.cos(rlat), Math.sin(rlat)];
+}
+
+function xyz_to_ll(x, y, z) {
+    var rlon = Math.atan2(y, x);
+    var rlat = Math.atan2(z, Math.sqrt(x*x + y*y));
+    return [rlat * 180. / Math.PI, rlon * 180. / Math.PI];
+}
+
+function translate_pole(pos, pole) {
+    var xyz = ll_to_xyz(pos[0], pos[1]);
+    var pole_rlat = pole[0] * Math.PI / 180.;
+
+    var latrot = pole_rlat - .5 * Math.PI;
+    var xyz_trans = new THREE.Matrix4().makeRotationY(-latrot).multiplyVector3(new THREE.Vector3(xyz[0], xyz[1], xyz[2]));
+    var pos_trans = xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
+    pos_trans[1] += pole[1];
+    return pos_trans;
+}
+
 
 QuadGeometry = function(x0, y0, width, height) {
 	THREE.Geometry.call(this);
@@ -278,6 +310,7 @@ function TextureLayer(context, tilefunc) {
 
                             slot = oldest.slot;
                             delete layer.tile_index[oldest_key];
+                            //layer.set_tile_ix(oldest_key.split, null);
                             // remove from index texture too
                         }
 
@@ -300,7 +333,6 @@ function TextureLayer(context, tilefunc) {
           z-level offset
           sideways/fringe offset
           index spillover and offset
-          update sub-image only
          */
 
         /*
@@ -359,7 +391,7 @@ function TextureLayer(context, tilefunc) {
 
         this.uniforms = {
             scale: {type: 'f', value: this.context.scale_px},
-            bias: {type: 'f', value: 0.}, //1.
+            bias: {type: 'f', value: 0.},
             pole: {type: 'v2', value: null},
             pole_t: {type: 'v2', value: null},
             tx_ix: {type: 't', value: this.tex_index.tx},
@@ -389,7 +421,7 @@ function TextureLayer(context, tilefunc) {
 
 
     this._debug_overview = function(data) {
-        console.log('worker result', data);
+        //console.log('worker result', data);
         var canvas = $('#tileovl')[0];
         var ctx = canvas.getContext('2d');
         ctx.fillStyle = 'black';
@@ -415,7 +447,7 @@ function TextureLayer(context, tilefunc) {
                 
                 count++;
             });
-        console.log(count);
+        //console.log(count);
     }
 }
 
@@ -434,6 +466,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
     this.renderer = new THREE.WebGLRenderer();
     this.glContext = this.renderer.getContext();
+
+    this.curPole = null;
 
     // monkeypatch to support tex update sub-image
     var _setTexture = this.renderer.setTexture;
@@ -475,26 +509,76 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         // TODO handle window/viewport resizing
         $container.append(this.renderer.domElement);
 
+        this.init_interactivity();
+
         this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
 
-        var quad = new QuadGeometry(this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
+        var quad = new QuadGeometry(-10, -10, 20, 20); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
+	/*
         quad.applyMatrix(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
+        */
 
-        this.layer = new TextureLayer(this, tile_url('map'));
+	var M = new THREE.Matrix4();
+	M.multiplySelf(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
+	M.multiplySelf(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
+	M.multiplySelf(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
+	quad.applyMatrix(M);
+	this.toWorld = new THREE.Matrix4().getInverse(M);
+
+	this.layer = new TextureLayer(this, tile_url('sat'));
 
         this.plane = new THREE.Mesh(quad, this.layer._material);
 
         this.scene = new THREE.Scene();
         this.scene.add(this.plane);
+
+	this.curPole = [42.4, -71.1];
+    }
+
+    this.init_interactivity = function() {
+        var mouse_pos = function(e) {
+            return {x: e.pageX - e.target.offsetLeft, y: e.target.offsetHeight - (e.pageY - e.target.offsetTop)};
+        }
+
+        // pan-view mode or move-pole mode?
+
+	var renderer = this;
+        var drag_context = null;
+        $(this.renderer.domElement).bind('mousedown', function(e) {
+            drag_context = {
+		'down_px': mouse_pos(e),
+		'down_pole': renderer.curPole,
+	    };
+
+	    var merc = renderer.toWorld.multiplyVector3(new THREE.Vector3(drag_context.down_px.x, drag_context.down_px.y, 0));
+	    var merc_ll = xy_to_ll(merc.x, merc.y);
+	    drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
+        });
+        $(document).bind('mousemove', function(e) {
+            if (drag_context == null) {
+                return;
+            }
+
+	    var pos = mouse_pos(e);
+	    //var delta = [drag_context.down_px.x - pos.x, drag_context.down_px.y - pos.y];
+	    var merc = renderer.toWorld.multiplyVector3(new THREE.Vector3(pos.x, pos.y, 0));
+	    var merc_ll = xy_to_ll(merc.x, merc.y);
+	    renderer.curPole = translate_pole([merc_ll[0], merc_ll[1] + 180.], drag_context.down_ll);
+        });
+        $(document).bind('mouseup', function(e) {
+            drag_context = null;
+        });
+
+
+        $(this.renderer.domElement).bind('mousewheel', function(e) {
+                console.log('zoom');
+            });
     }
 
     this.render = function(timestamp) {
-        //var pos = [41.63, -72.59];
-        var pos = [-33.92, 18.42];
-        //var pos = [38.93, -74.91];
-        this.setPole(pos[0] + .04 * Math.cos(.2*timestamp), pos[1] + .04 / .7 * Math.sin(.2*timestamp));
+	this.setPole(this.curPole[0], this.curPole[1]);
         //this.layer.uniforms.bias.value = 0.5 + 1.5*Math.cos(timestamp);
         this.renderer.render(this.scene, this.camera);
 
@@ -543,7 +627,7 @@ function load_image(url, onload) {
 function tile_url(type) {
     var specs = {
         map: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        sat: 'https://khms{s:0-3}.google.com/kh/v=123&x={x}&y={y}&z={z}',
+        sat: 'https://khms{s:0-3}.google.com/kh/v=131&x={x}&y={y}&z={z}',
         terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     };
