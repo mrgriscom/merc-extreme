@@ -20,6 +20,13 @@ function init() {
     _stats.domElement.style.top = '0px';
     document.body.appendChild(_stats.domElement);
 
+    $(window).keypress(function(e) {
+        if (e.keyCode == 32) {
+            merc.toggle_drag_mode();
+            return false;
+        }
+    });
+
     merc.start();
 
 }
@@ -264,7 +271,7 @@ function TextureLayer(context, tilefunc) {
 
         $.each(tiles, function(i, tile) {
                 //debug to reduce bandwidth (high zoom levels move out of view too fast)
-                if (tile.z > 16) {
+                if (tile.z > 20) {
                     return;
                 }
 
@@ -503,7 +510,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect);
         console.log('max tex size', this.glContext.getParameter(this.glContext.MAX_TEXTURE_SIZE));
         console.log('max # texs', this.glContext.getParameter(this.glContext.MAX_TEXTURE_IMAGE_UNITS));
-        // TODO query precision bits
+        console.log('prec (med)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.MEDIUM_FLOAT).precision);
+        console.log('prec (high)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.HIGH_FLOAT).precision);
 
         this.renderer.setSize(this.width_px, this.height_px);
         // TODO handle window/viewport resizing
@@ -519,62 +527,108 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
         quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
         */
+        this.quad = quad;
 
-	var M = new THREE.Matrix4();
-	M.multiplySelf(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
-	M.multiplySelf(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-	M.multiplySelf(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
-	quad.applyMatrix(M);
-	this.toWorld = new THREE.Matrix4().getInverse(M);
-
-	this.layer = new TextureLayer(this, tile_url('sat'));
-
-        this.plane = new THREE.Mesh(quad, this.layer._material);
-
+	    var M = new THREE.Matrix4();
+	    M.multiplySelf(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
+	    M.multiplySelf(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
+	    M.multiplySelf(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
+        this.setWorldMatrix(M);
+        
+	    this.layer = new TextureLayer(this, tile_url('map'));
+        
+        this.plane = new THREE.Mesh(this.quad, this.layer._material);
+        
         this.scene = new THREE.Scene();
         this.scene.add(this.plane);
+        
+	    this.curPole = [-34.0,18.4];
+    }
 
-	this.curPole = [42.4, -71.1];
+    this.setWorldMatrix = function(M) {
+        // this currently UPDATES the matrix
+        this.M = this.M || new THREE.Matrix4();
+        this.quad.applyMatrix(M);
+        this.quad.verticesNeedUpdate = true;
+
+        // this is a mess
+        M.multiplySelf(this.M);
+        this.M = M;
+	    this.toWorld = new THREE.Matrix4().getInverse(this.M);
+    }
+
+    this.xyToWorld = function(x, y) {
+        return this.toWorld.multiplyVector3(new THREE.Vector3(x, y, 0));
+    }
+
+    this.zoom = function(x, y, z) {
+        y = $(this.renderer.domElement).height() - y - 1; // ugly
+	    var M = new THREE.Matrix4();
+        M.multiplySelf(new THREE.Matrix4().makeTranslation(x, y, 0));
+        M.multiplySelf(new THREE.Matrix4().makeScale(z, z, 1));
+        M.multiplySelf(new THREE.Matrix4().makeTranslation(-x, -y, 0));
+        this.setWorldMatrix(M);
+        this.layer.uniforms.scale.value *= z;
+    }
+
+    this.warp = function(pos, drag_context) {
+        var merc = this.xyToWorld(pos.x, pos.y, 0);
+	    var merc_ll = xy_to_ll(merc.x, merc.y);
+	    this.curPole = translate_pole([merc_ll[0], merc_ll[1] + 180.], drag_context.down_ll);
+    }
+
+    this.pan = function(pos, drag_context) {
+        delta = [pos.x - drag_context.last_px.x, pos.y - drag_context.last_px.y];
+        var M = new THREE.Matrix4().makeTranslation(delta[0], delta[1], 0);
+        this.setWorldMatrix(M);
+    }
+
+    this.drag_mode = this.warp;
+    this.toggle_drag_mode = function() {
+        this.drag_mode = (this.drag_mode == this.warp ? this.pan : this.warp);
     }
 
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
             return {x: e.pageX - e.target.offsetLeft, y: e.target.offsetHeight - (e.pageY - e.target.offsetTop)};
         }
-
-        // pan-view mode or move-pole mode?
-
-	var renderer = this;
+        
+	    var renderer = this;
         var drag_context = null;
         $(this.renderer.domElement).bind('mousedown', function(e) {
             drag_context = {
-		'down_px': mouse_pos(e),
-		'down_pole': renderer.curPole,
-	    };
-
-	    var merc = renderer.toWorld.multiplyVector3(new THREE.Vector3(drag_context.down_px.x, drag_context.down_px.y, 0));
-	    var merc_ll = xy_to_ll(merc.x, merc.y);
-	    drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
+		        'down_px': mouse_pos(e),
+		        'down_pole': renderer.curPole,
+	        };
+            
+            var merc = renderer.xyToWorld(drag_context.down_px.x, drag_context.down_px.y, 0);
+	        var merc_ll = xy_to_ll(merc.x, merc.y);
+	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
         });
         $(document).bind('mousemove', function(e) {
             if (drag_context == null) {
                 return;
             }
-
-	    var pos = mouse_pos(e);
-	    //var delta = [drag_context.down_px.x - pos.x, drag_context.down_px.y - pos.y];
-	    var merc = renderer.toWorld.multiplyVector3(new THREE.Vector3(pos.x, pos.y, 0));
-	    var merc_ll = xy_to_ll(merc.x, merc.y);
-	    renderer.curPole = translate_pole([merc_ll[0], merc_ll[1] + 180.], drag_context.down_ll);
+            drag_context.last_px = drag_context.last_px || drag_context.down_px;
+            
+	        var pos = mouse_pos(e);	 
+            renderer.drag_mode(pos, drag_context);
+            drag_context.last_px = pos;
         });
         $(document).bind('mouseup', function(e) {
             drag_context = null;
         });
-
-
+        
+        
         $(this.renderer.domElement).bind('mousewheel', function(e) {
-                console.log('zoom');
-            });
+            e = e.originalEvent;
+            var pos = [e.offsetX, e.offsetY];
+            var delta = e.wheelDelta;
+            
+            var ZOOM_QUANTUM = Math.pow(1.05, 1/120.);
+            renderer.zoom(pos[0], pos[1], Math.pow(ZOOM_QUANTUM, delta));
+            return false;
+        });
     }
 
     this.render = function(timestamp) {
@@ -630,6 +684,7 @@ function tile_url(type) {
         sat: 'https://khms{s:0-3}.google.com/kh/v=131&x={x}&y={y}&z={z}',
         terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
     };
     return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
 }
