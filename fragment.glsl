@@ -11,6 +11,7 @@ varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:
 
 uniform sampler2D tx_ix;
 uniform sampler2D tx_atlas[1];
+uniform sampler2D tx_z0;
 
 void llr_to_xyz(in vec2 llr, out vec3 xyz) {
     xyz = vec3(cos(llr.s) * cos(llr.t), sin(llr.s) * cos(llr.t), sin(llr.t));
@@ -54,6 +55,7 @@ void main() {
     abs_map.x = mod(abs_map.x, 1.);
 
     bool out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
+    bool out_of_bounds_fuzzy = (abs_map.t < -0.5 || abs_map.t >= 1.5);
     bool anti_pole = (merc.t < 0.);
     float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
 
@@ -103,10 +105,10 @@ void main() {
     vec2 tile_p = mod(abs_map_z, 1.);
 
     // TODO want to support linear blending -- means must be incorporated into tile cache texture
-    if (out_of_bounds) {
-        gl_FragColor = vec4(1, 0, 0, 1);
-    } else {
-     
+    if (out_of_bounds_fuzzy) {
+        gl_FragColor = vec4(1, 1, 0, 1);
+    } else {     
+
 //combine z+antipode into a cell index
 //inside cell, deref dx,dy on indirection texture
 
@@ -128,7 +130,9 @@ zoffset 5 bits
         int slot_y = int(255. * slot_enc.b);
         vec2 atlas_p = (vec2(slot_x, slot_y) + tile_p) / 16.;
 
-        if (tex_id >= 0) {
+        if (z == 0.) {
+            gl_FragColor = texture2D(tx_z0, vec2(abs_map.s, .5 * (abs_map.t + .5)));
+        } else if (tex_id >= 0) {
             gl_FragColor = texture2D(tx_atlas[0], atlas_p);
         } else {
             gl_FragColor = vec4(.65, .7, .75, 1.);

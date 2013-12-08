@@ -108,12 +108,13 @@ QuadGeometry = function(x0, y0, width, height) {
 };
 QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
 
-function TexBuffer(size, texopts) {
-    this.size = size;
+function TexBuffer(size, texopts, aspect) {
+    this.width = size;
+    this.height = size * (aspect || 1.);
 
     var $tx = $('<canvas />');
-    $tx.attr('width', size);
-    $tx.attr('height', size);
+    $tx.attr('width', this.width);
+    $tx.attr('height', this.height);
     this.$tx = $tx[0];
 
     this.ctx = this.$tx.getContext('2d');
@@ -135,7 +136,7 @@ function TexBuffer(size, texopts) {
     }
 
     this.update = function(draw) {
-        draw(this.ctx, this.size, this.size);
+        draw(this.ctx, this.width, this.height);
         this.tx.needsUpdate = true;
     }
 
@@ -162,7 +163,13 @@ function TextureLayer(context, tilefunc) {
     this.worker = new Worker('coverage-worker.js');
 
     var ATLAS_TEX_SIZE = 4096;
-    this.tex_z0;
+    this.tex_z0 = new TexBuffer(TILE_SIZE, {
+        generateMipmaps: true,
+        magFilter: THREE.LinearFilter,
+        minFilter: THREE.LinearMipMapLinearFilter,
+        wrapS: THREE.RepeatWrapping, // still getting seams... why?
+        flipY: false,
+    }, 2.);
     this.tex_atlas = [new TexBuffer(ATLAS_TEX_SIZE, {
                 // want to mipmap, but it causes creases
                 generateMipmaps: false,
@@ -284,6 +291,11 @@ function TextureLayer(context, tilefunc) {
                         var ix_entry = layer.tile_index[tilekey(tile)];
                         ix_entry.status = 'loaded';
 
+                    if (tile.z == 0) {
+                        layer.mk_top_level_tile(img);
+                        return;
+                    }
+
                         var slot = null;
                         var split_slot_key = function(key) {
                             var pcs = key.split(':');
@@ -392,6 +404,15 @@ function TextureLayer(context, tilefunc) {
             });
     }
 
+    this.mk_top_level_tile = function(img) {
+        this.tex_z0.update(function(ctx, w, h) {
+            ctx.fillStyle = '#ccc';
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.drawImage(img, 0, .25 * h);
+        });
+    }
+
     this.material = function() {
 
         var tex = this;
@@ -403,6 +424,7 @@ function TextureLayer(context, tilefunc) {
             pole_t: {type: 'v2', value: null},
             tx_ix: {type: 't', value: this.tex_index.tx},
             tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
+            tx_z0: {type: 't', value: this.tex_z0.tx},
         };
         return new THREE.ShaderMaterial({
                 uniforms: this.uniforms,
@@ -521,7 +543,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
         this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
 
-        var quad = new QuadGeometry(-10, -10, 20, 20); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
+        var quad = new QuadGeometry(-1000, -1000, 2000, 2000); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
 	/*
         quad.applyMatrix(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
@@ -535,7 +557,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 	    M.multiplySelf(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         this.setWorldMatrix(M);
         
-	    this.layer = new TextureLayer(this, tile_url('map'));
+	    this.layer = new TextureLayer(this, tile_url('osm'));
         
         this.plane = new THREE.Mesh(this.quad, this.layer._material);
         
