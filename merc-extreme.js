@@ -329,6 +329,10 @@ function TextureLayer(context, tilefunc) {
                         if (v.status != 'loaded') {
                             return;
                         }
+                        if (k == '0:0:0') {
+                            // not stored in texture atlas
+                            return;
+                        }
                         
                         if (oldest == null || v.mru < oldest.mru) {
                             oldest_key = k;
