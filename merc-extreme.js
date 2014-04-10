@@ -310,6 +310,9 @@ function TextureLayer(context, tilefunc) {
                     return;
                 }
                 
+                // note: by the time we get here there is no guarantee that the
+                // tile is even still in view
+
                 var slot = null;
                 var split_slot_key = function(key) {
                     var pcs = key.split(':');
@@ -348,8 +351,10 @@ function TextureLayer(context, tilefunc) {
                     
                     slot = oldest.slot;
                     delete layer.tile_index[oldest_key];
-                    //layer.set_tile_ix(oldest_key.split, null);
-                    // remove from index texture too
+
+                    var pcs = oldest_key.split(':');
+                    layer.set_tile_ix({z: +pcs[0], x: +pcs[1], y: +pcs[2]}, null);
+                    // FIXME dealing with anti?
                 }
                 
                 console.log('loading', tilekey(tile));
@@ -410,14 +415,26 @@ function TextureLayer(context, tilefunc) {
         var zy = Math.floor(tile.z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (tile.anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
         
         var offsets = this.index_offsets[(tile.anti ? 1 : 0) + ':' + tile.z];
-        var px = zx * TEX_Z_IX_SIZE + tile.x - TEX_Z_IX_SIZE / 2 * offsets.x;
-        var py = zy * TEX_Z_IX_SIZE + tile.y - TEX_Z_IX_SIZE / 2 * offsets.y;
+        var dx = tile.x - TEX_Z_IX_SIZE / 2 * offsets.x;
+        var dy = tile.y - TEX_Z_IX_SIZE / 2 * offsets.y;
+        if (dx < 0 || dy < 0 || dx >= TEX_Z_IX_SIZE || dy >= TEX_Z_IX_SIZE) {
+            // out of range for current offset
+            return;
+        }
+        var px = zx * TEX_Z_IX_SIZE + dx;
+        var py = zy * TEX_Z_IX_SIZE + dy;
         
         this.tex_index.update(function(ctx, w, h) {
             var buf = ctx.createImageData(1, 1);
-            buf.data[0] = slot.tex + 1;
-            buf.data[1] = slot.x;
-            buf.data[2] = slot.y;
+            if (slot != null) {
+                buf.data[0] = slot.tex + 1;
+                buf.data[1] = slot.x;
+                buf.data[2] = slot.y;
+            } else {
+                buf.data[0] = 0;
+                buf.data[1] = 0;
+                buf.data[2] = 0;
+            }
             buf.data[3] = 255;
             ctx.putImageData(buf, px, py);
         });
