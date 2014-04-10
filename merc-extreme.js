@@ -4,10 +4,28 @@ var fragment_shader;
 
 var TILE_SIZE = 256;
 var MAX_ZOOM = 22; // max zoom level to attempt to fetch image tiles
+
+var MIN_BIAS = 0.;
+var MAX_ZOOM_BLEND = .6;
+var MAX_SCREEN_DIAG = Math.sqrt(Math.pow(1920, 2) + Math.pow(1080, 2));
+var MAX_Z_TILE_SPAN = Math.ceil(MAX_SCREEN_DIAG / TILE_SIZE * Math.pow(2, 1. - MIN_BIAS + MAX_ZOOM_BLEND));
+
 // size of the texture index for a single zoom level; the maximum visible area
 // at a single zoom level should never span more than half this number of tiles
+// TODO change to the half-version instead
+// rough guidelines for half value: max diagonal screen res / TILE_SIZE * 2
 var TEX_Z_IX_SIZE = 64;
+// TODO autocompute
 var TEX_IX_SIZE = 512; // overall size of the texture index texture; should be >= sqrt(2 * MAX_ZOOM) * TEX_Z_IX_SIZE
+
+/* if this is too low, there is a chance that visible tiles will be missed and
+   not loaded. how low you can get away with closely relates to how much buffer
+   zone is set in the tile cache
+*/
+var SAMPLE_FREQ = 1/4.;
+var ATLAS_TEX_SIZE = 4096;
+var SAMPLE_TIME_FREQ = 3.;
+
 
 function init() {
     vertex_shader = loadShader('vertex-default');
@@ -150,11 +168,6 @@ function TextureLayer(context, tilefunc) {
     this.context = context;
     this.tilefunc = tilefunc;
     
-    /* if this is too low, there is a chance that visible tiles will be missed and
-       not loaded. how low you can get away with closely relates to how much buffer
-       zone is set in the tile cache
-    */
-    var SAMPLE_FREQ = 1/4.;
     this.sample_width = Math.round(this.context.width_px * SAMPLE_FREQ);
     this.sample_height = Math.round(this.context.height_px * SAMPLE_FREQ);
     this.target = new THREE.WebGLRenderTarget(this.sample_width, this.sample_height, {format: THREE.RGBFormat});
@@ -162,7 +175,6 @@ function TextureLayer(context, tilefunc) {
     
     this.worker = new Worker('coverage-worker.js');
     
-    var ATLAS_TEX_SIZE = 4096;
     this.tex_z0 = new TexBuffer(TILE_SIZE, {
         generateMipmaps: true,
         magFilter: THREE.LinearFilter,
@@ -171,7 +183,7 @@ function TextureLayer(context, tilefunc) {
         flipY: false,
     }, 2.);
     this.tex_atlas = [new TexBuffer(ATLAS_TEX_SIZE, {
-        // want to mipmap, but it causes creases
+        // mipmapping must be done manually due to non-continguity of images
         generateMipmaps: false,
         magFilter: THREE.LinearFilter,
         minFilter: THREE.LinearFilter,
@@ -276,6 +288,8 @@ function TextureLayer(context, tilefunc) {
             }
         });
         
+        console.log(layer.tile_index);
+
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             if (tile.z > 16) {
@@ -308,6 +322,7 @@ function TextureLayer(context, tilefunc) {
                     }
                 });
                 if (slot == null) {
+                    console.log('no slot');
                     var oldest_key = null;
                     var oldest = null;
                     $.each(layer.tile_index, function(k, v) {
@@ -450,16 +465,16 @@ function TextureLayer(context, tilefunc) {
     
     
     this._debug_overview = function(data) {
-        //console.log('worker result', data);
+        console.log('worker result', data, _.size(data));
         var canvas = $('#tileovl')[0];
         var ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = '#444';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         for (var i = 0; i < 30; i++) {
             for (var j = 0; j < 2; j++) {
                 ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
-                ctx.fillRect(32 * i, 32 * j, 32, 32);
+                ctx.fillRect(32 * i, 32 * j, Math.min(Math.pow(2, i), 32), Math.min(Math.pow(2, i), 32));
             }
         }
         
@@ -658,8 +673,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         //this.layer.uniforms.bias.value = 0.5 + 1.5*Math.cos(timestamp);
         this.renderer.render(this.scene, this.camera);
         
-        var sample_freq = 1.;
-        if (this.last_sampling == null || timestamp - this.last_sampling > sample_freq) {
+        if (this.last_sampling == null || timestamp - this.last_sampling > SAMPLE_TIME_FREQ) {
             this.plane.material = this.layer._sampler_material;
             this.layer.sample_coverage();
             this.plane.material = this.layer._material;
