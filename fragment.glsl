@@ -1,6 +1,9 @@
 #define PI  3.1415926535
 #define PI2 6.2831853071
 #define TILE_SIZE 256.
+#define ATLAS_TEX_SIZE 4096.
+
+// TODO lots of constants in here that should be tied to js constants
 
 uniform vec2 pole;    // lat/lon degrees
 uniform vec2 pole_t;  // maptile coordinates
@@ -36,6 +39,23 @@ void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
     ) * xyz;
     xyz_to_llr(xyz_trans, llr_trans);
     llr_trans.s += rpole.s; // shift lon 0 to pole lon
+}
+
+void tex_lookup(in float z, in bool anti_pole, in vec2 abs_map, out int tex_id, out vec2 tile, out vec2 offset, out vec2 atlas_p) {
+    vec2 abs_map_z = abs_map * pow(2., z);
+    tile = floor(abs_map_z);
+    vec2 tile_p = mod(abs_map_z, 1.);
+
+    vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+63.) + .5) / 512.);
+    vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+62.) + .5) / 512.);
+    offset = 32. * vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
+                             256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
+
+    vec4 slot_enc = texture2D(tx_ix, (64. * vec2(mod(z, 8.), floor(z / 8.) + 4. * float(anti_pole)) - offset + tile + .5) / 512.);
+    tex_id = int(255. * slot_enc.r) - 1;
+    int slot_x = int(255. * slot_enc.g);
+    int slot_y = int(255. * slot_enc.b);
+    atlas_p = (vec2(slot_x, slot_y) + tile_p) / (ATLAS_TEX_SIZE / TILE_SIZE);
 }
 
 void main() {
@@ -100,43 +120,100 @@ void main() {
     float z = ceil(fzoom);
     z = max(z, 0.); // TODO mipmap for zoom level 0 (-z is lod)
 
-    vec2 abs_map_z = abs_map * pow(2., z);
-    vec2 tile = floor(abs_map_z);
-    vec2 tile_p = mod(abs_map_z, 1.);
+    // testing
+    float zmax = 16.;
+    z = min(z, zmax);
 
     // TODO want to support linear blending -- means must be incorporated into tile cache texture
     if (out_of_bounds_fuzzy) {
         gl_FragColor = vec4(1, 1, 0, 1);
     } else {     
 
-//combine z+antipode into a cell index
-//inside cell, deref dx,dy on indirection texture
+        int tex_id;
+        vec2 tile;
+        vec2 offset;
+        vec2 atlas_p;
 
-/*
-texid 4 bits
-cellx 5 bits
-celly 5 bits
-zoffset 5 bits
-*/
-
-        vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+63.) + .5) / 512.);
-        vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+62.) + .5) / 512.);
-        vec2 offset = vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
-                           256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
-
-        vec4 slot_enc = texture2D(tx_ix, (64. * vec2(mod(z, 8.), floor(z / 8.) + 4. * float(anti_pole)) - 32. * offset + tile + .5) / 512.);
-        int tex_id = int(255. * slot_enc.r) - 1;
-        int slot_x = int(255. * slot_enc.g);
-        int slot_y = int(255. * slot_enc.b);
-        vec2 atlas_p = (vec2(slot_x, slot_y) + tile_p) / 16.;
+        tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }       
+        if (tex_id < 0 && z > 0.) {
+          z -= 1.;
+          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        }
 
         if (z == 0.) {
             gl_FragColor = texture2D(tx_z0, vec2(abs_map.s, .5 * (abs_map.t + .5)));
+        } else if (tile.s < offset.s || tile.t < offset.t || tile.s >= offset.s + 64. || tile.t >= offset.t + 64.) {
+            gl_FragColor = vec4(1, 0, 0, 1);
         } else if (tex_id >= 0) {
             gl_FragColor = texture2D(tx_atlas[0], atlas_p);
         } else {
             gl_FragColor = vec4(.65, .7, .75, 1.);
         }
+
     }
 #endif
 
