@@ -274,12 +274,26 @@ function TextureLayer(context, tilefunc) {
             var yoffset = offset(v.ymin);
             var cur_offsets = layer.index_offsets[k];
             if (cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
-                // TODO shift existing index pixels
                 layer.index_offsets[k] = {x: xoffset, y: yoffset};
                 layer.set_offset(k, xoffset, yoffset);
+
+                var pcs = k.split(':');
+                var anti = +pcs[0];
+                var z = +pcs[1];
+                layer.clear_tile_ix(z, anti);
+                // is this too slow?.... yes. yes it is
+                $.each(layer.tile_index, function(k, v) {
+                    if (v.status != 'loaded') {
+                        return;
+                    }
+
+                    var pcs = k.split(':');
+                    var tile = {z: +pcs[0], x: +pcs[1], y: +pcs[2]};
+                    layer.set_tile_ix(tile, v.slot);
+                });
             }
         });
-        
+
         // mark all tiles for LRU if exist in cache
         $.each(tiles, function(i, tile) {
             var ix_entry = layer.tile_index[tilekey(tile)];
@@ -354,7 +368,6 @@ function TextureLayer(context, tilefunc) {
 
                     var pcs = oldest_key.split(':');
                     layer.set_tile_ix({z: +pcs[0], x: +pcs[1], y: +pcs[2]}, null);
-                    // FIXME dealing with anti?
                 }
                 
                 console.log('loading', tilekey(tile));
@@ -363,10 +376,6 @@ function TextureLayer(context, tilefunc) {
                 layer.slot_index[slot.tex + ':' + slot.x + ':' + slot.y] = true;
                 
                 layer.set_tile_ix(tile, slot);
-                //hack -- need to handle that same tile may be indexed from both hemispheres
-                if (tile.z <= 2) {
-                    layer.set_tile_ix({anti: !tile.anti, z: tile.z, x: tile.x, y: tile.y}, slot);
-                }
                 ix_entry.mru = MRU_counter;
             });
         });
@@ -409,35 +418,57 @@ function TextureLayer(context, tilefunc) {
             ctx.putImageData(buf, px, py - 1);
         });
     }
+
+    this.clear_tile_ix = function(z, anti) {
+        var zx = z % (TEX_IX_SIZE / TEX_Z_IX_SIZE);
+        var zy = Math.floor(z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
+        var size = Math.min(Math.pow(2, z), TEX_Z_IX_SIZE);
+        console.log(zx, zy, z, size);
+        this.tex_index.update(function(ctx, w, h) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(zx * TEX_Z_IX_SIZE, zy * TEX_Z_IX_SIZE, size, size);
+        });
+    }
     
     this.set_tile_ix = function(tile, slot) {
-        var zx = tile.z % (TEX_IX_SIZE / TEX_Z_IX_SIZE);
-        var zy = Math.floor(tile.z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (tile.anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
-        
-        var offsets = this.index_offsets[(tile.anti ? 1 : 0) + ':' + tile.z];
-        var dx = tile.x - TEX_Z_IX_SIZE / 2 * offsets.x;
-        var dy = tile.y - TEX_Z_IX_SIZE / 2 * offsets.y;
-        if (dx < 0 || dy < 0 || dx >= TEX_Z_IX_SIZE || dy >= TEX_Z_IX_SIZE) {
-            // out of range for current offset
-            return;
-        }
-        var px = zx * TEX_Z_IX_SIZE + dx;
-        var py = zy * TEX_Z_IX_SIZE + dy;
-        
-        this.tex_index.update(function(ctx, w, h) {
-            var buf = ctx.createImageData(1, 1);
-            if (slot != null) {
-                buf.data[0] = slot.tex + 1;
-                buf.data[1] = slot.x;
-                buf.data[2] = slot.y;
-            } else {
-                buf.data[0] = 0;
-                buf.data[1] = 0;
-                buf.data[2] = 0;
+        var layer = this;
+        var helper = function(anti) {
+            var offsets = layer.index_offsets[(anti ? 1 : 0) + ':' + tile.z];
+            if (offsets == null) {
+                return;
             }
-            buf.data[3] = 255;
-            ctx.putImageData(buf, px, py);
-        });
+
+            var dx = tile.x - TEX_Z_IX_SIZE / 2 * offsets.x;
+            var dy = tile.y - TEX_Z_IX_SIZE / 2 * offsets.y;
+            if (dx < 0 || dy < 0 || dx >= TEX_Z_IX_SIZE || dy >= TEX_Z_IX_SIZE) {
+                // out of range for current offset
+                return;
+            }
+ 
+            var zx = tile.z % (TEX_IX_SIZE / TEX_Z_IX_SIZE);
+            var zy = Math.floor(tile.z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
+        
+            var px = zx * TEX_Z_IX_SIZE + dx;
+            var py = zy * TEX_Z_IX_SIZE + dy;
+
+            layer.tex_index.update(function(ctx, w, h) {
+                var buf = ctx.createImageData(1, 1);
+                if (slot != null) {
+                    buf.data[0] = slot.tex + 1;
+                    buf.data[1] = slot.x;
+                    buf.data[2] = slot.y;
+                } else {
+                    buf.data[0] = 0;
+                    buf.data[1] = 0;
+                    buf.data[2] = 0;
+                }
+                buf.data[3] = 255;
+                ctx.putImageData(buf, px, py);
+            });
+        };
+        
+        helper(false);
+        helper(true);
     }
     
     this.mk_top_level_tile = function(img) {
@@ -488,11 +519,12 @@ function TextureLayer(context, tilefunc) {
     this._debug_overview = function(data) {
         console.log('worker result', data, _.size(data));
         var canvas = $('#tileovl')[0];
+        $(canvas).attr('width', (TEX_Z_IX_SIZE / 2 * (1 + MAX_ZOOM)) + 'px');
         var ctx = canvas.getContext('2d');
         ctx.fillStyle = '#444';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        for (var i = 0; i < 30; i++) {
+        for (var i = 0; i < 1 + MAX_ZOOM; i++) {
             for (var j = 0; j < 2; j++) {
                 ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
                 ctx.fillRect(32 * i, 32 * j, Math.min(Math.pow(2, i), 32), Math.min(Math.pow(2, i), 32));
