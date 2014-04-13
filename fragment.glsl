@@ -9,6 +9,7 @@
 
 uniform vec2 pole;    // lat/lon degrees
 uniform vec2 pole_t;  // maptile coordinates
+uniform vec2 ref_t;
 uniform float scale;  // pixels per earth circumference (undistorted)
 uniform float bias;   // overzoom is capped at 2^bias
 
@@ -111,18 +112,18 @@ void main() {
         z_enc = 255.;
     } else {
         vec2 tile = floor(abs_map * pow(2., z));
-        vec2 pole_t2;
+        vec2 ref_t2;
 
         z_enc = z;
         if (anti_pole) {
-            z_enc += 64.;
-            pole_t2 = vec2(mod(pole_t.s + .5, 1.), 1. - pole_t.t); // antipode
+            z_enc += 32.;
+            ref_t2 = vec2(mod(ref_t.s + .5, 1.), 1. - ref_t.t); // antipode
         } else {
-            pole_t2 = pole_t;
+            ref_t2 = ref_t;
         }
 
-        vec2 pole_tile = floor(pole_t2 * pow(2., z));
-        tile_enc = (tile - pole_tile) + 128.;
+        vec2 ref_tile = floor(ref_t2 * pow(2., z));
+        tile_enc = (tile - ref_tile) + 128.;
     }
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
@@ -137,7 +138,7 @@ void main() {
     z = max(z, 0.); // TODO mipmap for zoom level 0 (-z is lod)
 
     // testing
-    float zmax = 16.;
+    float zmax = 30.; //16.;
     z = min(z, zmax);
 
     // TODO want to support linear blending -- means must be incorporated into tile cache texture
@@ -152,7 +153,7 @@ void main() {
 
         tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
 
-        /*
+        
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
           tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
@@ -221,13 +222,17 @@ void main() {
           z -= 1.;
           tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
         }
-*/
+
 
         vec4 valA;
         frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
+
+        float prec_buffer = 3.;
+        if (abs(geo_rad.t) > acos(scale / pow(2., 23. - prec_buffer))) {
+          valA = .8 * valA + .2 * vec4(1.,0.,1.,1.);
+        }
         gl_FragColor = valA; //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
-
-
+        //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);
    
     }
 #endif

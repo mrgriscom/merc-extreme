@@ -5,6 +5,7 @@ var fragment_shader;
 var TILE_SIZE = 256;
 var MAX_ZOOM = 22; // max zoom level to attempt to fetch image tiles
 
+// these aren't really meant to be changed... more just to justify how various constants got their values
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
 var MAX_SCREEN_DIAG = Math.sqrt(Math.pow(1920, 2) + Math.pow(1080, 2));
@@ -24,7 +25,7 @@ var TEX_IX_SIZE = 512; // overall size of the texture index texture; should be >
 */
 var SAMPLE_FREQ = 1/4.;
 var ATLAS_TEX_SIZE = 4096;
-var SAMPLE_TIME_FREQ = 3.;
+var SAMPLE_TIME_FREQ = 1.;
 
 
 function init() {
@@ -225,7 +226,7 @@ function TextureLayer(context, tilefunc) {
         var gl = this.context.glContext;
         this.context.renderer.render(this.context.scene, this.context.camera, this.target);
         gl.readPixels(0, 0, this.sample_width, this.sample_height, gl.RGBA, gl.UNSIGNED_BYTE, this.sampleBuff); // RGBA required by spec
-        this.worker.postMessage(this.context.pole_t);
+        this.worker.postMessage(this.context.ref_t);
         this.worker.postMessage(this.sampleBuff);
     }
     
@@ -282,6 +283,7 @@ function TextureLayer(context, tilefunc) {
                 var z = +pcs[1];
                 layer.clear_tile_ix(z, anti);
                 // is this too slow?.... yes. yes it is
+                // FIXME performance
                 $.each(layer.tile_index, function(k, v) {
                     if (v.status != 'loaded') {
                         return;
@@ -302,13 +304,11 @@ function TextureLayer(context, tilefunc) {
             }
         });
         
-        console.log(layer.tile_index);
-
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
-            if (tile.z > 16) {
-                return;
-            }
+            //if (tile.z > 16) {
+            //    return;
+            //}
             
             if (layer.tile_index[tilekey(tile)] != null) {
                 return;
@@ -423,7 +423,6 @@ function TextureLayer(context, tilefunc) {
         var zx = z % (TEX_IX_SIZE / TEX_Z_IX_SIZE);
         var zy = Math.floor(z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
         var size = Math.min(Math.pow(2, z), TEX_Z_IX_SIZE);
-        console.log(zx, zy, z, size);
         this.tex_index.update(function(ctx, w, h) {
             ctx.fillStyle = '#000';
             ctx.fillRect(zx * TEX_Z_IX_SIZE, zy * TEX_Z_IX_SIZE, size, size);
@@ -489,6 +488,7 @@ function TextureLayer(context, tilefunc) {
             bias: {type: 'f', value: 0.},
             pole: {type: 'v2', value: null},
             pole_t: {type: 'v2', value: null},
+            ref_t: {type: 'v2', value: null},
             tx_ix: {type: 't', value: this.tex_index.tx},
             tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
             tx_z0: {type: 't', value: this.tex_z0.tx},
@@ -517,7 +517,7 @@ function TextureLayer(context, tilefunc) {
     
     
     this._debug_overview = function(data) {
-        console.log('worker result', data, _.size(data));
+        //console.log('worker result', data, _.size(data));
         var canvas = $('#tileovl')[0];
         $(canvas).attr('width', (TEX_Z_IX_SIZE / 2 * (1 + MAX_ZOOM)) + 'px');
         var ctx = canvas.getContext('2d');
@@ -531,7 +531,6 @@ function TextureLayer(context, tilefunc) {
             }
         }
         
-        var count = 0;
         $.each(data, function(k, v) {
             var pcs = k.split(':');
             var anti = +pcs[0];
@@ -541,10 +540,7 @@ function TextureLayer(context, tilefunc) {
             
             ctx.fillStyle = 'white';
             ctx.fillRect(32 * z + dx, 32 * ((anti ? 1 : 0)) + dy, 1, 1);
-            
-            count++;
         });
-        //console.log(count);
     }
 }
 
@@ -632,7 +628,9 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.scene = new THREE.Scene();
         this.scene.add(this.plane);
         
-	    this.curPole = [-34.0,18.4];
+	    this.curPole = [-41.63, -72.59 + 180.];
+	    //this.curPole = [42.4, -71.1];
+	    //this.curPole = [-34.0,18.4];
     }
 
     this.setWorldMatrix = function(M) {
@@ -659,10 +657,11 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         M.multiplySelf(new THREE.Matrix4().makeTranslation(-x, -y, 0));
         this.setWorldMatrix(M);
         this.layer.uniforms.scale.value *= z;
+        console.log(this.layer.uniforms.scale.value);
     }
 
     this.warp = function(pos, drag_context) {
-        var merc = this.xyToWorld(pos.x, pos.y, 0);
+        var merc = this.xyToWorld(pos.x, pos.y);
 	    var merc_ll = xy_to_ll(merc.x, merc.y);
 	    this.curPole = translate_pole([merc_ll[0], merc_ll[1] + 180.], drag_context.down_ll);
     }
@@ -691,7 +690,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 		        'down_pole': renderer.curPole,
 	        };
             
-            var merc = renderer.xyToWorld(drag_context.down_px.x, drag_context.down_px.y, 0);
+            var merc = renderer.xyToWorld(drag_context.down_px.x, drag_context.down_px.y);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
         });
@@ -727,6 +726,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.renderer.render(this.scene, this.camera);
         
         if (this.last_sampling == null || timestamp - this.last_sampling > SAMPLE_TIME_FREQ) {
+            this.setRefPoint();
             this.plane.material = this.layer._sampler_material;
             this.layer.sample_coverage();
             this.plane.material = this.layer._material;
@@ -743,7 +743,26 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.layer.uniforms.pole_t.value = new THREE.Vector2(this.pole_t.x, this.pole_t.y);
     };
     
-    
+    this.setRefPoint = function() {
+        var renderer = this;
+        var extremePoint = function(lo) {
+            return renderer.xyToWorld(lo ? 0 : renderer.width_px, 0.5 * renderer.height_px);
+        }
+        var exLo = extremePoint(true);
+        var exHi = extremePoint(false);
+        var refAnti = Math.abs(exLo.y) > Math.abs(exHi.y);
+        var refXY = refAnti ? exLo : exHi;
+
+        var merc_ll = xy_to_ll(refXY.x, refXY.y);
+        var ll = translate_pole(merc_ll, this.pole);
+        var refAbs = ll_to_xy(ll[0], ll[1]);
+        if (refAnti) {
+            refAbs = {x: (refAbs.x + .5) % 1., y: 1. - refAbs.y};
+        }
+        
+        this.ref_t = refAbs;
+        this.layer.uniforms.ref_t.value = new THREE.Vector2(this.ref_t.x, this.ref_t.y);
+    }
     
     this.start = function() {
         var merc = this;
@@ -774,6 +793,7 @@ function tile_url(type) {
         terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
+        mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
     };
     return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
 }
