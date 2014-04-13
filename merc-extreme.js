@@ -306,9 +306,9 @@ function TextureLayer(context, tilefunc) {
         
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
-            //if (tile.z > 16) {
-            //    return;
-            //}
+            if (tile.z > 16) {
+                return;
+            }
             
             if (layer.tile_index[tilekey(tile)] != null) {
                 return;
@@ -628,7 +628,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.scene = new THREE.Scene();
         this.scene.add(this.plane);
         
-	    this.curPole = [-41.63, -72.59 + 180.];
+	    this.curPole = [41.63, -72.59];
 	    //this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
     }
@@ -657,7 +657,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         M.multiplySelf(new THREE.Matrix4().makeTranslation(-x, -y, 0));
         this.setWorldMatrix(M);
         this.layer.uniforms.scale.value *= z;
-        console.log(this.layer.uniforms.scale.value);
+        console.log(this.layer.uniforms.scale.value, Math.acos(Math.min(this.layer.uniforms.scale.value / Math.pow(2., 23. - 3), 1.)));
     }
 
     this.warp = function(pos, drag_context) {

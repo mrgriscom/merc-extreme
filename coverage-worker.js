@@ -29,6 +29,8 @@ function process_buffer(buff) {
     tiles = {};
     for (var i = 0; i < buff.length; i += 4) {
         var _z = buff[i];
+        var _x = buff[i + 1] - 128;
+        var _y = buff[i + 2] - 128;
         var pole_tile = self.pole_tiles[_z];
         if (pole_tile == null) {
             continue;
@@ -38,8 +40,8 @@ function process_buffer(buff) {
         var z = _z % ANTI_OFFSET;
         var extent = Math.pow(2, z);
 
-        var x = mod((buff[i + 1] - 128) + pole_tile.x, extent);
-        var y = (buff[i + 2] - 128) + pole_tile.y;
+        var x = mod(_x + pole_tile.x, extent);
+        var y = _y + pole_tile.y;
         tiles[anti + ':' + z + ':' + x + ':' + y] = true;
     }
     return tiles;
