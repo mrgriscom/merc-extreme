@@ -306,9 +306,9 @@ function TextureLayer(context, tilefunc) {
         
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
-            if (tile.z > 16) {
-                return;
-            }
+            //if (tile.z > 16) {
+            //    return;
+           // }
             
             if (layer.tile_index[tilekey(tile)] != null) {
                 return;
@@ -492,6 +492,9 @@ function TextureLayer(context, tilefunc) {
             tx_ix: {type: 't', value: this.tex_index.tx},
             tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
             tx_z0: {type: 't', value: this.tex_z0.tx},
+
+            hp_pole_tile: {type: 'v2', value: null},
+            hp_pole_offset: {type: 'v2', value: null},
         };
         return new THREE.ShaderMaterial({
             uniforms: this.uniforms,
@@ -607,7 +610,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         
         this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
 
-        var quad = new QuadGeometry(-1000, -1000, 2000, 2000); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
+        var quad = new QuadGeometry(-1, -3, 3, 6); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
 	/*
         quad.applyMatrix(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
@@ -741,6 +744,16 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.pole_t = ll_to_xy(lat, lon);
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
         this.layer.uniforms.pole_t.value = new THREE.Vector2(this.pole_t.x, this.pole_t.y);
+
+        var xt = Math.floor(this.pole_t.x * 65536.);
+        var xo = this.pole_t.x  - xt / 65536.;
+        var yt = Math.floor(this.pole_t.y * 65536.);
+        var yo = this.pole_t.y  - yt / 65536.;
+
+        this.layer.uniforms.hp_pole_tile.value = new THREE.Vector2(xt, yt);
+        this.layer.uniforms.hp_pole_offset.value = new THREE.Vector2(xo, yo);
+
+        $('#x').html(xt + '<br> ' + yt + '<br>' + xo + '<br>' + yo);
     };
     
     this.setRefPoint = function() {

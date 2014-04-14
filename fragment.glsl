@@ -13,6 +13,9 @@ uniform vec2 ref_t;
 uniform float scale;  // pixels per earth circumference (undistorted)
 uniform float bias;   // overzoom is capped at 2^bias
 
+uniform vec2 hp_pole_tile;
+uniform vec2 hp_pole_offset;
+
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
 
 uniform sampler2D tx_ix;
@@ -44,11 +47,7 @@ void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
     llr_trans.s += rpole.s; // shift lon 0 to pole lon
 }
 
-void tex_lookup(in float z, in bool anti_pole, in vec2 abs_map, out int tex_id, out vec2 tile, out vec2 offset, out vec2 atlas_p) {
-    vec2 abs_map_z = abs_map * pow(2., z);
-    tile = floor(abs_map_z);
-    vec2 tile_p = mod(abs_map_z, 1.);
-
+void tex_lookup_by_tile(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_p, out int tex_id, out vec2 offset, out vec2 atlas_p) {
     vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+63.) + .5) / 512.);
     vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+62.) + .5) / 512.);
     offset = 32. * vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
@@ -59,6 +58,14 @@ void tex_lookup(in float z, in bool anti_pole, in vec2 abs_map, out int tex_id, 
     int slot_x = int(255. * slot_enc.g);
     int slot_y = int(255. * slot_enc.b);
     atlas_p = (vec2(slot_x, slot_y) + tile_p) / (ATLAS_TEX_SIZE / TILE_SIZE);
+}
+
+void tex_lookup(in float z, in bool anti_pole, in vec2 abs_map, out int tex_id, out vec2 tile, out vec2 offset, out vec2 atlas_p) {
+    vec2 abs_map_z = abs_map * pow(2., z);
+    tile = floor(abs_map_z);
+    vec2 tile_p = mod(abs_map_z, 1.);
+
+    tex_lookup_by_tile(z, anti_pole, tile, tile_p, tex_id, offset, atlas_p);
 }
 
 void frag_val(in float z, in vec2 abs_map, in vec2 tile, in vec2 offset, in int tex_id, in vec2 atlas_p, out vec4 val) {
@@ -72,7 +79,12 @@ void frag_val(in float z, in vec2 abs_map, in vec2 tile, in vec2 offset, in int 
         val = vec4(.65, .7, .75, 1.);
     }
 }
- 
+
+void hp_reco(in vec2 told, in vec2 oold, out vec2 tnew, out vec2 onew) {
+  oold += fract(told);
+  tnew = floor(told) + floor(oold);
+  onew = fract(oold);
+}
 
 
 void main() {
@@ -225,11 +237,26 @@ void main() {
 
 
         vec4 valA;
-        frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
 
         float prec_buffer = 3.;
-        if (abs(geo_rad.t) > acos(scale / pow(2., 23. - prec_buffer))) {
-          valA = .8 * valA + .2 * vec4(1.,0.,1.,1.);
+        if (true && abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.))) {
+          float dist = 2. * exp(-merc.t * PI2) / PI2 / cos(radians(pole.t));
+          vec2 ray = dist * vec2(sin(merc_rad.s), cos(merc_rad.s));
+
+          vec2 tnew;
+          vec2 onew;
+          hp_reco(hp_pole_tile * pow(2., z - 16.), hp_pole_offset * pow(2., z) + ray * pow(2., z), tnew, onew);
+          // need to mod tile_x
+
+          int tex_id;
+          vec2 offset;
+          vec2 atlas_p;
+          tex_lookup_by_tile(z, anti_pole, tnew, onew, tex_id, offset, atlas_p);
+          frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
+
+          valA = .95 * valA + .05 * vec4(1.,0.,1.,1.);
+        } else {
+          frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
         }
         gl_FragColor = valA; //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
         //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);
