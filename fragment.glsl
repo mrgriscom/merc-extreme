@@ -240,7 +240,8 @@ void main() {
 
         float prec_buffer = 3.;
         if (true && abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.))) {
-          float dist = 2. * exp(-merc.t * PI2) / PI2 / cos(radians(pole.t));
+          float dist_rad = 2. * exp(-merc.t * PI2); // distance to pole (radians)
+          float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
           vec2 ray = dist * vec2(sin(merc_rad.s), cos(merc_rad.s));
 
           vec2 tnew;

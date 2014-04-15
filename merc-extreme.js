@@ -802,7 +802,7 @@ function load_image(url, onload) {
 function tile_url(type) {
     var specs = {
         map: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        sat: 'https://khms{s:0-3}.google.com/kh/v=131&x={x}&y={y}&z={z}',
+        sat: 'https://khms{s:0-3}.google.com/kh/v=147&x={x}&y={y}&z={z}',
         terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
