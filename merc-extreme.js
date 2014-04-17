@@ -29,7 +29,7 @@ function Point(unit, ref, data) {
 function pow2ceil(x) {
     var EPSILON = 1e-9;
     var lgx = Math.log(x) / Math.log(2.);
-    return Math.pow(2., Math.ceil(lgx));
+    return Math.pow(2., Math.ceil(lgx - EPSILON));
 }
 
 var _stats;
@@ -578,6 +578,12 @@ function TextureLayer(context, tilefunc) {
             for (var j = 0; j < 2; j++) {
                 ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
                 ctx.fillRect(32 * i, 32 * j, Math.min(Math.pow(2, i), 32), Math.min(Math.pow(2, i), 32));
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#555';
+                ctx.font = '12pt sans-serif';
+                ctx.fillText(i, 32 * (i + .5), 32 * (j + .5));
             }
         }
         
@@ -679,7 +685,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.scene.add(this.plane);
         
         //this.curPole = [-3.226195,35.041576];
-	    this.curPole = [41.63, -72.59];
+	    //this.curPole = [41.63, -72.59];
+        this.curPole = [42.4, -71.1];
 	    //this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
     }
@@ -712,7 +719,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         M.multiplySelf(new THREE.Matrix4().makeTranslation(-x, -y, 0));
         this.setWorldMatrix(M);
         this.layer.uniforms.scale.value *= z;
-        console.log(this.layer.uniforms.scale.value, Math.acos(Math.min(this.layer.uniforms.scale.value / Math.pow(2., 23. - 3), 1.)));
     }
 
     this.warp = function(pos, drag_context) {
@@ -871,6 +877,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     }
     
     this.setPole = function(lat, lon) {
+        lon = mod(lon + 180., 360.) - 180.;
         this.pole = [lat, lon];
         this.pole_t = ll_to_xy(lat, lon);
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
@@ -883,8 +890,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
         this.layer.uniforms.hp_pole_tile.value = new THREE.Vector2(xt, yt);
         this.layer.uniforms.hp_pole_offset.value = new THREE.Vector2(xo, yo);
-
-        //$('#x').html(xt + '<br> ' + yt + '<br>' + xo + '<br>' + yo);
     };
     
     this.setRefPoint = function() {
@@ -1108,3 +1113,8 @@ function paramThreeToGL (p, _gl) {
     return 0;
 
 };
+
+// mod that doesn't suck for negative numbers
+function mod(a, b) {
+    return ((a % b) + b) % b;
+}
