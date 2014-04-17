@@ -5,6 +5,12 @@
 #define TILE_SIZE 256.
 #define ATLAS_TEX_SIZE 4096.
 
+#define MAX_ZOOM 22.
+#define TILE_OFFSET_RESOLUTION 32.
+#define TEX_Z_IX_SIZE 64.
+#define TEX_IX_CELLS 8.
+#define TEX_IX_SIZE 512.
+
 // TODO lots of constants in here that should be tied to js constants
 
 uniform vec2 pole;    // lat/lon degrees
@@ -47,31 +53,44 @@ void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
     llr_trans.s += rpole.s; // shift lon 0 to pole lon
 }
 
-void tex_lookup_by_tile(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_p, out int tex_id, out vec2 offset, out vec2 atlas_p) {
-    vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+63.) + .5) / 512.);
-    vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, 256.*float(anti_pole)+62.) + .5) / 512.);
-    offset = 32. * vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
-                        256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
+void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
+                      out int tex_id, out vec2 atlas_t, out bool atlas_oob) {
+    vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, (4. * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 1.) + .5) / TEX_IX_SIZE);
+    vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, (4. * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 2.) + .5) / TEX_IX_SIZE);
+    vec2 offset = TILE_OFFSET_RESOLUTION * vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
+                                                256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
 
-    vec4 slot_enc = texture2D(tx_ix, (64. * vec2(mod(z, 8.), floor(z / 8.) + 4. * float(anti_pole)) - offset + tile + .5) / 512.);
+    vec2 z_cell = vec2(mod(z, TEX_IX_CELLS), floor(z / TEX_IX_CELLS) + TEX_IX_CELLS * .5 * float(anti_pole));
+    vec2 ix_cell = TEX_Z_IX_SIZE * z_cell - offset + tile;
+    vec4 slot_enc = texture2D(tx_ix, (ix_cell + .5) / TEX_IX_SIZE);
     tex_id = int(255. * slot_enc.r) - 1;
     int slot_x = int(255. * slot_enc.g);
     int slot_y = int(255. * slot_enc.b);
-    atlas_p = (vec2(slot_x, slot_y) + tile_p) / (ATLAS_TEX_SIZE / TILE_SIZE);
+    atlas_t = vec2(slot_x, slot_y);
+
+    atlas_oob = (tile.s < offset.s || tile.t < offset.t ||
+                 tile.s >= offset.s + TEX_Z_IX_SIZE || tile.t >= offset.t + TEX_Z_IX_SIZE);
 }
 
-void tex_lookup(in float z, in bool anti_pole, in vec2 abs_map, out int tex_id, out vec2 tile, out vec2 offset, out vec2 atlas_p) {
+void tex_lookup_coord(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_p,
+                      out int tex_id, out vec2 atlas_p, out bool atlas_oob) {
+    vec2 atlas_t;
+    tex_lookup_atlas(z, anti_pole, tile, tex_id, atlas_t, atlas_oob);
+    atlas_p = (atlas_t + tile_p) / (ATLAS_TEX_SIZE / TILE_SIZE);
+}
+
+void tex_lookup_abs(in float z, in bool anti_pole, in vec2 abs_map,
+                    out int tex_id, out vec2 atlas_p, out bool atlas_oob) {
     vec2 abs_map_z = abs_map * pow(2., z);
-    tile = floor(abs_map_z);
+    vec2 tile = floor(abs_map_z);
     vec2 tile_p = mod(abs_map_z, 1.);
-
-    tex_lookup_by_tile(z, anti_pole, tile, tile_p, tex_id, offset, atlas_p);
+    tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, atlas_oob);
 }
 
-void frag_val(in float z, in vec2 abs_map, in vec2 tile, in vec2 offset, in int tex_id, in vec2 atlas_p, out vec4 val) {
+void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_id, in vec2 atlas_p, out vec4 val) {
     if (z == 0.) {
         val = texture2D(tx_z0, vec2(abs_map.s, .5 * (abs_map.t + .5)));
-    } else if (tile.s < offset.s || tile.t < offset.t || tile.s >= offset.s + 64. || tile.t >= offset.t + 64.) {
+    } else if (atlas_oob) {
         val = vec4(1, 0, 0, 1);
     } else if (tex_id >= 0) {
         val = texture2D(tx_atlas[0], atlas_p);
@@ -85,6 +104,7 @@ void hp_reco(in vec2 told, in vec2 oold, out vec2 tnew, out vec2 onew) {
   tnew = floor(told) + floor(oold);
   onew = fract(oold);
 }
+
 
 
 void main() {
@@ -115,6 +135,15 @@ void main() {
 
 #ifdef MODE_TILE
 
+    /*
+     * zoom level - 5 bits
+     * anti-pole - 1 bit
+     * zoom bleed - 1 bit
+     * tile fringe + dir - 5 bits
+     * x offset - 6 bits
+     * y offset - 6 bits
+     */
+
     float z_enc;
     vec2 tile_enc;
 
@@ -135,7 +164,7 @@ void main() {
         }
 
         vec2 ref_tile = floor(ref_t2 * pow(2., z));
-        tile_enc = (tile - ref_tile) + 128.;
+        tile_enc = (tile - ref_tile) + 32.;
     }
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
@@ -150,8 +179,7 @@ void main() {
     z = max(z, 0.); // TODO mipmap for zoom level 0 (-z is lod)
 
     // testing
-    float zmax = 30.; //16.;
-    z = min(z, zmax);
+    z = min(z, MAX_ZOOM);
 
     // TODO want to support linear blending -- means must be incorporated into tile cache texture
     if (out_of_bounds_fuzzy) {
@@ -160,104 +188,113 @@ void main() {
 
         int tex_id;
         vec2 tile;
-        vec2 offset;
+        bool z_oob;
         vec2 atlas_p;
 
-        tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+        tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
 
         
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
-          tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }
 
 
         vec4 valA;
 
-        float prec_buffer = 3.;
-        if (true && abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.))) {
+        float prec_buffer = 2.;
+        float flat_earth_cutoff = 1.16;
+        float hp_z_base = 16.;
+        if (true && abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.)) && abs(merc.t) > flat_earth_cutoff) {
           float dist_rad = 2. * exp(-merc.t * PI2); // distance to pole (radians)
           float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
           vec2 ray = dist * vec2(sin(merc_rad.s), cos(merc_rad.s));
 
+          
           vec2 tnew;
           vec2 onew;
-          hp_reco(hp_pole_tile * pow(2., z - 16.), hp_pole_offset * pow(2., z) + ray * pow(2., z), tnew, onew);
-          // need to mod tile_x
+          hp_reco(hp_pole_tile * pow(2., z - hp_z_base), hp_pole_offset * pow(2., z) + ray * pow(2., z), tnew, onew);
+          tnew.s = mod(tnew.s, pow(2., z));
 
+          //abs_map = pole_t + ray;
+
+          
           int tex_id;
-          vec2 offset;
+          bool z_oob;
           vec2 atlas_p;
-          tex_lookup_by_tile(z, anti_pole, tnew, onew, tex_id, offset, atlas_p);
-          frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
+          tex_lookup_coord(z, anti_pole, tnew, onew, tex_id, atlas_p, z_oob);
+          tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
+          
 
+          //tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
+          //frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
           valA = .95 * valA + .05 * vec4(1.,0.,1.,1.);
         } else {
-          frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
+          tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
         }
         gl_FragColor = valA; //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
         //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);

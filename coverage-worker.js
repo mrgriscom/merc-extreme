@@ -29,8 +29,8 @@ function process_buffer(buff) {
     tiles = {};
     for (var i = 0; i < buff.length; i += 4) {
         var _z = buff[i];
-        var _x = buff[i + 1] - 128;
-        var _y = buff[i + 2] - 128;
+        var _x = buff[i + 1] - 32;
+        var _y = buff[i + 2] - 32;
         var pole_tile = self.pole_tiles[_z];
         if (pole_tile == null) {
             continue;
