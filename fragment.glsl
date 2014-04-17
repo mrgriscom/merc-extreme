@@ -133,7 +133,7 @@ void main() {
     float base_res = PI2 / TILE_SIZE * base_distortion; // radians per pixel offered by the lowest zoom layer
     float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
 
-#ifdef MODE_TILE
+<% if (mode == 'tile') { %>
 
     /*
      * zoom level - 5 bits
@@ -169,9 +169,9 @@ void main() {
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
 
-#endif
+<% } %>
 
-#ifdef MODE_TEX
+<% if (mode == 'tex') { %>
 
     // TODO maybe: blending across zoom level transitions
 
@@ -300,7 +300,8 @@ void main() {
         //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);
    
     }
-#endif
+
+<% } %>
 
 }
 

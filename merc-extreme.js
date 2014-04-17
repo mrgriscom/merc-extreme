@@ -48,7 +48,6 @@ var MAX_Z_TILE_SPAN = Math.ceil(MAX_SCREEN_DIAG / TILE_SIZE * Math.pow(2, 1. - M
 var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
 // size of the texture index for a single zoom level; the maximum visible area
 // at a single zoom level should never span more than half this number of tiles
-// TODO change to the half-version instead
 var TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
 
 var TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
@@ -546,7 +545,7 @@ function TextureLayer(context, tilefunc) {
         return new THREE.ShaderMaterial({
             uniforms: this.uniforms,
             vertexShader: configureShader(vertex_shader),
-            fragmentShader: configureShader(fragment_shader, {MODE_TEX: null})
+            fragmentShader: configureShader(fragment_shader, {mode: 'tex'})
         });
         
     }
@@ -555,7 +554,7 @@ function TextureLayer(context, tilefunc) {
         return new THREE.ShaderMaterial({
             uniforms: this.uniforms,
             vertexShader: configureShader(vertex_shader),
-            fragmentShader: configureShader(fragment_shader, {MODE_TILE: null})
+            fragmentShader: configureShader(fragment_shader, {mode: 'tile'})
         });
     }
     
@@ -957,19 +956,13 @@ function loadShader(name) {
             content = data;
         }
     });
-    return content;
+    return _.template(content);
 }
 
-function configureShader(code, params) {
-    var param_to_predicate = function(varname, value) {
-        return '#define ' + varname + (value != null ? ' ' + value : '');
-    };
-    var predicates = $.map(params || {}, function(v, k) {
-        return param_to_predicate(k, v);
-    });
-    predicates.push('');
-    predicates.push(code);
-    return predicates.join('\n');
+function configureShader(template, context) {
+    context = context || {};
+
+    return template(context);
 }
 
 window.requestAnimFrame = (function(callback){
