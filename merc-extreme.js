@@ -962,6 +962,24 @@ function loadShader(name) {
 function configureShader(template, context) {
     context = context || {};
 
+    constants = [
+        'TILE_SIZE',
+        'MAX_ZOOM',
+        'TILE_OFFSET_RESOLUTION',
+        'TEX_Z_IX_SIZE',
+        'TEX_IX_CELLS',
+        'TEX_IX_SIZE',
+        'ATLAS_TEX_SIZE',
+        'TILE_FRINGE_WIDTH',
+        'TILE_SKIRT'
+    ];
+    const_ctx = {};
+    _.each(constants, function(e) {
+        const_ctx[e] = window[e];
+    });
+    context.constants = const_ctx;
+
+    //console.log(template(context));
     return template(context);
 }
 

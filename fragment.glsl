@@ -2,16 +2,10 @@
 
 #define PI  3.1415926535
 #define PI2 6.2831853071
-#define TILE_SIZE 256.
-#define ATLAS_TEX_SIZE 4096.
 
-#define MAX_ZOOM 22.
-#define TILE_OFFSET_RESOLUTION 32.
-#define TEX_Z_IX_SIZE 64.
-#define TEX_IX_CELLS 8.
-#define TEX_IX_SIZE 512.
-
-// TODO lots of constants in here that should be tied to js constants
+<% _.each(constants, function(v, k) { %>
+#define <%= k %> float(<%= v %>)
+<% }); %>
 
 uniform vec2 pole;    // lat/lon degrees
 uniform vec2 pole_t;  // maptile coordinates
@@ -192,77 +186,12 @@ void main() {
         vec2 atlas_p;
 
         tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-
-        
+<% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
         if (tex_id < 0 && z > 0.) {
           z -= 1.;
           tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
         }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }
-
+<% } %>
 
         vec4 valA;
 
