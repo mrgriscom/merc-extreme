@@ -196,36 +196,45 @@ void main() {
 
         vec4 valA;
 
-        float prec_buffer = 2.;
-        float hp_z_base = 16.;
-        if (true && abs(merc.t) > flat_earth_cutoff) {
-          float dist_rad = 2. * exp(-merc.t * PI2); // distance to pole (radians)
-          float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
-          vec2 ray = dist * vec2(sin(merc_rad.s), cos(merc_rad.s));
+        float hp_z_base = 16.; // TODO get rid of this normalization?
+        if (abs(merc.t) > flat_earth_cutoff) {
+          // TODO need to calc z independently
 
-          
+          vec2 base_tile = hp_pole_tile;
+          vec2 base_offset = hp_pole_offset;
+          float theta = merc_rad.s;
+          if (anti_pole) {
+            base_tile = vec2(mod(base_tile.s + pow(2., hp_z_base - 1.), pow(2., hp_z_base)), pow(2., hp_z_base) - 1. - base_tile.t);
+            base_offset.t = pow(2., -hp_z_base) - base_offset.t;
+            theta = -theta;
+          }
+
+          float dist_rad = 2. * exp(-abs(merc.t) * PI2); // distance to pole (radians)
+          float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
+          vec2 ray = dist * vec2(sin(theta), cos(theta));
+
           vec2 tnew;
           vec2 onew;
-          hp_reco(hp_pole_tile * pow(2., z - hp_z_base), hp_pole_offset * pow(2., z) + ray * pow(2., z), tnew, onew);
+          hp_reco(base_tile * pow(2., z - hp_z_base), base_offset * pow(2., z) + ray * pow(2., z), tnew, onew);
           tnew.s = mod(tnew.s, pow(2., z));
 
-          //abs_map = pole_t + ray;
-
-          
           int tex_id;
           bool z_oob;
           vec2 atlas_p;
           tex_lookup_coord(z, anti_pole, tnew, onew, tex_id, atlas_p, z_oob);
           tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
-          
-
-          //tex_lookup(z, anti_pole, abs_map, tex_id, tile, offset, atlas_p);
-          //frag_val(z, abs_map, tile, offset, tex_id, atlas_p, valA);
           valA = .95 * valA + .05 * vec4(1.,0.,1.,1.);
         } else {
           tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
         }
-        gl_FragColor = valA; //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
+
+        float prec_buffer = 2.;
+        if (abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.))) {
+          valA = .9 * valA + .1 * vec4(1., 1., 0., 1.);
+        } 
+
+        gl_FragColor = valA;
+        //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
         //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);
    
     }
