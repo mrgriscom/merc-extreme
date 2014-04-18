@@ -64,6 +64,11 @@ var SAMPLE_TIME_FREQ = 1.;
 var TILE_FRINGE_WIDTH = .1; // set dynamically from SAMPLE_FREQ?
 var TILE_SKIRT = 2; //px
 
+var APPROXIMATION_THRESHOLD = 0.5; //px
+
+var NORTH_POLE_COLOR = '#ccc';
+var SOUTH_POLE_COLOR = '#ccc';
+
 function init() {
     vertex_shader = loadShader('vertex-default');
     fragment_shader = loadShader('fragment');
@@ -584,8 +589,10 @@ function TextureLayer(context, tilefunc) {
     
     this.mk_top_level_tile = function(img) {
         this.tex_z0.update(function(ctx, w, h) {
-            ctx.fillStyle = '#ccc';
-            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = NORTH_POLE_COLOR;
+            ctx.fillRect(0, 0, w, .5 * h);
+            ctx.fillStyle = SOUTH_POLE_COLOR;
+            ctx.fillRect(0, .5 * h, w, .5 * h);
             
             ctx.drawImage(img, 0, .25 * h);
         });
@@ -941,7 +948,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         // TODO handle flat-earth approx at anti-pole
         var flat_earth_cutoff = solve_eq(0, 3., 1. / this.scale_px, function(x) {
             var lat = xy_to_ll(0, x)[0];
-            return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < 0.5;
+            return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < APPROXIMATION_THRESHOLD;
         });
 
         this.layer.uniforms.flat_earth_cutoff.value = flat_earth_cutoff;

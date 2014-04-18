@@ -119,7 +119,6 @@ void main() {
     abs_map.x = mod(abs_map.x, 1.);
 
     bool out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
-    bool out_of_bounds_fuzzy = (abs_map.t < -0.5 || abs_map.t >= 1.5);
     bool anti_pole = (merc.t < 0.);
     float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
 
@@ -175,11 +174,6 @@ void main() {
 
     // testing
     z = min(z, MAX_ZOOM);
-
-    // TODO want to support linear blending -- means must be incorporated into tile cache texture
-    if (out_of_bounds_fuzzy) {
-        gl_FragColor = vec4(1, 1, 0, 1);
-    } else {     
 
         int tex_id;
         vec2 tile;
@@ -237,8 +231,6 @@ void main() {
         //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
         //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);
    
-    }
-
 <% } %>
 
 }
