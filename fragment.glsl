@@ -83,7 +83,9 @@ void tex_lookup_abs(in float z, in bool anti_pole, in vec2 abs_map,
 }
 
 void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_id, in vec2 atlas_p, out vec4 val) {
-    if (z == 0.) {
+    if (z == 0. || abs_map.t < 0. || abs_map.t > 1.) {
+        // note: just out-of-bounds pixels will only ever blend with the z0 texture, regardless
+        // of the appropriate zoom level
         val = texture2D(tx_z0, vec2(abs_map.s, .5 * (abs_map.t + .5)));
     } else if (atlas_oob) {
         val = vec4(1, 0, 0, 1);

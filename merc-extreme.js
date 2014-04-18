@@ -347,6 +347,7 @@ function TextureLayer(context, tilefunc) {
         this.worker.postMessage(this.sampleBuff);
     }
     
+    this.first_run = true;
     this.sample_coverage_postprocess = function(data) {
         this._debug_overview(data);
         
@@ -364,7 +365,12 @@ function TextureLayer(context, tilefunc) {
             };
         }
         var tiles = _.sortBy($.map(data, function(v, k) { return unpack_tile(k); }), function(e) { return e.z + (e.anti ? .5 : 0.); });
-        
+        if (this.first_run) {
+            // always load z0 tile even if not in current view
+            tiles.push({anti: false, z: 0, x: 0, y: 0}); // may be a duplicate, but the code below should handle it ok
+            this.first_run = false;
+        }
+
         var layer = this;
         
         if (window.MRU_counter == null) {
@@ -425,7 +431,7 @@ function TextureLayer(context, tilefunc) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             //if (tile.z > 16) {
             //    return;
-           // }
+            // }
             
             if (layer.tile_index[tilekey(tile)] != null) {
                 return;
@@ -757,7 +763,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.scene = new THREE.Scene();
         this.scene.add(this.plane);
         
-        //this.curPole = [-3.226195,35.041576];
 	    //this.curPole = [41.63, -72.59];
         this.curPole = [42.4, -71.1];
 	    //this.curPole = [42.4, -71.1];
