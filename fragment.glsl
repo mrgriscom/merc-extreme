@@ -15,6 +15,7 @@ uniform float bias;   // overzoom is capped at 2^bias
 
 uniform vec2 hp_pole_tile;
 uniform vec2 hp_pole_offset;
+uniform float flat_earth_cutoff;
 
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
 
@@ -196,9 +197,8 @@ void main() {
         vec4 valA;
 
         float prec_buffer = 2.;
-        float flat_earth_cutoff = 1.16;
         float hp_z_base = 16.;
-        if (true && abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.)) && abs(merc.t) > flat_earth_cutoff) {
+        if (true && abs(merc.t) > flat_earth_cutoff) {
           float dist_rad = 2. * exp(-merc.t * PI2); // distance to pole (radians)
           float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
           vec2 ray = dist * vec2(sin(merc_rad.s), cos(merc_rad.s));

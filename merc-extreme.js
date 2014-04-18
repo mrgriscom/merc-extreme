@@ -144,6 +144,72 @@ function inv_translate_pole(pos, pole) {
     return xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
 }
 
+// estimate the error from using a flat earth approximation (ie, plotting
+// the distance from a center point directly on the mercator-projected plane
+// rather than on the surface of the spherical earth)
+// lat: latitude in degrees of center of circle
+// radius: radius of circle in earth radii
+// DO NOT ask how i figured this all out
+function flat_earth_error(lat, radius) {
+    lat = Math.abs(lat);
+
+    // handle situations where approximation becomes too inaccurate
+    if (radius > .1) {
+        return Number.POSITIVE_INFINITY;
+    }
+    var rlog = Math.max(Math.log(radius) / Math.LN10, -4);
+    // empirically determined thresholds at which estimate starts
+    // to differ from reality by more than 1%
+    var latmin = 18. * Math.pow(10., rlog);
+    var latmax = 90. - 97. * Math.pow(10., rlog);
+    if (lat > latmax) {
+        return Number.POSITIVE_INFINITY;
+    } else if (lat < latmin) {
+        lat = latmin;
+    }
+
+    var rlat = lat * Math.PI / 180.;
+    return .5 * Math.pow(radius, 2.) * Math.tan(rlat);
+}
+
+// lat: latitude in projected coordinate system
+// scale: pixels per earth circumference
+function flat_earth_error_px(lat, scale, pole_lat) {
+    var lat = Math.abs(lat);
+    var rlat = lat * Math.PI / 180.;
+    var pole_dist = .5 * Math.PI - rlat;
+
+    var error = flat_earth_error(pole_lat, pole_dist);
+    var px_size = 2. * Math.PI / scale * Math.cos(rlat); // radians per pixel
+
+    return error / px_size;
+}
+
+function solve_eq(start, end, resolution, func) {
+    if (func(start)) {
+        return start;
+    } else if (!func(end)) {
+        return end;
+    }
+
+    var x, result;
+    while (true) {
+        x = .5 * (start + end);
+        if (Math.abs(end - start) <= resolution) {
+            return x;
+        }
+
+        result = func(x);
+        if (result) {
+            end = x;
+        } else {
+            start = x;
+        }
+    }
+}
+
+
+
 QuadGeometry = function(x0, y0, width, height) {
 	THREE.Geometry.call(this);
     var g = this;
@@ -541,6 +607,7 @@ function TextureLayer(context, tilefunc) {
 
             hp_pole_tile: {type: 'v2', value: null},
             hp_pole_offset: {type: 'v2', value: null},
+            flat_earth_cutoff: {type: 'f', value: 0.},
         };
         return new THREE.ShaderMaterial({
             uniforms: this.uniforms,
@@ -717,6 +784,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         M.multiplySelf(new THREE.Matrix4().makeScale(z, z, 1));
         M.multiplySelf(new THREE.Matrix4().makeTranslation(-x, -y, 0));
         this.setWorldMatrix(M);
+        this.scale_px *= z;
         this.layer.uniforms.scale.value *= z;
     }
 
@@ -859,7 +927,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             return Math.sqrt(Math.pow(diff[0], 2) + Math.pow(diff[1], 2));
         };
 
-        var SAMPLES = 1000;
+        var SAMPLES = 1; //000;
         var tally = 0;
         for (var i = 0; i < SAMPLES; i++) {
             var k = [Math.random(), Math.random()];
@@ -869,9 +937,18 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var pos = window.POS || {x: 0, y: 0};
         debug += pxdist([pos.x / this.width_px, pos.y / this.height_px]);
 
+        // TODO can bind this by screen-viewable area
+        // TODO handle flat-earth approx at anti-pole
+        var flat_earth_cutoff = solve_eq(0, 3., 1. / this.scale_px, function(x) {
+            var lat = xy_to_ll(0, x)[0];
+            return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < 0.5;
+        });
+
+        this.layer.uniforms.flat_earth_cutoff.value = flat_earth_cutoff;
+        debug += '<br>' + flat_earth_cutoff;
 
         $('#x').html(debug);
-        
+
         _stats.update();
     }
     
@@ -942,6 +1019,7 @@ function tile_url(type) {
         osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
         mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+        topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}'
     };
     return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
 }
