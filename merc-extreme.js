@@ -606,45 +606,40 @@ function TextureLayer(context, tilefunc) {
         });
     }
     
-    this.material = function() {
-        
-        var tex = this;
-        
-        this.uniforms = {
-            scale: {type: 'f', value: this.context.scale_px},
-            bias: {type: 'f', value: 0.},
-            pole: {type: 'v2', value: null},
-            pole_t: {type: 'v2', value: null},
-            ref_t: {type: 'v2', value: null},
-            tx_ix: {type: 't', value: this.tex_index.tx},
-            tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
-            tx_z0: {type: 't', value: this.tex_z0.tx},
+    this.material = function(params) {
+        if (!this.uniforms) {
+            this.uniforms = {
+                scale: {type: 'f', value: this.context.scale_px},
+                bias: {type: 'f', value: 0.},
+                pole: {type: 'v2', value: null},
+                pole_t: {type: 'v2', value: null},
+                ref_t: {type: 'v2', value: null},
+                tx_ix: {type: 't', value: this.tex_index.tx},
+                tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
+                tx_z0: {type: 't', value: this.tex_z0.tx},
 
-            hp_pole_tile: {type: 'v2', value: null},
-            hp_pole_offset: {type: 'v2', value: null},
-            flat_earth_cutoff: {type: 'f', value: 0.},
-        };
+                hp_pole_tile: {type: 'v2', value: null},
+                hp_pole_offset: {type: 'v2', value: null},
+            };
+        }
         return new THREE.ShaderMaterial({
             uniforms: this.uniforms,
             vertexShader: configureShader(vertex_shader),
-            fragmentShader: configureShader(fragment_shader, {mode: 'tex'})
-        });
-        
-    }
-    
-    this.sampler_material = function() {
-        return new THREE.ShaderMaterial({
-            uniforms: this.uniforms,
-            vertexShader: configureShader(vertex_shader),
-            fragmentShader: configureShader(fragment_shader, {mode: 'tile'})
-        });
+            fragmentShader: configureShader(fragment_shader, params)
+        });        
     }
     
     this.init();
-    this._material = this.material();
-    this._sampler_material = this.sampler_material();
-    
-    
+    this._materials = {
+        'image': {
+            'sphere': this.material({geo_mode: 'sphere', output_mode: 'tex'}),
+            'flat': this.material({geo_mode: 'flat', output_mode: 'tex'}),
+        },
+        'sampler': {
+            'sphere': this.material({geo_mode: 'sphere', output_mode: 'tile'}),
+            'flat': this.material({geo_mode: 'flat', output_mode: 'tile'}),
+        },
+    };
     
     
     this._debug_overview = function(data) {
@@ -744,38 +739,58 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         
         this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
 
-        var quad = new QuadGeometry(-1, -3, 3, 6); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
-	/*
-        quad.applyMatrix(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
-        quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-        quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
-        */
-        this.quad = quad;
+        this.scene = new THREE.Scene();
+        this.group = new THREE.Object3D();
+        this.scene.add(this.group);
+        this.layer = new TextureLayer(this, tile_url('map'));
+        this.clearQuads();
+
+        //this.quad = new QuadGeometry(-1, -3, 3, 6); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
+        //this.plane = new THREE.Mesh(this.quad, this.layer._material);
+        //this.group.add(this.plane);
+
+        //quad.applyMatrix(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
+        //quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
+        //quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
 	    var M = new THREE.Matrix4();
 	    M.multiplySelf(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 	    M.multiplySelf(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
 	    M.multiplySelf(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         this.setWorldMatrix(M);
-        
-	    this.layer = new TextureLayer(this, tile_url('map'));
-        
-        this.plane = new THREE.Mesh(this.quad, this.layer._material);
-        
-        this.scene = new THREE.Scene();
-        this.scene.add(this.plane);
-        
+
 	    //this.curPole = [41.63, -72.59];
         this.curPole = [42.4, -71.1];
 	    //this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
     }
 
+    this.makeQuad = function(x0, y0, w, h, geo_mode) {
+        var quad = new QuadGeometry(x0, y0, w, h);
+        var plane = new THREE.Mesh(quad, this.layer._materials['image'][geo_mode]);
+        plane.geo_mode = geo_mode;
+        return plane;
+    }
+
+    this.addQuad = function(xmin, ymin, xmax, ymax, geo_mode) {
+        var quad = this.makeQuad(xmin, ymin, xmax - xmin, ymax - ymin, geo_mode);
+        this.group.add(quad);
+        this.currentObjs.push(quad);
+    }
+
+    this.clearQuads = function() {
+        this.currentObjs = [];
+        var m = this;
+        _.each(this.group.children.slice(0), function(e) {
+            m.group.remove(e);
+        });
+    }
+
     this.setWorldMatrix = function(M) {
         // this currently UPDATES the matrix
         this.M = this.M || new THREE.Matrix4();
-        this.quad.applyMatrix(M);
-        this.quad.verticesNeedUpdate = true;
+        this.group.applyMatrix(M);
+        this.group.verticesNeedUpdate = true;
 
         // this is a mess
         M.multiplySelf(this.M);
@@ -867,17 +882,37 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     }
     
     this.render = function(timestamp) {
+        this.clearQuads();
+
+        var renderer = this;
+        // TODO can bind this by screen-viewable area
+        var flat_earth_cutoff = solve_eq(0, 3., 1. / this.scale_px, function(x) {
+            var lat = xy_to_ll(0, x)[0];
+            return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < APPROXIMATION_THRESHOLD;
+        });
+
+        this.addQuad(-1, -3, 2, -flat_earth_cutoff, 'flat');
+        this.addQuad(-1, -flat_earth_cutoff, 2, flat_earth_cutoff, 'sphere');
+        this.addQuad(-1, flat_earth_cutoff, 2, 3, 'flat');
+
 	    this.setPole(this.curPole[0], this.curPole[1]);
         this.renderer.render(this.scene, this.camera);
         
+        var setMaterials = function(output_mode) {
+            $.each(renderer.currentObjs, function(i, e) {
+                e.material = renderer.layer._materials[output_mode][e.geo_mode];
+            });
+        }
+
         if (this.last_sampling == null || timestamp - this.last_sampling > SAMPLE_TIME_FREQ) {
             this.setRefPoint();
-            this.plane.material = this.layer._sampler_material;
+            setMaterials('sampler');
             this.layer.sample_coverage();
-            this.plane.material = this.layer._material;
+            setMaterials('image');
             this.last_sampling = timestamp;
         }
 
+        // purely debug below
         var corners = [
             [0, 0],
             [0, this.height_px],
@@ -946,19 +981,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var k = [Math.random(), Math.random()];
             tally += pxdist(k);
         }
-        debug += (tally / SAMPLES) + '<br>';
-        var pos = window.POS || {x: 0, y: 0};
-        debug += pxdist([pos.x / this.width_px, pos.y / this.height_px]);
-
-        // TODO can bind this by screen-viewable area
-        // TODO handle flat-earth approx at anti-pole
-        var flat_earth_cutoff = solve_eq(0, 3., 1. / this.scale_px, function(x) {
-            var lat = xy_to_ll(0, x)[0];
-            return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < APPROXIMATION_THRESHOLD;
-        });
-
-        this.layer.uniforms.flat_earth_cutoff.value = flat_earth_cutoff;
-        debug += '<br>' + flat_earth_cutoff;
 
         $('#x').html(debug);
 
@@ -1033,6 +1055,7 @@ function tile_url(type) {
         osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
         mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+        mb2: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
         topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}'
     };
     return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
@@ -1075,6 +1098,7 @@ function configureShader(template, context) {
     return template(context);
 }
 
+// huh?
 window.requestAnimFrame = (function(callback){
     return window.requestAnimationFrame ||
            window.webkitRequestAnimationFrame ||

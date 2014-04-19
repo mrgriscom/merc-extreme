@@ -17,7 +17,6 @@ uniform float bias;   // overzoom is capped at 2^bias
 
 uniform vec2 hp_pole_tile;
 uniform vec2 hp_pole_offset;
-uniform float flat_earth_cutoff;
 
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
 
@@ -109,8 +108,6 @@ void abs_antipode(in vec2 abs, out vec2 anti) {
 }
 
 void main() {
-    bool flat_earth_mode = (abs(merc.t) > flat_earth_cutoff);
-
     vec2 merc_rad = (merc + vec2(-.5, 0)) * PI2; // projected mercator radians: lon:[-180:180] => x:[-pi, pi]
     bool anti_pole = (merc.t < 0.);
 
@@ -122,51 +119,55 @@ void main() {
 
     float proj_scale_factor;
     float abs_geo_lat;
-    // normal only
     vec2 abs_map;
-    // flat earth only
-    vec2 base_tile;   //tmp
-    vec2 base_offset; //tmp
-    vec2 ray; //tmp
     vec2 tile;
+
+  <% if (geo_mode == 'flat') { %>
+
     vec2 tile_p;
 
-    if (flat_earth_mode) {
-      base_tile = hp_pole_tile;
-      base_offset = hp_pole_offset;
-      float theta = merc_rad.s;
-      if (anti_pole) {
-        vec2 anti_tile;
-        abs_antipode(base_tile, anti_tile);
-        base_tile = anti_tile;
-        base_offset.t = -base_offset.t;
-        theta = -theta;
-      }
+    vec2 base_tile;
+    vec2 base_offset;
+    vec2 ray;
 
-      float dist_rad = 2. * exp(-abs(merc_rad.t)); // distance to pole (radians)
-      float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
-      ray = dist * vec2(sin(theta), cos(theta));
+    base_tile = hp_pole_tile;
+    base_offset = hp_pole_offset;
+    float theta = merc_rad.s;
+    if (anti_pole) {
+      vec2 anti_tile;
+      abs_antipode(base_tile, anti_tile);
+      base_tile = anti_tile;
+      base_offset.t = -base_offset.t;
+      theta = -theta;
+    }
 
-      proj_scale_factor = dist_rad;
-      abs_geo_lat = radians(pole.t) + dist_rad * cos(theta);
-    } else {
-      vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
-      proj_scale_factor = cos(geo_rad.t);
+    float dist_rad = 2. * exp(-abs(merc_rad.t)); // distance to pole (radians)
+    float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
+    ray = dist * vec2(sin(theta), cos(theta));
 
-      vec2 abs_geo_rad;
-      translate_pole(geo_rad, pole, abs_geo_rad);
-      abs_geo_lat = abs_geo_rad.t;
+    proj_scale_factor = dist_rad;
+    abs_geo_lat = radians(pole.t) + dist_rad * cos(theta);
+   
+  <% } else { %>
 
-      vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + PI_4))); // projected mercator coordinates, radians
-      mat3 merc_map_tx = mat3(
+    vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+    proj_scale_factor = cos(geo_rad.t);
+
+    vec2 abs_geo_rad;
+    translate_pole(geo_rad, pole, abs_geo_rad);
+    abs_geo_lat = abs_geo_rad.t;
+
+    vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + PI_4))); // projected mercator coordinates, radians
+    mat3 merc_map_tx = mat3(
         1./PI2, 0, 0,
         0, -1./PI2, 0,
         .5, .5, 1
-      );
+    );
 
-      abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
-      abs_map.x = mod(abs_map.x, 1.);
-    }
+    abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
+    abs_map.x = mod(abs_map.x, 1.);
+    
+  <% } %>
 
     // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
     float res = PI2 / scale * proj_scale_factor; // radians per pixel
@@ -176,16 +177,17 @@ void main() {
 
     bool out_of_bounds;
 
-    if (flat_earth_mode) {
-      hp_reco(base_tile * exp2(z), (base_offset + ray) * exp2(z), tile, tile_p);
-      tile.s = mod(tile.s, exp2(z));
+  <% if (geo_mode == 'flat') { %>
+    hp_reco(base_tile * exp2(z), (base_offset + ray) * exp2(z), tile, tile_p);
+    tile.s = mod(tile.s, exp2(z));
 
-      out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
-    } else {
-      out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
-    }
+    out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
+    abs_map = (tile + tile_p) * exp2(-z);
+  <% } else { %>
+    out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
+  <% } %>
 
-<% if (mode == 'tile') { %>
+  <% if (output_mode == 'tile') { %>
 
      // zoom level - 5 bits
      // anti-pole - 1 bit
@@ -200,9 +202,9 @@ void main() {
     if (out_of_bounds) {
         z_enc = 255.;
     } else {
-        if (!flat_earth_mode) {
-            tile = floor(abs_map * exp2(z));
-        }
+      <% if (geo_mode != 'flat') { %>
+        tile = floor(abs_map * exp2(z));
+      <% } %>
         vec2 ref_t2;
 
         z_enc = z;
@@ -219,32 +221,32 @@ void main() {
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
 
-<% } %>
+  <% } %>
 
-<% if (mode == 'tex') { %>
+  <% if (output_mode == 'tex') { %>
 
     int tex_id;
     bool z_oob;
     vec2 atlas_p;
 
-    if (flat_earth_mode) {
-        tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
-    } else {
-        tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-    }
-<% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
+  <% if (geo_mode == 'flat') { %>
+    tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
+  <% } else { %>
+    tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
+  <% } %>
+  <% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
     if (tex_id < 0 && z > 0.) {
-      z -= 1.;
-      if (flat_earth_mode) {
-          vec2 _tile = .5 * tile;
-          vec2 _offset = .5 * tile_p;
-          hp_reco(_tile, _offset, tile, tile_p);
-          tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
-      } else {
-          tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-      }
+        z -= 1.;
+      <% if (geo_mode == 'flat') { %>
+        vec2 _tile = .5 * tile;
+        vec2 _offset = .5 * tile_p;
+        hp_reco(_tile, _offset, tile, tile_p);
+        tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
+      <% } else { %>
+        tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
+      <% } %>
     }
-<% } %>
+  <% } %>
 
     vec4 valA;
     tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
@@ -254,7 +256,7 @@ void main() {
     } 
 
     gl_FragColor = valA;
-<% } %>
+  <% } %>
 
 }
 
