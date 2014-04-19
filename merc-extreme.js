@@ -866,7 +866,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     
     this.render = function(timestamp) {
 	    this.setPole(this.curPole[0], this.curPole[1]);
-        //this.layer.uniforms.bias.value = 0.5 + 1.5*Math.cos(timestamp);
         this.renderer.render(this.scene, this.camera);
         
         if (this.last_sampling == null || timestamp - this.last_sampling > SAMPLE_TIME_FREQ) {

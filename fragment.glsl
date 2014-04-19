@@ -1,7 +1,9 @@
 // -*- mode: c -*-
 
-#define PI  3.1415926535
-#define PI2 6.2831853071
+#define PI   3.1415926535
+#define PI2  6.2831853071
+#define PI_2 1.5707963267
+#define PI_4 0.7853981633
 
 <% _.each(constants, function(v, k) { %>
 #define <%= k %> float(<%= v %>)
@@ -38,7 +40,7 @@ void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
     vec3 xyz;
     llr_to_xyz(llr, xyz);
 
-    float latrot = rpole.t - .5 * PI;
+    float latrot = rpole.t - PI_2;
     vec3 xyz_trans = mat3( // shift lat +90 to pole lat
         cos(latrot), 0, sin(latrot),
         0, 1, 0,
@@ -76,7 +78,7 @@ void tex_lookup_coord(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_
 
 void tex_lookup_abs(in float z, in bool anti_pole, in vec2 abs_map,
                     out int tex_id, out vec2 atlas_p, out bool atlas_oob) {
-    vec2 abs_map_z = abs_map * pow(2., z);
+    vec2 abs_map_z = abs_map * exp2(z);
     vec2 tile = floor(abs_map_z);
     vec2 tile_p = mod(abs_map_z, 1.);
     tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, atlas_oob);
@@ -102,65 +104,120 @@ void hp_reco(in vec2 told, in vec2 oold, out vec2 tnew, out vec2 onew) {
   onew = fract(oold);
 }
 
-
+void abs_antipode(vec2 abs, vec2 anti) {
+  anti = vec2(mod(abs.s + .5, 1.), 1. - abs.t);
+}
 
 void main() {
+    bool flat_earth_mode = (abs(merc.t) > flat_earth_cutoff);
+
     vec2 merc_rad = (merc + vec2(-.5, 0)) * PI2; // projected mercator radians: lon:[-180:180] => x:[-pi, pi]
-    vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - .5 * PI); // geographic coordinates, radians
-
-    vec2 abs_geo_rad;
-    translate_pole(geo_rad, pole, abs_geo_rad);
-
-    vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + .25 * PI))); // projected mercator coordinates, radians
-    mat3 merc_map_tx = mat3(
-      1./PI2, 0, 0,
-      0, -1./PI2, 0,
-      .5, .5, 1
-    );
-    vec2 abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
-    abs_map.x = mod(abs_map.x, 1.);
-
-    bool out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
     bool anti_pole = (merc.t < 0.);
-    float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
 
-    // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
-    float base_distortion = cos(abs_geo_rad.t);
-    float base_res = PI2 / TILE_SIZE * base_distortion; // radians per pixel offered by the lowest zoom layer
-    float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
+    //tmp
+    vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+    float prec_buffer = 2.;
+    bool high_prec = (abs(geo_rad.t) > acos(min(scale / exp2(23. - prec_buffer), 1.)));
+
+    float fzoom;
+    bool out_of_bounds;
+    // normal only
+    vec2 abs_map;
+    // flat earth only
+    vec2 base_tile;   //tmp
+    vec2 base_offset; //tmp
+    vec2 ray; //tmp
+    vec2 tile;
+    vec2 tile_p;
+
+    float hp_z_base = 16.; // TODO get rid of this normalization?
+
+    if (flat_earth_mode) {
+      base_tile = hp_pole_tile;
+      base_offset = hp_pole_offset;
+      float theta = merc_rad.s;
+      if (anti_pole) {
+        base_tile = vec2(mod(base_tile.s + exp2(hp_z_base - 1.), exp2(hp_z_base)), exp2(hp_z_base) - 1. - base_tile.t);
+        base_offset.t = exp2(-hp_z_base) - base_offset.t;
+        theta = -theta;
+      }
+
+      float dist_rad = 2. * exp(-abs(merc.t) * PI2); // distance to pole (radians)
+      float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
+      ray = dist * vec2(sin(theta), cos(theta));
+
+      // temp
+      //vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+      float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
+      vec2 abs_geo_rad;
+      translate_pole(geo_rad, pole, abs_geo_rad);
+      float base_res = PI2 / TILE_SIZE * cos(abs_geo_rad.t); // radians per pixel offered by the lowest zoom layer
+      fzoom = log2(base_res / res); // necessary zoom level (on a continuous scale)
+      //fzoom = ...;
+    } else {
+      //vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+      float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
+
+      vec2 abs_geo_rad;
+      translate_pole(geo_rad, pole, abs_geo_rad);
+
+      vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + PI_4))); // projected mercator coordinates, radians
+      mat3 merc_map_tx = mat3(
+        1./PI2, 0, 0,
+        0, -1./PI2, 0,
+        .5, .5, 1
+      );
+
+      abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
+      abs_map.x = mod(abs_map.x, 1.);
+
+      // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
+      float base_res = PI2 / TILE_SIZE * cos(abs_geo_rad.t); // radians per pixel offered by the lowest zoom layer
+      fzoom = log2(base_res / res); // necessary zoom level (on a continuous scale)
+    }
+
+    fzoom -= bias;
+    float z = clamp(ceil(fzoom), 0., MAX_ZOOM); // without clamping, -z would be the lod for mipmap of z0
+
+    if (flat_earth_mode) {
+      hp_reco(base_tile * exp2(z - hp_z_base), base_offset * exp2(z) + ray * exp2(z), tile, tile_p);
+      tile.s = mod(tile.s, exp2(z));
+
+      out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
+    } else {
+      out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
+    }
 
 <% if (mode == 'tile') { %>
 
-    /*
-     * zoom level - 5 bits
-     * anti-pole - 1 bit
-     * zoom bleed - 1 bit
-     * tile fringe + dir - 5 bits
-     * x offset - 6 bits
-     * y offset - 6 bits
-     */
+     // zoom level - 5 bits
+     // anti-pole - 1 bit
+     // zoom bleed - 1 bit
+     // tile fringe + dir - 5 bits
+     // x offset - 6 bits
+     // y offset - 6 bits
 
     float z_enc;
     vec2 tile_enc;
 
-    float z = max(ceil(fzoom), 0.);
-
     if (out_of_bounds) {
         z_enc = 255.;
     } else {
-        vec2 tile = floor(abs_map * pow(2., z));
+        if (!flat_earth_mode) {
+            tile = floor(abs_map * exp2(z));
+        }
         vec2 ref_t2;
 
         z_enc = z;
         if (anti_pole) {
-            z_enc += 32.;
+            z_enc += 32.; // next power of 2 >= MAX_ZOOM
             ref_t2 = vec2(mod(ref_t.s + .5, 1.), 1. - ref_t.t); // antipode
         } else {
             ref_t2 = ref_t;
         }
 
-        vec2 ref_tile = floor(ref_t2 * pow(2., z));
-        tile_enc = (tile - ref_tile) + 32.;
+        vec2 ref_tile = floor(ref_t2 * exp2(z));
+        tile_enc = (tile - ref_tile) + 32.; // 2^(# offset bits - 1)
     }
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
@@ -169,69 +226,37 @@ void main() {
 
 <% if (mode == 'tex') { %>
 
-    // TODO maybe: blending across zoom level transitions
+    int tex_id;
+    bool z_oob;
+    vec2 atlas_p;
 
-    float z = ceil(fzoom);
-    z = max(z, 0.); // TODO mipmap for zoom level 0 (-z is lod)
-
-    // testing
-    z = min(z, MAX_ZOOM);
-
-        int tex_id;
-        vec2 tile;
-        bool z_oob;
-        vec2 atlas_p;
-
+    if (flat_earth_mode) {
+        tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
+    } else {
         tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
+    }
 <% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
-        if (tex_id < 0 && z > 0.) {
-          z -= 1.;
+    if (tex_id < 0 && z > 0.) {
+      z -= 1.;
+      if (flat_earth_mode) {
+          vec2 _tile = .5 * tile;
+          vec2 _offset = .5 * tile_p;
+          hp_reco(_tile, _offset, tile, tile_p);
+          tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
+      } else {
           tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
-        }       
+      }
+    }       
 <% } %>
 
-        vec4 valA;
+    vec4 valA;
+    tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
 
-        float hp_z_base = 16.; // TODO get rid of this normalization?
-        if (abs(merc.t) > flat_earth_cutoff) {
-          // TODO need to calc z independently
+    if (high_prec) {
+      valA = .9 * valA + .1 * vec4(1., 1., 0., 1.);
+    } 
 
-          vec2 base_tile = hp_pole_tile;
-          vec2 base_offset = hp_pole_offset;
-          float theta = merc_rad.s;
-          if (anti_pole) {
-            base_tile = vec2(mod(base_tile.s + pow(2., hp_z_base - 1.), pow(2., hp_z_base)), pow(2., hp_z_base) - 1. - base_tile.t);
-            base_offset.t = pow(2., -hp_z_base) - base_offset.t;
-            theta = -theta;
-          }
-
-          float dist_rad = 2. * exp(-abs(merc.t) * PI2); // distance to pole (radians)
-          float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
-          vec2 ray = dist * vec2(sin(theta), cos(theta));
-
-          vec2 tnew;
-          vec2 onew;
-          hp_reco(base_tile * pow(2., z - hp_z_base), base_offset * pow(2., z) + ray * pow(2., z), tnew, onew);
-          tnew.s = mod(tnew.s, pow(2., z));
-
-          int tex_id;
-          bool z_oob;
-          vec2 atlas_p;
-          tex_lookup_coord(z, anti_pole, tnew, onew, tex_id, atlas_p, z_oob);
-          tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
-          valA = .95 * valA + .05 * vec4(1.,0.,1.,1.);
-        } else {
-          tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
-        }
-
-        float prec_buffer = 2.;
-        if (abs(geo_rad.t) > acos(min(scale / pow(2., 23. - prec_buffer), 1.))) {
-          valA = .9 * valA + .1 * vec4(1., 1., 0., 1.);
-        } 
-
-        gl_FragColor = valA;
-        //(1. - (z - fzoom)) * valA + (z - fzoom) * valB;
-        //gl_FragColor = vec4(z / 22., floor(mod(tile.s, 2.)), floor(mod(tile.t, 2.)), 1.);
+    gl_FragColor = valA;
    
 <% } %>
 
