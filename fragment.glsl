@@ -115,12 +115,13 @@ void main() {
     bool anti_pole = (merc.t < 0.);
 
     //tmp
-    vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+    vec2 _geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
     float prec_buffer = 2.;
-    bool high_prec = (abs(geo_rad.t) > acos(min(scale / exp2(23. - prec_buffer), 1.)));
+    bool high_prec = (abs(_geo_rad.t) > acos(min(scale / exp2(23. - prec_buffer), 1.)));
+    ////
 
-    float fzoom;
-    bool out_of_bounds;
+    float proj_scale_factor;
+    float abs_geo_lat;
     // normal only
     vec2 abs_map;
     // flat earth only
@@ -131,7 +132,6 @@ void main() {
     vec2 tile_p;
 
     float hp_z_base = 16.; // TODO get rid of this normalization?
-
     if (flat_earth_mode) {
       base_tile = hp_pole_tile;
       base_offset = hp_pole_offset;
@@ -142,24 +142,19 @@ void main() {
         theta = -theta;
       }
 
-      float dist_rad = 2. * exp(-abs(merc.t) * PI2); // distance to pole (radians)
+      float dist_rad = 2. * exp(-abs(merc_rad.t)); // distance to pole (radians)
       float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
       ray = dist * vec2(sin(theta), cos(theta));
 
-      // temp
-      //vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
-      float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
-      vec2 abs_geo_rad;
-      translate_pole(geo_rad, pole, abs_geo_rad);
-      float base_res = PI2 / TILE_SIZE * cos(abs_geo_rad.t); // radians per pixel offered by the lowest zoom layer
-      fzoom = log2(base_res / res); // necessary zoom level (on a continuous scale)
-      //fzoom = ...;
+      proj_scale_factor = dist_rad;
+      abs_geo_lat = radians(pole.t) + dist_rad * cos(theta);
     } else {
-      //vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
-      float res = PI2 / scale * cos(geo_rad.t); // radians per pixel
+      vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+      proj_scale_factor = cos(geo_rad.t);
 
       vec2 abs_geo_rad;
       translate_pole(geo_rad, pole, abs_geo_rad);
+      abs_geo_lat = abs_geo_rad.t;
 
       vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + PI_4))); // projected mercator coordinates, radians
       mat3 merc_map_tx = mat3(
@@ -170,14 +165,15 @@ void main() {
 
       abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
       abs_map.x = mod(abs_map.x, 1.);
-
-      // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
-      float base_res = PI2 / TILE_SIZE * cos(abs_geo_rad.t); // radians per pixel offered by the lowest zoom layer
-      fzoom = log2(base_res / res); // necessary zoom level (on a continuous scale)
     }
 
-    fzoom -= bias;
+    // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
+    float res = PI2 / scale * proj_scale_factor; // radians per pixel
+    float base_res = PI2 / TILE_SIZE * cos(abs_geo_lat); // radians per pixel offered by the lowest zoom layer
+    float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
     float z = clamp(ceil(fzoom), 0., MAX_ZOOM); // without clamping, -z would be the lod for mipmap of z0
+
+    bool out_of_bounds;
 
     if (flat_earth_mode) {
       hp_reco(base_tile * exp2(z - hp_z_base), base_offset * exp2(z) + ray * exp2(z), tile, tile_p);
@@ -246,7 +242,7 @@ void main() {
       } else {
           tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
       }
-    }       
+    }
 <% } %>
 
     vec4 valA;
@@ -257,7 +253,6 @@ void main() {
     } 
 
     gl_FragColor = valA;
-   
 <% } %>
 
 }
