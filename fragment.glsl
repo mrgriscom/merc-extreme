@@ -104,7 +104,7 @@ void hp_reco(in vec2 told, in vec2 oold, out vec2 tnew, out vec2 onew) {
   onew = fract(oold);
 }
 
-void abs_antipode(vec2 abs, vec2 anti) {
+void abs_antipode(in vec2 abs, out vec2 anti) {
   anti = vec2(mod(abs.s + .5, 1.), 1. - abs.t);
 }
 
@@ -131,14 +131,15 @@ void main() {
     vec2 tile;
     vec2 tile_p;
 
-    float hp_z_base = 16.; // TODO get rid of this normalization?
     if (flat_earth_mode) {
       base_tile = hp_pole_tile;
       base_offset = hp_pole_offset;
       float theta = merc_rad.s;
       if (anti_pole) {
-        base_tile = vec2(mod(base_tile.s + exp2(hp_z_base - 1.), exp2(hp_z_base)), exp2(hp_z_base) - 1. - base_tile.t);
-        base_offset.t = exp2(-hp_z_base) - base_offset.t;
+        vec2 anti_tile;
+        abs_antipode(base_tile, anti_tile);
+        base_tile = anti_tile;
+        base_offset.t = -base_offset.t;
         theta = -theta;
       }
 
@@ -176,7 +177,7 @@ void main() {
     bool out_of_bounds;
 
     if (flat_earth_mode) {
-      hp_reco(base_tile * exp2(z - hp_z_base), base_offset * exp2(z) + ray * exp2(z), tile, tile_p);
+      hp_reco(base_tile * exp2(z), (base_offset + ray) * exp2(z), tile, tile_p);
       tile.s = mod(tile.s, exp2(z));
 
       out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));

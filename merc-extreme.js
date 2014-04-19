@@ -64,6 +64,8 @@ var SAMPLE_TIME_FREQ = 1.;
 var TILE_FRINGE_WIDTH = .1; // set dynamically from SAMPLE_FREQ?
 var TILE_SKIRT = 2; //px
 
+var HIGH_PREC_Z_BASELINE = 16;
+
 var APPROXIMATION_THRESHOLD = 0.5; //px
 
 var NORTH_POLE_COLOR = '#ccc';
@@ -429,9 +431,9 @@ function TextureLayer(context, tilefunc) {
         
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
-            //if (tile.z > 16) {
+            //if (tile.z > 7) {
             //    return;
-            // }
+            //}
             
             if (layer.tile_index[tilekey(tile)] != null) {
                 return;
@@ -970,10 +972,11 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
         this.layer.uniforms.pole_t.value = new THREE.Vector2(this.pole_t.x, this.pole_t.y);
 
-        var xt = Math.floor(this.pole_t.x * 65536.);
-        var xo = this.pole_t.x  - xt / 65536.;
-        var yt = Math.floor(this.pole_t.y * 65536.);
-        var yo = this.pole_t.y  - yt / 65536.;
+        var hp_extent = Math.pow(2., HIGH_PREC_Z_BASELINE);
+        var xt = Math.floor(this.pole_t.x * hp_extent) / hp_extent;
+        var yt = Math.floor(this.pole_t.y * hp_extent) / hp_extent;
+        var xo = this.pole_t.x - xt;
+        var yo = this.pole_t.y - yt;
 
         this.layer.uniforms.hp_pole_tile.value = new THREE.Vector2(xt, yt);
         this.layer.uniforms.hp_pole_offset.value = new THREE.Vector2(xo, yo);
@@ -1060,7 +1063,7 @@ function configureShader(template, context) {
         'TEX_IX_SIZE',
         'ATLAS_TEX_SIZE',
         'TILE_FRINGE_WIDTH',
-        'TILE_SKIRT'
+        'TILE_SKIRT',
     ];
     const_ctx = {};
     _.each(constants, function(e) {
