@@ -208,7 +208,7 @@ void main() {
         z_enc = z;
         if (anti_pole) {
             z_enc += 32.; // next power of 2 >= MAX_ZOOM
-            ref_t2 = vec2(mod(ref_t.s + .5, 1.), 1. - ref_t.t); // antipode
+            abs_antipode(ref_t, ref_t2);
         } else {
             ref_t2 = ref_t;
         }
