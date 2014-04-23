@@ -91,7 +91,6 @@ function init() {
     });
     
     merc.start();
-    
 }
 
 
@@ -136,7 +135,7 @@ function translate_pole(pos, pole) {
     var pole_rlat = pole[0] * Math.PI / 180.;
     
     var latrot = pole_rlat - .5 * Math.PI;
-    var xyz_trans = new THREE.Matrix4().makeRotationY(-latrot).multiplyVector3(new THREE.Vector3(xyz[0], xyz[1], xyz[2]));
+    var xyz_trans = new THREE.Vector3(xyz[0], xyz[1], xyz[2]).applyMatrix4(new THREE.Matrix4().makeRotationY(-latrot));
     var pos_trans = xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
     pos_trans[1] = lon_norm(pos_trans[1] + pole[1]);
     return pos_trans;
@@ -148,7 +147,7 @@ function inv_translate_pole(pos, pole) {
  
     pos[1] -= pole[1];
     var xyz = ll_to_xyz(pos[0], pos[1]);
-    var xyz_trans = new THREE.Matrix4().makeRotationY(latrot).multiplyVector3(new THREE.Vector3(xyz[0], xyz[1], xyz[2]));
+    var xyz_trans = new THREE.Vector3(xyz[0], xyz[1], xyz[2]).applyMatrix4(new THREE.Matrix4().makeRotationY(latrot));
     return xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
 }
 
@@ -218,44 +217,66 @@ function solve_eq(start, end, resolution, func) {
 
 
 
-QuadGeometry = function(x0, y0, width, height, texcoords) {
+QuadGeometry = function(x0, x1, y0, y1, texcoords) {
 	THREE.Geometry.call(this);
     var g = this;
     
     this.x0 = x0;
     this.y0 = y0;
-    this.width = width;
-    this.height = height;
-    this.x1 = x0 + width;
-    this.y1 = y0 + height;
+    this.x1 = x1;
+    this.y1 = y1;
 
+    var UVs = [[], []];
     $.each([g.y0, g.y1], function(i, y) {
         $.each([g.x0, g.x1], function(j, x) {
             g.vertices.push(new THREE.Vector3(x, y, 0));
+
+            var alt = (texcoords ? texcoords[2 * i + j] : null);
+            var uv1 = new THREE.Vector2(x, y);
+            var uv2 = (alt ? new THREE.Vector2(alt[0], alt[1]) : uv1);
+            UVs[0].push(uv1);
+            UVs[1].push(uv2);
         });
     });
-    var face = new THREE.Face4(0, 1, 3, 2);
-    
-	var normal = new THREE.Vector3(0, 0, 1);
-    face.normal.copy(normal);
-    var UVs = [[], []];
-    $.each(['a', 'b', 'c', 'd'], function(i, e) {
-        var ix = face[e];
-        var v = g.vertices[ix];
-        var alt = (texcoords ? texcoords[ix] : null);
-        var uv1 = new THREE.UV(v.x, v.y);
-        var uv2 = (alt ? new THREE.UV(alt[0], alt[1]) : uv1);
-        UVs[0].push(uv1);
-        UVs[1].push(uv2);
-        face.vertexNormals.push(normal.clone());
-    });
-    this.faceVertexUvs[0] = [UVs[0]];
-    this.faceVertexUvs[1] = [UVs[1]];
-    
-    this.faces.push(face);
-	this.computeCentroids();
+    this.faces.push(new THREE.Face3(0, 1, 3));
+    this.faces.push(new THREE.Face3(0, 3, 2));
+
+    this.faceVertexUvs[0] = [[UVs[0][0], UVs[0][1], UVs[0][3]], [UVs[0][0], UVs[0][3], UVs[0][2]]];
+    this.faceVertexUvs[1] = [[UVs[1][0], UVs[1][1], UVs[1][3]], [UVs[1][0], UVs[1][3], UVs[1][2]]];
 };
 QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
+
+
+function arrCopy(dst, start, src) {
+    for (var i = 0; i < src.length; i++) {
+        dst[start + i] = src[i];
+    }
+}
+
+BufferQuadGeometry = function(x0, x1, y0, y1, texcoords) {
+	THREE.BufferGeometry.call(this);
+
+    var count = 1;
+    this.addAttribute('index', Uint16Array, count * 6, 1);
+	this.addAttribute('position', Float32Array, count * 4, 3);
+	this.addAttribute('uv', Float32Array, count * 4, 2);
+	this.addAttribute('uv2', Float32Array, count * 4, 2);
+    
+    arrCopy(this.attributes.index.array, 0, [0, 1, 3, 0, 3, 2]);
+    arrCopy(this.attributes.position.array, 0, [x0, y0, 0]);
+    arrCopy(this.attributes.position.array, 3, [x1, y0, 0]);
+    arrCopy(this.attributes.position.array, 6, [x0, y1, 0]);
+    arrCopy(this.attributes.position.array, 9, [x1, y1, 0]);
+    arrCopy(this.attributes.uv.array, 0, [x0, y0]);
+    arrCopy(this.attributes.uv.array, 2, [x1, y0]);
+    arrCopy(this.attributes.uv.array, 4, [x0, y1]);
+    arrCopy(this.attributes.uv.array, 8, [x1, y1]);
+    arrCopy(this.attributes.uv2.array, 0, [x0, y0]);
+    arrCopy(this.attributes.uv2.array, 2, [x1, y0]);
+    arrCopy(this.attributes.uv2.array, 4, [x0, y1]);
+    arrCopy(this.attributes.uv2.array, 8, [x1, y1]);
+};
+BufferQuadGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
 
 function TexBuffer(size, texopts, aspect) {
     this.width = size;
@@ -752,9 +773,9 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         //quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 
 	    var M = new THREE.Matrix4();
-	    M.multiplySelf(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
-	    M.multiplySelf(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-	    M.multiplySelf(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
+	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
+	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
+	    M.multiply(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         this.setWorldMatrix(M);
 
 	    //this.curPole = [41.63, -72.59];
@@ -763,15 +784,15 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         //this.curPole = [43.56057, -7.41375];
     }
 
-    this.makeQuad = function(x0, y0, w, h, geo_mode, uvs) {
-        var quad = new QuadGeometry(x0, y0, w, h, uvs);
+    this.makeQuad = function(x0, x1, y0, y1, geo_mode, uvs) {
+        var quad = new QuadGeometry(x0, x1, y0, y1, uvs);
         var plane = new THREE.Mesh(quad, this.layer._materials['image'][geo_mode]);
         plane.geo_mode = geo_mode;
         return plane;
     }
 
     this.addQuad = function(xmin, ymin, xmax, ymax, geo_mode, uvs) {
-        var quad = this.makeQuad(xmin, ymin, xmax - xmin, ymax - ymin, geo_mode, uvs);
+        var quad = this.makeQuad(xmin, xmax, ymin, ymax, geo_mode, uvs);
         this.group.add(quad);
         this.currentObjs.push(quad);
     }
@@ -791,25 +812,25 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.group.verticesNeedUpdate = true;
 
         // this is a mess
-        M.multiplySelf(this.M);
+        M.multiply(this.M);
         this.M = M;
 	    this.toWorld = new THREE.Matrix4().getInverse(this.M);
     }
 
     this.xyToWorld = function(x, y) {
-        return this.toWorld.multiplyVector3(new THREE.Vector3(x, y, 0));
+        return new THREE.Vector3(x, y, 0).applyMatrix4(this.toWorld);
     }
 
     this.worldToXY = function(x, y) {
-        return this.M.multiplyVector3(new THREE.Vector3(x, y, 0));
+        return new THREE.Vector3(x, y, 0).applyMatrix4(this.M);
     }
 
     this.zoom = function(x, y, z) {
         y = $(this.renderer.domElement).height() - y - 1; // ugly
 	    var M = new THREE.Matrix4();
-        M.multiplySelf(new THREE.Matrix4().makeTranslation(x, y, 0));
-        M.multiplySelf(new THREE.Matrix4().makeScale(z, z, 1));
-        M.multiplySelf(new THREE.Matrix4().makeTranslation(-x, -y, 0));
+        M.multiply(new THREE.Matrix4().makeTranslation(x, y, 0));
+        M.multiply(new THREE.Matrix4().makeScale(z, z, 1));
+        M.multiply(new THREE.Matrix4().makeTranslation(-x, -y, 0));
         this.setWorldMatrix(M);
         this.scale_px *= z;
         this.layer.uniforms.scale.value *= z;
@@ -894,7 +915,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     var _interp2d = function(a, b, c, d, kx, ky) {
         return _interp(_interp(a, b, kx), _interp(c, d, kx), ky);
     }
-    var MIN_CELL_SIZE = 32;
+    var MIN_CELL_SIZE = 2;
     this.linearInterpQuads = function(x0, x1, y0, y1, mp) {
         if (y0 >= y1) {
             return;
@@ -934,7 +955,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         if (terminal) {
-            this.addQuad(x0, y0, x1, y1, 'linear', mp);
+            //this.addQuad(x0, y0, x1, y1, 'linear', mp);
             QC += 1;
         } else {
             var xcenter = _interp(x0, x1, .5);
@@ -988,6 +1009,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var yleft = Math.max(low_prec_cutoff, p0.y);
         var yright = Math.min(flat_earth_cutoff, p1.y);
 
+        // TODO always fill screen -- no longer need arbitrary cutoffs
         this.addQuad(-1, -3, 2, -flat_earth_cutoff, 'flat');
         this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
         this.addQuad(-1, -low_prec_cutoff, 2, low_prec_cutoff, 'sphere');
@@ -1002,7 +1024,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var b = new Date();
         this.renderer.render(this.scene, this.camera);
         b = new Date() - b;
-        debug += QC + ' ' + a + ' ' + b + '<br>';
+        debug += QC + ' ' + (a / 1000) + ' ' + (b / 1000) + '<br>';
         
         var setMaterials = function(output_mode) {
             $.each(renderer.currentObjs, function(i, e) {
