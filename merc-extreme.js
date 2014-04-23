@@ -253,30 +253,57 @@ function arrCopy(dst, start, src) {
     }
 }
 
-BufferQuadGeometry = function(x0, x1, y0, y1, texcoords) {
+GridGeometry = function(maxquads) {
 	THREE.BufferGeometry.call(this);
 
-    var count = 1;
-    this.addAttribute('index', Uint16Array, count * 6, 1);
-	this.addAttribute('position', Float32Array, count * 4, 3);
-	this.addAttribute('uv', Float32Array, count * 4, 2);
-	this.addAttribute('uv2', Float32Array, count * 4, 2);
-    
-    arrCopy(this.attributes.index.array, 0, [0, 1, 3, 0, 3, 2]);
-    arrCopy(this.attributes.position.array, 0, [x0, y0, 0]);
-    arrCopy(this.attributes.position.array, 3, [x1, y0, 0]);
-    arrCopy(this.attributes.position.array, 6, [x0, y1, 0]);
-    arrCopy(this.attributes.position.array, 9, [x1, y1, 0]);
-    arrCopy(this.attributes.uv.array, 0, [x0, y0]);
-    arrCopy(this.attributes.uv.array, 2, [x1, y0]);
-    arrCopy(this.attributes.uv.array, 4, [x0, y1]);
-    arrCopy(this.attributes.uv.array, 8, [x1, y1]);
-    arrCopy(this.attributes.uv2.array, 0, [x0, y0]);
-    arrCopy(this.attributes.uv2.array, 2, [x1, y0]);
-    arrCopy(this.attributes.uv2.array, 4, [x0, y1]);
-    arrCopy(this.attributes.uv2.array, 8, [x1, y1]);
-};
-BufferQuadGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
+    this.maxquads = maxquads;
+    this.addAttribute('index', Uint16Array, this.maxquads * 6, 1);
+	this.addAttribute('position', Float32Array, this.maxquads * 4, 3);
+	this.addAttribute('uv', Float32Array, this.maxquads * 4, 2);
+	this.addAttribute('uv2', Float32Array, this.maxquads * 4, 2);
+    this.offsets.push({
+		start: 0,
+        index: 0,
+        count: this.attributes.index.array.length
+    });
+
+    this.setData = function(type, offset, data) {
+        var attr = this.attributes[type];
+        arrCopy(attr.array, offset * attr.itemSize, data);
+        attr.needsUpdate = true;
+    }
+
+    this.setQuad = function(ix, x0, x1, y0, y1, tex) {
+        var v = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]];
+        var vix = [4*ix, 4*ix + 1, 4*ix + 2, 4*ix + 3];
+        this.setData('index', 6*ix, [vix[0], vix[1], vix[3], vix[0], vix[3], vix[2]]);
+        this.setData('position', vix[0], v[0]);
+        this.setData('position', vix[1], v[1]);
+        this.setData('position', vix[2], v[2]);
+        this.setData('position', vix[3], v[3]);
+        this.setData('uv', vix[0], v[0]);
+        this.setData('uv', vix[1], v[1]);
+        this.setData('uv', vix[2], v[2]);
+        this.setData('uv', vix[3], v[3]);
+        this.setData('uv2', vix[0], tex ? tex[0] : v[0]);
+        this.setData('uv2', vix[1], tex ? tex[1] : v[1]);
+        this.setData('uv2', vix[2], tex ? tex[2] : v[2]);
+        this.setData('uv2', vix[3], tex ? tex[3] : v[3]);
+    }
+
+    this.singleton = function(x0, x1, y0, y1, tex) {
+        this.setQuad(0, x0, x1, y0, y1, tex);
+    }
+
+    this.clearQuads = function(beyond) {
+        var arr = this.attributes.index.array;
+        for (var i = beyond * 6; i < arr.length; i++) {
+            arr[i] = 0;
+        }
+    }
+
+}
+GridGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
 
 function TexBuffer(size, texopts, aspect) {
     this.width = size;
@@ -762,7 +789,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.group = new THREE.Object3D();
         this.scene.add(this.group);
         this.layer = new TextureLayer(this, tile_url('map'));
-        this.clearQuads();
+        this.currentObjs = [];
 
         //this.quad = new QuadGeometry(-1, -3, 3, 6); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
         //this.plane = new THREE.Mesh(this.quad, this.layer._material);
@@ -782,27 +809,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
         //this.curPole = [43.56057, -7.41375];
-    }
-
-    this.makeQuad = function(x0, x1, y0, y1, geo_mode, uvs) {
-        var quad = new QuadGeometry(x0, x1, y0, y1, uvs);
-        var plane = new THREE.Mesh(quad, this.layer._materials['image'][geo_mode]);
-        plane.geo_mode = geo_mode;
-        return plane;
-    }
-
-    this.addQuad = function(xmin, ymin, xmax, ymax, geo_mode, uvs) {
-        var quad = this.makeQuad(xmin, xmax, ymin, ymax, geo_mode, uvs);
-        this.group.add(quad);
-        this.currentObjs.push(quad);
-    }
-
-    this.clearQuads = function() {
-        this.currentObjs = [];
-        var m = this;
-        _.each(this.group.children.slice(0), function(e) {
-            m.group.remove(e);
-        });
     }
 
     this.setWorldMatrix = function(M) {
@@ -955,7 +961,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         if (terminal) {
-            //this.addQuad(x0, y0, x1, y1, 'linear', mp);
+            this.addQuad(x0, y0, x1, y1, 'linear', mp);
             QC += 1;
         } else {
             var xcenter = _interp(x0, x1, .5);
@@ -976,9 +982,27 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
     }
     
+    this.makeQuad = function(geo_mode, max) {
+        var quad = new GridGeometry(max || 1);
+        var plane = new THREE.Mesh(quad, this.layer._materials['image'][geo_mode]);
+        plane.geo_mode = geo_mode;
+        plane.update = function(x0, x1, y0, y1) {
+            plane.geometry.singleton(x0, x1, y0, y1);
+        };
+        this.group.add(plane);
+        this.currentObjs.push(plane);
+        return plane;
+    }
+
     this.render = function(timestamp) {
         var renderer = this;
-        this.clearQuads();
+        if (!this.currentObjs.length) {
+            this.qPolar = this.makeQuad('flat');
+            this.qPolarAnti = this.makeQuad('flat');
+            //this.qLinear = this.makeQuad('linear', 1024);
+            //this.qLinearAnti = this.makeQuad('linear', 1024);
+            this.qGooeyMiddle = this.makeQuad('sphere');
+        }
 
         var debug = '';
         if (window.POS) {
@@ -1010,14 +1034,14 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var yright = Math.min(flat_earth_cutoff, p1.y);
 
         // TODO always fill screen -- no longer need arbitrary cutoffs
-        this.addQuad(-1, -3, 2, -flat_earth_cutoff, 'flat');
-        this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
-        this.addQuad(-1, -low_prec_cutoff, 2, low_prec_cutoff, 'sphere');
+        this.qPolarAnti.update(-1, 2, -3, -flat_earth_cutoff);
+        //this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
+        this.qGooeyMiddle.update(-1, 2, -low_prec_cutoff, low_prec_cutoff);
         QC = 0;
         var a = new Date();
-        this.linearInterpQuads(xtop, xbottom, yleft, yright);
+        //this.linearInterpQuads(xtop, xbottom, yleft, yright);
         a = new Date() - a;
-        this.addQuad(-1, flat_earth_cutoff, 2, 3, 'flat');
+        this.qPolar.update(-1, 2, flat_earth_cutoff, 3);
 
 	    this.setPole(this.curPole[0], this.curPole[1]);
         
