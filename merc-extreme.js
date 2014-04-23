@@ -922,12 +922,15 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         return _interp(_interp(a, b, kx), _interp(c, d, kx), ky);
     }
     var MIN_CELL_SIZE = 2;
-    this.linearInterpQuads = function(x0, x1, y0, y1, mp) {
+    this.linearInterp = function(x0, x1, y0, y1) {
+        var buf = [];
+        this._linearInterp(buf, x0, x1, y0, y1);
+        return buf;
+    }
+    this._linearInterp = function(buf, x0, x1, y0, y1, mp) {
         if (y0 >= y1) {
             return;
         }
-
-        if (window.X) debugger;
 
         var renderer = this;
         mp = mp || [null, null, null, null];
@@ -961,23 +964,23 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         if (terminal) {
-            this.addQuad(x0, y0, x1, y1, 'linear', mp);
+            buf.push({x0: x0, y0: y0, x1: x1, y1: y1, tex: mp});
             QC += 1;
         } else {
             var xcenter = _interp(x0, x1, .5);
             var ycenter = _interp(y0, y1, .5);
 
             if (height / width > Math.sqrt(2.)) {
-                this.linearInterpQuads(x0, xcenter, y0, y1, [mp[0], null, mp[2], null]);
-                this.linearInterpQuads(xcenter, x1, y0, y1, [null, mp[1], null, mp[3]]);
+                this._linearInterp(buf, x0, xcenter, y0, y1, [mp[0], null, mp[2], null]);
+                this._linearInterp(buf, xcenter, x1, y0, y1, [null, mp[1], null, mp[3]]);
             } else if (width / height > Math.sqrt(2.)) {
-                this.linearInterpQuads(x0, x1, y0, ycenter, [mp[0], mp[1], null, null]);
-                this.linearInterpQuads(x0, x1, ycenter, y1, [null, null, mp[2], mp[3]]);
+                this._linearInterp(buf, x0, x1, y0, ycenter, [mp[0], mp[1], null, null]);
+                this._linearInterp(buf, x0, x1, ycenter, y1, [null, null, mp[2], mp[3]]);
             } else {
-                this.linearInterpQuads(x0, xcenter, y0, ycenter, [mp[0], null, null, null]);
-                this.linearInterpQuads(x0, xcenter, ycenter, y1, [null, null, mp[2], null]);
-                this.linearInterpQuads(xcenter, x1, y0, ycenter, [null, mp[1], null, null]);
-                this.linearInterpQuads(xcenter, x1, ycenter, y1, [null, null, null, mp[3]]);
+                this._linearInterp(buf, x0, xcenter, y0, ycenter, [mp[0], null, null, null]);
+                this._linearInterp(buf, x0, xcenter, ycenter, y1, [null, null, mp[2], null]);
+                this._linearInterp(buf, xcenter, x1, y0, ycenter, [null, mp[1], null, null]);
+                this._linearInterp(buf, xcenter, x1, ycenter, y1, [null, null, null, mp[3]]);
             }
         }
     }
@@ -989,6 +992,13 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         plane.update = function(x0, x1, y0, y1) {
             plane.geometry.singleton(x0, x1, y0, y1);
         };
+        plane.updateAll = function(data) {
+            for (var i = 0; i < data.length; i++) {
+                var q = data[i];
+                plane.geometry.setQuad(i, q.x0, q.x1, q.y0, q.y1, q.tex);
+            }
+            plane.geometry.clearQuads(data.length);
+        };
         this.group.add(plane);
         this.currentObjs.push(plane);
         return plane;
@@ -999,7 +1009,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         if (!this.currentObjs.length) {
             this.qPolar = this.makeQuad('flat');
             this.qPolarAnti = this.makeQuad('flat');
-            //this.qLinear = this.makeQuad('linear', 1024);
+            this.qLinear = this.makeQuad('linear', 1024);
             //this.qLinearAnti = this.makeQuad('linear', 1024);
             this.qGooeyMiddle = this.makeQuad('sphere');
         }
@@ -1037,9 +1047,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.qPolarAnti.update(-1, 2, -3, -flat_earth_cutoff);
         //this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
         this.qGooeyMiddle.update(-1, 2, -low_prec_cutoff, low_prec_cutoff);
-        QC = 0;
-        var a = new Date();
-        //this.linearInterpQuads(xtop, xbottom, yleft, yright);
+        QC = 0; var a = new Date();
+        this.qLinear.updateAll(this.linearInterp(xtop, xbottom, yleft, yright));
         a = new Date() - a;
         this.qPolar.update(-1, 2, flat_earth_cutoff, 3);
 
