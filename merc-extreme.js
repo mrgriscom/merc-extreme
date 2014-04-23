@@ -300,6 +300,7 @@ GridGeometry = function(maxquads) {
         for (var i = beyond * 6; i < arr.length; i++) {
             arr[i] = 0;
         }
+        this.attributes.index.needsUpdate = true;
     }
 
 }
@@ -993,6 +994,10 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             plane.geometry.singleton(x0, x1, y0, y1);
         };
         plane.updateAll = function(data) {
+            // if i take out this line the geometry won't show up
+            // WHAT THE FUCK!?!?!
+            plane.geometry.setQuad(0, 0, 1, 0, 1);
+
             for (var i = 0; i < data.length; i++) {
                 var q = data[i];
                 plane.geometry.setQuad(i, q.x0, q.x1, q.y0, q.y1, q.tex);
