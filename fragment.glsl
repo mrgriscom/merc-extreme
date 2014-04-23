@@ -12,6 +12,7 @@
 uniform vec2 pole;    // lat/lon degrees
 uniform vec2 pole_t;  // maptile coordinates
 uniform vec2 ref_t;
+//uniform vec2 anti_ref_t;
 uniform float scale;  // pixels per earth circumference (undistorted)
 uniform float bias;   // overzoom is capped at 2^bias
 
@@ -19,9 +20,10 @@ uniform vec2 hp_pole_tile;
 uniform vec2 hp_pole_offset;
 
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
+varying vec2 altUV;
 
 uniform sampler2D tx_ix;
-uniform sampler2D tx_atlas[1];
+uniform sampler2D tx_atlas[<%= num_atlas_pages %>];
 uniform sampler2D tx_z0;
 
 void llr_to_xyz(in vec2 llr, out vec3 xyz) {
@@ -49,6 +51,7 @@ void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
     llr_trans.s += rpole.s; // shift lon 0 to pole lon
 }
 
+// given tile coordinates, find the location of the relevant tile in the texture atlas
 void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
                       out int tex_id, out vec2 atlas_t, out bool atlas_oob) {
     vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, (4. * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 1.) + .5) / TEX_IX_SIZE);
@@ -68,6 +71,7 @@ void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
                  tile.s >= offset.s + TEX_Z_IX_SIZE || tile.t >= offset.t + TEX_Z_IX_SIZE);
 }
 
+// given tile coordinates, get texture atlas coordinates suitable for actual texture access
 void tex_lookup_coord(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_p,
                       out int tex_id, out vec2 atlas_p, out bool atlas_oob) {
     vec2 atlas_t;
@@ -75,6 +79,7 @@ void tex_lookup_coord(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_
     atlas_p = (atlas_t + tile_p) / (ATLAS_TEX_SIZE / TILE_SIZE);
 }
 
+// given "world" coordinates (like tile coordinates but for z0), get texture atlas coordinates
 void tex_lookup_abs(in float z, in bool anti_pole, in vec2 abs_map,
                     out int tex_id, out vec2 atlas_p, out bool atlas_oob) {
     vec2 abs_map_z = abs_map * exp2(z);
@@ -83,6 +88,7 @@ void tex_lookup_abs(in float z, in bool anti_pole, in vec2 abs_map,
     tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, atlas_oob);
 }
 
+// look up the texture value for a position, handling various exceptional cases
 void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_id, in vec2 atlas_p, out vec4 val) {
     if (z == 0. || abs_map.t < 0. || abs_map.t > 1.) {
         // note: just out-of-bounds pixels will only ever blend with the z0 texture, regardless
@@ -91,12 +97,13 @@ void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_i
     } else if (atlas_oob) {
         val = vec4(1, 0, 0, 1);
     } else if (tex_id >= 0) {
-        val = texture2D(tx_atlas[0], atlas_p);
+        val = texture2D(tx_atlas[<%= num_atlas_pages - 1 %>], atlas_p);
     } else {
         val = vec4(.65, .7, .75, 1.);
     }
 }
 
+// perform addition on a 'high precision' number
 void hp_reco(in vec2 told, in vec2 oold, out vec2 tnew, out vec2 onew) {
   oold += fract(told);
   tnew = floor(told) + floor(oold);
@@ -110,12 +117,6 @@ void abs_antipode(in vec2 abs, out vec2 anti) {
 void main() {
     vec2 merc_rad = (merc + vec2(-.5, 0)) * PI2; // projected mercator radians: lon:[-180:180] => x:[-pi, pi]
     bool anti_pole = (merc.t < 0.);
-
-    //tmp
-    vec2 _geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
-    float prec_buffer = 2.;
-    bool high_prec = (abs(_geo_rad.t) > acos(min(scale / exp2(23. - prec_buffer), 1.)));
-    ////
 
     float proj_scale_factor;
     float abs_geo_lat;
@@ -187,6 +188,11 @@ void main() {
     out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
   <% } %>
 
+   <% if (geo_mode == 'linear' && output_mode == 'tex') { %>
+      abs_map = altUV;
+   <% } %> 
+
+
   <% if (output_mode == 'tile') { %>
 
      // zoom level - 5 bits
@@ -251,9 +257,9 @@ void main() {
     vec4 valA;
     tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
 
-    if (high_prec) {
+   <% if (geo_mode == 'linear') { %>
       valA = .9 * valA + .1 * vec4(1., 1., 0., 1.);
-    } 
+   <% } %> 
 
     gl_FragColor = valA;
   <% } %>

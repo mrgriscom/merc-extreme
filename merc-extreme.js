@@ -67,6 +67,7 @@ var TILE_SKIRT = 2; //px
 var HIGH_PREC_Z_BASELINE = 16;
 
 var APPROXIMATION_THRESHOLD = 0.5; //px
+var PREC_BUFFER = 2;
 
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#ccc';
@@ -137,7 +138,7 @@ function translate_pole(pos, pole) {
     var latrot = pole_rlat - .5 * Math.PI;
     var xyz_trans = new THREE.Matrix4().makeRotationY(-latrot).multiplyVector3(new THREE.Vector3(xyz[0], xyz[1], xyz[2]));
     var pos_trans = xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
-    pos_trans[1] += pole[1];
+    pos_trans[1] = lon_norm(pos_trans[1] + pole[1]);
     return pos_trans;
 }
 
@@ -217,7 +218,7 @@ function solve_eq(start, end, resolution, func) {
 
 
 
-QuadGeometry = function(x0, y0, width, height) {
+QuadGeometry = function(x0, y0, width, height, texcoords) {
 	THREE.Geometry.call(this);
     var g = this;
     
@@ -237,13 +238,19 @@ QuadGeometry = function(x0, y0, width, height) {
     
 	var normal = new THREE.Vector3(0, 0, 1);
     face.normal.copy(normal);
-    var UVs = [];
+    var UVs = [[], []];
     $.each(['a', 'b', 'c', 'd'], function(i, e) {
-        var v = g.vertices[face[e]];
-        UVs.push(new THREE.UV(v.x, v.y));
-        face.vertexNormals.push(normal.clone());        
+        var ix = face[e];
+        var v = g.vertices[ix];
+        var alt = (texcoords ? texcoords[ix] : null);
+        var uv1 = new THREE.UV(v.x, v.y);
+        var uv2 = (alt ? new THREE.UV(alt[0], alt[1]) : uv1);
+        UVs[0].push(uv1);
+        UVs[1].push(uv2);
+        face.vertexNormals.push(normal.clone());
     });
-    this.faceVertexUvs[0].push(UVs);
+    this.faceVertexUvs[0] = [UVs[0]];
+    this.faceVertexUvs[1] = [UVs[1]];
     
     this.faces.push(face);
 	this.computeCentroids();
@@ -505,17 +512,6 @@ function TextureLayer(context, tilefunc) {
             });
         });
         
-        /* TODO
-           image skirts
-           z-level offset
-           sideways/fringe offset
-           index spillover and offset
-        */
-        
-        /*
-          set loc in lookup texture and update
-        */
-        
         MRU_counter++;
     }
     
@@ -633,10 +629,12 @@ function TextureLayer(context, tilefunc) {
     this._materials = {
         'image': {
             'sphere': this.material({geo_mode: 'sphere', output_mode: 'tex'}),
+            'linear': this.material({geo_mode: 'linear', output_mode: 'tex'}),
             'flat': this.material({geo_mode: 'flat', output_mode: 'tex'}),
         },
         'sampler': {
             'sphere': this.material({geo_mode: 'sphere', output_mode: 'tile'}),
+            'linear': this.material({geo_mode: 'linear', output_mode: 'tile'}),
             'flat': this.material({geo_mode: 'flat', output_mode: 'tile'}),
         },
     };
@@ -761,19 +759,19 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
 	    //this.curPole = [41.63, -72.59];
         this.curPole = [42.4, -71.1];
-	    //this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
+        //this.curPole = [43.56057, -7.41375];
     }
 
-    this.makeQuad = function(x0, y0, w, h, geo_mode) {
-        var quad = new QuadGeometry(x0, y0, w, h);
+    this.makeQuad = function(x0, y0, w, h, geo_mode, uvs) {
+        var quad = new QuadGeometry(x0, y0, w, h, uvs);
         var plane = new THREE.Mesh(quad, this.layer._materials['image'][geo_mode]);
         plane.geo_mode = geo_mode;
         return plane;
     }
 
-    this.addQuad = function(xmin, ymin, xmax, ymax, geo_mode) {
-        var quad = this.makeQuad(xmin, ymin, xmax - xmin, ymax - ymin, geo_mode);
+    this.addQuad = function(xmin, ymin, xmax, ymax, geo_mode, uvs) {
+        var quad = this.makeQuad(xmin, ymin, xmax - xmin, ymax - ymin, geo_mode, uvs);
         this.group.add(quad);
         this.currentObjs.push(quad);
     }
@@ -881,22 +879,130 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         });
     }
     
-    this.render = function(timestamp) {
-        this.clearQuads();
+    /* linear interp issues
+       handle wraparound
+       handle antipole, potentially both visible at once
+       handle quadtree refinement
+       using real tile offset in shader
+
+       drops to 8 tiles... why?
+    */
+
+    var _interp = function(a, b, k) {
+        return (1. - k) * a + k * b;
+    }
+    var _interp2d = function(a, b, c, d, kx, ky) {
+        return _interp(_interp(a, b, kx), _interp(c, d, kx), ky);
+    }
+    var MIN_CELL_SIZE = 32;
+    this.linearInterpQuads = function(x0, x1, y0, y1, mp) {
+        if (y0 >= y1) {
+            return;
+        }
+
+        if (window.X) debugger;
 
         var renderer = this;
+        mp = mp || [null, null, null, null];
+        $.each([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], function(i, e) {
+            if (!mp[i]) {
+                var merc_ll = xy_to_ll(e[0], e[1]);
+                var ll = translate_pole(merc_ll, renderer.curPole);
+                var r = ll_to_xy(ll[0], ll[1]);
+                mp[i] = [r.x, r.y];
+            }
+        });
+
+        var width = (y1 - y0);
+        var height = (x1 - x0);
+        var min_cell_size = MIN_CELL_SIZE / this.scale_px;
+        var terminal = width <= min_cell_size && height <= min_cell_size;
+
+        if (!terminal) {
+            var uv_interp = [_interp2d(mp[0][0], mp[1][0], mp[2][0], mp[3][0], .5, .5),
+                             _interp2d(mp[0][1], mp[1][1], mp[2][1], mp[3][1], .5, .5)];
+            var p_center = [_interp(x0, x1, .5), _interp(y0, y1, .5)];
+
+            var a = xy_to_ll(uv_interp[0], .5 - uv_interp[1]);
+            var b = inv_translate_pole(a, renderer.curPole);
+            var c = ll_to_xy(b[0], b[1]);
+            var d = [c.x, .5 - c.y];
+            var diff = [p_center[0] - d[0], p_center[1] - d[1]];
+            var error = Math.sqrt(Math.pow(diff[0], 2) + Math.pow(diff[1], 2)) * renderer.scale_px;
+
+            terminal = (error < APPROXIMATION_THRESHOLD);
+        }
+
+        if (terminal) {
+            this.addQuad(x0, y0, x1, y1, 'linear', mp);
+            QC += 1;
+        } else {
+            var xcenter = _interp(x0, x1, .5);
+            var ycenter = _interp(y0, y1, .5);
+
+            if (height / width > Math.sqrt(2.)) {
+                this.linearInterpQuads(x0, xcenter, y0, y1, [mp[0], null, mp[2], null]);
+                this.linearInterpQuads(xcenter, x1, y0, y1, [null, mp[1], null, mp[3]]);
+            } else if (width / height > Math.sqrt(2.)) {
+                this.linearInterpQuads(x0, x1, y0, ycenter, [mp[0], mp[1], null, null]);
+                this.linearInterpQuads(x0, x1, ycenter, y1, [null, null, mp[2], mp[3]]);
+            } else {
+                this.linearInterpQuads(x0, xcenter, y0, ycenter, [mp[0], null, null, null]);
+                this.linearInterpQuads(x0, xcenter, ycenter, y1, [null, null, mp[2], null]);
+                this.linearInterpQuads(xcenter, x1, y0, ycenter, [null, mp[1], null, null]);
+                this.linearInterpQuads(xcenter, x1, ycenter, y1, [null, null, null, mp[3]]);
+            }
+        }
+    }
+    
+    this.render = function(timestamp) {
+        var renderer = this;
+        this.clearQuads();
+
+        var debug = '';
+        if (window.POS) {
+            var p = renderer.xyToWorld(POS.x, POS.y);
+            var merc_ll = xy_to_ll(p.x, p.y);
+            var ll = translate_pole(merc_ll, renderer.curPole);
+
+            dist = 6371.009 * Math.PI / 180. * (90. - merc_ll[0]);
+            bearing = lon_norm(180. - merc_ll[1]);
+            scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * 6371009;
+            debug = ll[0].toFixed(5) + ' ' + ll[1].toFixed(5) + '<br>' + dist.toFixed(4) + '<br>' + bearing.toFixed(1) + '<br>' + scale.toFixed(2) + '<br>';
+        }
+
+        var low_prec_cutoff_latrad = Math.acos(Math.min(this.scale_px / Math.pow(2., 23. - PREC_BUFFER), 1.));
+        var low_prec_cutoff = .5 - ll_to_xy(low_prec_cutoff_latrad * 180. / Math.PI, 0).y;
+
         // TODO can bind this by screen-viewable area
         var flat_earth_cutoff = solve_eq(0, 3., 1. / this.scale_px, function(x) {
             var lat = xy_to_ll(0, x)[0];
             return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < APPROXIMATION_THRESHOLD;
         });
+        flat_earth_cutoff = Math.max(flat_earth_cutoff, low_prec_cutoff);
+
+        var p0 = renderer.xyToWorld(0, 0);
+        var p1 = renderer.xyToWorld(this.width_px, this.height_px);
+        var xtop = p1.x;
+        var xbottom = p0.x;
+        var yleft = Math.max(low_prec_cutoff, p0.y);
+        var yright = Math.min(flat_earth_cutoff, p1.y);
 
         this.addQuad(-1, -3, 2, -flat_earth_cutoff, 'flat');
-        this.addQuad(-1, -flat_earth_cutoff, 2, flat_earth_cutoff, 'sphere');
+        this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
+        this.addQuad(-1, -low_prec_cutoff, 2, low_prec_cutoff, 'sphere');
+        QC = 0;
+        var a = new Date();
+        this.linearInterpQuads(xtop, xbottom, yleft, yright);
+        a = new Date() - a;
         this.addQuad(-1, flat_earth_cutoff, 2, 3, 'flat');
 
 	    this.setPole(this.curPole[0], this.curPole[1]);
+        
+        var b = new Date();
         this.renderer.render(this.scene, this.camera);
+        b = new Date() - b;
+        debug += QC + ' ' + a + ' ' + b + '<br>';
         
         var setMaterials = function(output_mode) {
             $.each(renderer.currentObjs, function(i, e) {
@@ -912,83 +1018,13 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             this.last_sampling = timestamp;
         }
 
-        // purely debug below
-        var corners = [
-            [0, 0],
-            [0, this.height_px],
-            [this.width_px, 0],
-            [this.width_px, this.height_px],
-        ];
-        var renderer = this;
-        var debug = '';
-        var mp = [];
-        $.each(corners, function(i, e) {
-            var p = renderer.xyToWorld(e[0], e[1]);
-            var merc_ll = xy_to_ll(p.x, p.y);
-            var ll = translate_pole(merc_ll, renderer.pole);
-            var r = ll_to_xy(ll[0], ll[1]);
-            mp.push(r);
-            debug += ['ll', 'ul', 'lr', 'ur'][i] + ': ' + r.x.toFixed(10) + ' ' + r.y.toFixed(10) + '<br>';
-        });
-
-        /*
-        var p0 = mp[0];
-        var dw = [mp[2].x-p0.x, mp[2].y-p0.y];
-        var dh = [mp[1].x-p0.x, mp[1].y-p0.y];
-        var _interp = function(k, s) { return [p0.x+dw[0]*k[0]+dh[0]*k[1], p0.y+dw[1]*k[0]+dh[1]*k[1]]; }
-        */
-
-        var _ = function(a, b, k) {
-            return (1. - k) * a + k * b;
-        }
-        var _interp = function(k, s) {
-            if (window.X) debugger;
-            var a = [_(mp[0].x, mp[1].x, k[1]), _(mp[0].y, mp[1].y, k[1])];
-            var b = [_(mp[2].x, mp[3].x, k[1]), _(mp[2].y, mp[3].y, k[1])];
-            return [_(a[0], b[0], k[0]), _(a[1], b[1], k[0])];
-        }
-
-
-        /*
-        var _interp = function(k, s) {
-            if (window.X) debugger;
-            var a = renderer.xyToWorld(s[0], s[1]);
-            var dist_rad = 2. * Math.exp(-a.y * 2. * Math.PI); // distance to pole (radians)
-            var dist = dist_rad / (2. * Math.PI * Math.cos(renderer.pole[0] * Math.PI / 180.)); // dist in unit merc
-            var theta = -a.x * 2 * Math.PI;
-            var ray = [dist * Math.sin(theta), dist * Math.cos(theta)];
-
-            return [renderer.pole_t.x + ray[0], renderer.pole_t.y - ray[1]];
-        }
-        */
-
-        var pxdist = function(k) {
-            var scr0 = [k[0] * renderer.width_px, k[1] * renderer.height_px];
-            var interp = _interp(k, scr0);
-
-            var a = xy_to_ll(interp[0], .5 - interp[1]);
-            var b = inv_translate_pole(a, renderer.pole);
-            var c = ll_to_xy(b[0], b[1]);
-            var d = [c.x, .5 - c.y];
-            var e = renderer.worldToXY(d[0], d[1]);
-            var diff = [scr0[0] - e.x, scr0[1] - e.y];
-            return Math.sqrt(Math.pow(diff[0], 2) + Math.pow(diff[1], 2));
-        };
-
-        var SAMPLES = 1; //000;
-        var tally = 0;
-        for (var i = 0; i < SAMPLES; i++) {
-            var k = [Math.random(), Math.random()];
-            tally += pxdist(k);
-        }
-
         $('#x').html(debug);
 
         _stats.update();
     }
     
     this.setPole = function(lat, lon) {
-        lon = mod(lon + 180., 360.) - 180.;
+        lon = lon_norm(lon);
         this.pole = [lat, lon];
         this.pole_t = ll_to_xy(lat, lon);
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
@@ -1094,6 +1130,8 @@ function configureShader(template, context) {
     });
     context.constants = const_ctx;
 
+    context.num_atlas_pages = 1;
+
     //console.log(template(context));
     return template(context);
 }
@@ -1164,17 +1202,6 @@ function _tile_url(spec, zoom, point) {
             }
             return qt;
         });
-    replace('custom', function(arg) {
-            // note: this blocks the browser due to need for synchronous request to server
-            var url = null;
-            $.ajax('/tileurl/' + arg + '/' + zoom + '/' + point.x + ',' + point.y, {
-                    success: function(data) {
-                        url = data;
-                    },
-                    async: false
-                });
-            return url;
-        });
 
     return spec;
 }
@@ -1244,4 +1271,8 @@ function paramThreeToGL (p, _gl) {
 // mod that doesn't suck for negative numbers
 function mod(a, b) {
     return ((a % b) + b) % b;
+}
+
+function lon_norm(lon) {
+    return mod(lon + 180., 360.) - 180.;
 }
