@@ -917,7 +917,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         if (terminal) {
-            var tex = _.map(mp, function(k) { return [k[0] - offset[0], k[1] - offset[1]]; });
+            var tex = _.map(mp, function(k) { return [k[0] - offset.x, k[1] - offset.y]; });
             buf.push({x0: x0, y0: y0, x1: x1, y1: y1, tex: tex});
         } else {
             var xcenter = _interp(x0, x1, .5);
@@ -1068,8 +1068,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var hp_ref_y = hp_split(this.ref_t.y);
         var hp_antiref_x = hp_split(this.anti_ref_t.x);
         var hp_antiref_y = hp_split(this.anti_ref_t.y);
-        this.hp_ref_t = [hp_ref_x.coarse, hp_ref_y.coarse];
-        this.hp_anti_ref_t = [hp_antiref_x.coarse, hp_antiref_y.coarse];
+        this.hp_ref_t = {x: hp_ref_x.coarse, y: hp_ref_y.coarse};
+        this.hp_anti_ref_t = {x: hp_antiref_x.coarse, y: hp_antiref_y.coarse};
         this.layer.uniforms.hp_ref_tile.value = new THREE.Vector2(this.hp_ref_t.x, this.hp_ref_t.y);
         this.layer.uniforms.hp_antiref_tile.value = new THREE.Vector2(this.hp_anti_ref_t.x, this.hp_anti_ref_t.y);
     }
