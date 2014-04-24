@@ -19,6 +19,9 @@ uniform float bias;   // overzoom is capped at 2^bias
 uniform vec2 hp_pole_tile;
 uniform vec2 hp_pole_offset;
 
+uniform vec2 hp_ref_tile;
+uniform vec2 hp_antiref_tile;
+
 varying vec2 merc;  // projected mercator unit coordinates: lon:[-180,180] => x:[0,1], lat:0 => y:0
 varying vec2 altUV;
 
@@ -148,6 +151,25 @@ void main() {
 
     proj_scale_factor = dist_rad;
     abs_geo_lat = radians(pole.t) + dist_rad * cos(theta);
+
+  <% } else if (geo_mode == 'linear') { %>
+
+    vec2 tile_p;
+
+    vec2 base_tile;
+
+    if (anti_pole) {
+      base_tile = hp_antiref_tile;
+    } else {
+      base_tile = hp_ref_tile;
+    }
+
+    vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
+    proj_scale_factor = cos(geo_rad.t);
+
+    vec2 abs_geo_rad;
+    translate_pole(geo_rad, pole, abs_geo_rad);
+    abs_geo_lat = abs_geo_rad.t;
    
   <% } else { %>
 
@@ -184,13 +206,15 @@ void main() {
 
     out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
     abs_map = (tile + tile_p) * exp2(-z);
+  <% } else if (geo_mode == 'linear') { %>
+    hp_reco(base_tile * exp2(z), altUV * exp2(z), tile, tile_p);
+    tile.s = mod(tile.s, exp2(z));
+
+    out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
+    abs_map = (tile + tile_p) * exp2(-z);
   <% } else { %>
     out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
   <% } %>
-
-   <% if (geo_mode == 'linear' && output_mode == 'tex') { %>
-      abs_map = altUV;
-   <% } %> 
 
 
   <% if (output_mode == 'tile') { %>
@@ -217,7 +241,7 @@ void main() {
         if (anti_pole) {
             z_enc += 32.; // next power of 2 >= MAX_ZOOM
             ref = anti_ref_t;
-        } else {
+        } else { 
             ref = ref_t;
         }
 

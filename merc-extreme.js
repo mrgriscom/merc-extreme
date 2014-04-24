@@ -633,6 +633,8 @@ function TextureLayer(context, tilefunc) {
 
                 hp_pole_tile: {type: 'v2', value: null},
                 hp_pole_offset: {type: 'v2', value: null},
+                hp_ref_tile: {type: 'v2', value: null},
+                hp_antiref_tile: {type: 'v2', value: null},
             };
         }
         return new THREE.ShaderMaterial({
@@ -875,16 +877,14 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         return (1. - k) * a + k * b;
     }
     var MIN_CELL_SIZE = 32;
-    this.linearInterp = function(x0, x1, y0, y1) {
+    this.linearInterp = function(x0, x1, y0, y1, offset) {
         var buf = [];
-        this._linearInterp(buf, x0, x1, y0, y1);
+        if (y0 < y1) {
+            this._linearInterp(buf, offset, x0, x1, y0, y1);
+        }
         return buf;
     }
-    this._linearInterp = function(buf, x0, x1, y0, y1, mp) {
-        if (y0 >= y1) {
-            return;
-        }
-
+    this._linearInterp = function(buf, offset, x0, x1, y0, y1, mp) {
         var renderer = this;
         mp = mp || [null, null, null, null];
         $.each([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], function(i, e) {
@@ -917,22 +917,23 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         if (terminal) {
-            buf.push({x0: x0, y0: y0, x1: x1, y1: y1, tex: mp});
+            var tex = _.map(mp, function(k) { return [k[0] - offset[0], k[1] - offset[1]]; });
+            buf.push({x0: x0, y0: y0, x1: x1, y1: y1, tex: tex});
         } else {
             var xcenter = _interp(x0, x1, .5);
             var ycenter = _interp(y0, y1, .5);
 
             if (height / width > Math.sqrt(2.)) {
-                this._linearInterp(buf, x0, xcenter, y0, y1, [mp[0], null, mp[2], null]);
-                this._linearInterp(buf, xcenter, x1, y0, y1, [null, mp[1], null, mp[3]]);
+                this._linearInterp(buf, offset, x0, xcenter, y0, y1, [mp[0], null, mp[2], null]);
+                this._linearInterp(buf, offset, xcenter, x1, y0, y1, [null, mp[1], null, mp[3]]);
             } else if (width / height > Math.sqrt(2.)) {
-                this._linearInterp(buf, x0, x1, y0, ycenter, [mp[0], mp[1], null, null]);
-                this._linearInterp(buf, x0, x1, ycenter, y1, [null, null, mp[2], mp[3]]);
+                this._linearInterp(buf, offset, x0, x1, y0, ycenter, [mp[0], mp[1], null, null]);
+                this._linearInterp(buf, offset, x0, x1, ycenter, y1, [null, null, mp[2], mp[3]]);
             } else {
-                this._linearInterp(buf, x0, xcenter, y0, ycenter, [mp[0], null, null, null]);
-                this._linearInterp(buf, x0, xcenter, ycenter, y1, [null, null, mp[2], null]);
-                this._linearInterp(buf, xcenter, x1, y0, ycenter, [null, mp[1], null, null]);
-                this._linearInterp(buf, xcenter, x1, ycenter, y1, [null, null, null, mp[3]]);
+                this._linearInterp(buf, offset, x0, xcenter, y0, ycenter, [mp[0], null, null, null]);
+                this._linearInterp(buf, offset, x0, xcenter, ycenter, y1, [null, null, mp[2], null]);
+                this._linearInterp(buf, offset, xcenter, x1, y0, ycenter, [null, mp[1], null, null]);
+                this._linearInterp(buf, offset, xcenter, x1, ycenter, y1, [null, null, null, mp[3]]);
             }
         }
     }
@@ -967,6 +968,9 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             this.qGooeyMiddle = this.makeQuad('sphere');
         }
 
+        this.setPole(this.curPole[0], this.curPole[1]);
+        this.setRefPoint();
+        
         var debug = '';
         if (window.POS) {
             var p = renderer.xyToWorld(POS.x, POS.y);
@@ -998,13 +1002,21 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         flat_earth_cutoff = Math.max(flat_earth_cutoff, low_prec_cutoff);
 
         this.qPolarAnti.update(xtop, xbottom, yleft, -flat_earth_cutoff);
-        this.qLinearAnti.updateAll(this.linearInterp(xtop, xbottom, Math.max(-flat_earth_cutoff, p0.y), Math.min(-low_prec_cutoff, p1.y)));
+        this.qLinearAnti.updateAll(this.linearInterp(
+            xtop,
+            xbottom,
+            Math.max(-flat_earth_cutoff, p0.y),
+            Math.min(-low_prec_cutoff, p1.y),
+            this.hp_anti_ref_t));
         this.qGooeyMiddle.update(xtop, xbottom, -low_prec_cutoff, low_prec_cutoff);
-        this.qLinear.updateAll(this.linearInterp(xtop, xbottom, Math.max(low_prec_cutoff, p0.y), Math.min(flat_earth_cutoff, p1.y)));
+        this.qLinear.updateAll(this.linearInterp(
+            xtop,
+            xbottom,
+            Math.max(low_prec_cutoff, p0.y),
+            Math.min(flat_earth_cutoff, p1.y),
+            this.hp_ref_t));
         this.qPolar.update(xtop, xbottom, flat_earth_cutoff, yright);
 
-	    this.setPole(this.curPole[0], this.curPole[1]);
-        
         this.renderer.render(this.scene, this.camera);
         
         var setMaterials = function(output_mode) {
@@ -1014,7 +1026,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         if (this.last_sampling == null || timestamp - this.last_sampling > SAMPLE_TIME_FREQ) {
-            this.setRefPoint();
             setMaterials('sampler');
             this.layer.sample_coverage();
             setMaterials('image');
@@ -1033,14 +1044,10 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
         this.layer.uniforms.pole_t.value = new THREE.Vector2(this.pole_t.x, this.pole_t.y);
 
-        var hp_extent = Math.pow(2., HIGH_PREC_Z_BASELINE);
-        var xt = Math.floor(this.pole_t.x * hp_extent) / hp_extent;
-        var yt = Math.floor(this.pole_t.y * hp_extent) / hp_extent;
-        var xo = this.pole_t.x - xt;
-        var yo = this.pole_t.y - yt;
-
-        this.layer.uniforms.hp_pole_tile.value = new THREE.Vector2(xt, yt);
-        this.layer.uniforms.hp_pole_offset.value = new THREE.Vector2(xo, yo);
+        var hp_x = hp_split(this.pole_t.x);
+        var hp_y = hp_split(this.pole_t.y);
+        this.layer.uniforms.hp_pole_tile.value = new THREE.Vector2(hp_x.coarse, hp_y.coarse);
+        this.layer.uniforms.hp_pole_offset.value = new THREE.Vector2(hp_x.fine, hp_y.fine);
     };
     
     this.setRefPoint = function() {
@@ -1056,6 +1063,15 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.layer.uniforms.ref_t.value = new THREE.Vector2(this.ref_t.x, this.ref_t.y);
         this.anti_ref_t = refPoint(true);
         this.layer.uniforms.anti_ref_t.value = new THREE.Vector2(this.anti_ref_t.x, this.anti_ref_t.y);
+
+        var hp_ref_x = hp_split(this.ref_t.x);
+        var hp_ref_y = hp_split(this.ref_t.y);
+        var hp_antiref_x = hp_split(this.anti_ref_t.x);
+        var hp_antiref_y = hp_split(this.anti_ref_t.y);
+        this.hp_ref_t = [hp_ref_x.coarse, hp_ref_y.coarse];
+        this.hp_anti_ref_t = [hp_antiref_x.coarse, hp_antiref_y.coarse];
+        this.layer.uniforms.hp_ref_tile.value = new THREE.Vector2(this.hp_ref_t.x, this.hp_ref_t.y);
+        this.layer.uniforms.hp_antiref_tile.value = new THREE.Vector2(this.hp_anti_ref_t.x, this.hp_anti_ref_t.y);
     }
     
     this.start = function() {
@@ -1066,7 +1082,12 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     this.init();
 }
 
-
+function hp_split(val) {
+    var hp_extent = Math.pow(2., HIGH_PREC_Z_BASELINE);
+    var primary = Math.floor(val * hp_extent) / hp_extent;
+    var remainder = val - primary;
+    return {coarse: primary, fine: remainder};
+}
 
 
 
