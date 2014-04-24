@@ -262,10 +262,6 @@ GridGeometry = function(maxquads) {
         this.setData('uv2', vix[3], tex ? tex[3] : v[3]);
     }
 
-    this.singleton = function(x0, x1, y0, y1, tex) {
-        this.setQuad(0, x0, x1, y0, y1, tex);
-    }
-
     this.clearQuads = function(beyond) {
         var arr = this.attributes.index.array;
         for (var i = beyond * 6; i < arr.length; i++) {
@@ -873,8 +869,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
        handle wraparound
        handle antipole, potentially both visible at once
        using real tile offset in shader
-
-       not showing near pole
     */
 
     var _interp = function(a, b, k) {
@@ -944,22 +938,19 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     }
     
     this.makeQuad = function(geo_mode, max) {
-        var quad = new GridGeometry(max || 1);
-        var plane = new THREE.Mesh(quad, this.layer._materials['image'][geo_mode]);
+        var grid = new GridGeometry(max || 1);
+        grid.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1000);
+        var plane = new THREE.Mesh(grid, this.layer._materials['image'][geo_mode]);
         plane.geo_mode = geo_mode;
-        plane.update = function(x0, x1, y0, y1) {
-            plane.geometry.singleton(x0, x1, y0, y1);
+        plane.update = function(x0, x1, y0, y1, tex) {
+            grid.setQuad(0, x0, x1, y0, y1, tex);
         };
         plane.updateAll = function(data) {
-            // if i take out this line the geometry won't show up
-            // WHAT THE FUCK!?!?!
-            plane.geometry.setQuad(0, 0, 1, 0, 1);
-
             for (var i = 0; i < data.length; i++) {
                 var q = data[i];
-                plane.geometry.setQuad(i, q.x0, q.x1, q.y0, q.y1, q.tex);
+                grid.setQuad(i, q.x0, q.x1, q.y0, q.y1, q.tex);
             }
-            plane.geometry.clearQuads(data.length);
+            grid.clearQuads(data.length);
         };
         this.group.add(plane);
         this.currentObjs.push(plane);
@@ -985,7 +976,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             dist = 6371.009 * Math.PI / 180. * (90. - merc_ll[0]);
             bearing = lon_norm(180. - merc_ll[1]);
             scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * 6371009;
-            debug = ll[0].toFixed(5) + ' ' + ll[1].toFixed(5) + '<br>' + dist.toFixed(4) + '<br>' + bearing.toFixed(1) + '<br>' + scale.toFixed(2) + '<br>';
+            debug = this.curPole[0].toFixed(5) + ' ' + this.curPole[1].toFixed(5) + '<br>' + (-this.curPole[0]).toFixed(5) + ' ' + lon_norm(this.curPole[1] + 180.).toFixed(5) + '<br>' + ll[0].toFixed(5) + ' ' + ll[1].toFixed(5) + '<br>' + dist.toFixed(4) + '<br>' + bearing.toFixed(1) + '<br>' + scale.toFixed(2) + '<br>';
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
