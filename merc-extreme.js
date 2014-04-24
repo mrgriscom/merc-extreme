@@ -217,35 +217,6 @@ function solve_eq(start, end, resolution, func) {
 
 
 
-QuadGeometry = function(x0, x1, y0, y1, texcoords) {
-	THREE.Geometry.call(this);
-    var g = this;
-    
-    this.x0 = x0;
-    this.y0 = y0;
-    this.x1 = x1;
-    this.y1 = y1;
-
-    var UVs = [[], []];
-    $.each([g.y0, g.y1], function(i, y) {
-        $.each([g.x0, g.x1], function(j, x) {
-            g.vertices.push(new THREE.Vector3(x, y, 0));
-
-            var alt = (texcoords ? texcoords[2 * i + j] : null);
-            var uv1 = new THREE.Vector2(x, y);
-            var uv2 = (alt ? new THREE.Vector2(alt[0], alt[1]) : uv1);
-            UVs[0].push(uv1);
-            UVs[1].push(uv2);
-        });
-    });
-    this.faces.push(new THREE.Face3(0, 1, 3));
-    this.faces.push(new THREE.Face3(0, 3, 2));
-
-    this.faceVertexUvs[0] = [[UVs[0][0], UVs[0][1], UVs[0][3]], [UVs[0][0], UVs[0][3], UVs[0][2]]];
-    this.faceVertexUvs[1] = [[UVs[1][0], UVs[1][1], UVs[1][3]], [UVs[1][0], UVs[1][3], UVs[1][2]]];
-};
-QuadGeometry.prototype = Object.create(THREE.Geometry.prototype);
-
 
 function arrCopy(dst, start, src) {
     for (var i = 0; i < src.length; i++) {
@@ -277,7 +248,7 @@ GridGeometry = function(maxquads) {
         var v = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]];
         var vix = [4*ix, 4*ix + 1, 4*ix + 2, 4*ix + 3];
         this.setData('index', 6*ix, [vix[0], vix[1], vix[3], vix[0], vix[3], vix[2]]);
-        this.setData('position', vix[0], v[0]);
+        this.setData('position', vix[0], v[0]); // note implied zero for z-coord
         this.setData('position', vix[1], v[1]);
         this.setData('position', vix[2], v[2]);
         this.setData('position', vix[3], v[3]);
@@ -792,14 +763,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.layer = new TextureLayer(this, tile_url('map'));
         this.currentObjs = [];
 
-        //this.quad = new QuadGeometry(-1, -3, 3, 6); //this.lonOffset, -this.mercExtentS, this.lonExtent, this.mercExtent);
-        //this.plane = new THREE.Mesh(this.quad, this.layer._material);
-        //this.group.add(this.plane);
-
-        //quad.applyMatrix(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
-        //quad.applyMatrix(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-        //quad.applyMatrix(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
-
 	    var M = new THREE.Matrix4();
 	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
@@ -816,7 +779,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         // this currently UPDATES the matrix
         this.M = this.M || new THREE.Matrix4();
         this.group.applyMatrix(M);
-        this.group.verticesNeedUpdate = true;
 
         // this is a mess
         M.multiply(this.M);
@@ -918,7 +880,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     var _interp = function(a, b, k) {
         return (1. - k) * a + k * b;
     }
-    var MIN_CELL_SIZE = 64; // cells may actually end up half as small
+    var MIN_CELL_SIZE = 32;
     this.linearInterp = function(x0, x1, y0, y1) {
         var buf = [];
         this._linearInterp(buf, x0, x1, y0, y1);
@@ -942,7 +904,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
         var width = (y1 - y0);
         var height = (x1 - x0);
-        var min_cell_size = MIN_CELL_SIZE / this.scale_px;
+        var min_cell_size = 2. * MIN_CELL_SIZE / this.scale_px;
         var terminal = width <= min_cell_size && height <= min_cell_size;
 
         if (!terminal) {
@@ -962,7 +924,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
         if (terminal) {
             buf.push({x0: x0, y0: y0, x1: x1, y1: y1, tex: mp});
-            QC += 1;
         } else {
             var xcenter = _interp(x0, x1, .5);
             var ycenter = _interp(y0, y1, .5);
@@ -1027,38 +988,33 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             debug = ll[0].toFixed(5) + ' ' + ll[1].toFixed(5) + '<br>' + dist.toFixed(4) + '<br>' + bearing.toFixed(1) + '<br>' + scale.toFixed(2) + '<br>';
         }
 
+        var p0 = renderer.xyToWorld(0, this.height_px);
+        var p1 = renderer.xyToWorld(this.width_px, 0);
+        var xtop = p0.x;
+        var xbottom = p1.x;
+        var yleft = p0.y;
+        var yright = p1.y;
+
         var low_prec_cutoff_latrad = Math.acos(Math.min(this.scale_px / Math.pow(2., 23. - PREC_BUFFER), 1.));
         var low_prec_cutoff = .5 - ll_to_xy(low_prec_cutoff_latrad * 180. / Math.PI, 0).y;
 
-        // TODO can bind this by screen-viewable area
-        var flat_earth_cutoff = solve_eq(0, 3., 1. / this.scale_px, function(x) {
+        var absy_min = ((yleft < 0) && (yright > 0) ? 0 : Math.min(Math.abs(yleft), Math.abs(yright)));
+        var absy_max = Math.max(Math.abs(yleft), Math.abs(yright));
+        var flat_earth_cutoff = solve_eq(absy_min, absy_max, 1. / this.scale_px, function(x) {
             var lat = xy_to_ll(0, x)[0];
             return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < APPROXIMATION_THRESHOLD;
         });
         flat_earth_cutoff = Math.max(flat_earth_cutoff, low_prec_cutoff);
 
-        var p0 = renderer.xyToWorld(0, 0);
-        var p1 = renderer.xyToWorld(this.width_px, this.height_px);
-        var xtop = p1.x;
-        var xbottom = p0.x;
-        var yleft = Math.max(low_prec_cutoff, p0.y);
-        var yright = Math.min(flat_earth_cutoff, p1.y);
-
-        // TODO always fill screen -- no longer need arbitrary cutoffs
-        this.qPolarAnti.update(-1, 2, -3, -flat_earth_cutoff);
+        this.qPolarAnti.update(xtop, xbottom, yleft, -flat_earth_cutoff);
         //this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
-        this.qGooeyMiddle.update(-1, 2, -low_prec_cutoff, low_prec_cutoff);
-        QC = 0; var a = new Date();
-        this.qLinear.updateAll(this.linearInterp(xtop, xbottom, yleft, yright));
-        a = new Date() - a;
-        this.qPolar.update(-1, 2, flat_earth_cutoff, 3);
+        this.qGooeyMiddle.update(xtop, xbottom, -low_prec_cutoff, low_prec_cutoff);
+        if (!window.X) this.qLinear.updateAll(this.linearInterp(xtop, xbottom, Math.max(low_prec_cutoff, p0.y), Math.min(flat_earth_cutoff, p1.y)));
+        this.qPolar.update(xtop, xbottom, flat_earth_cutoff, yright);
 
 	    this.setPole(this.curPole[0], this.curPole[1]);
         
-        var b = new Date();
         this.renderer.render(this.scene, this.camera);
-        b = new Date() - b;
-        debug += QC + ' ' + (a / 1000) + ' ' + (b / 1000) + '<br>';
         
         var setMaterials = function(output_mode) {
             $.each(renderer.currentObjs, function(i, e) {
