@@ -241,12 +241,14 @@ void main() {
         if (anti_pole) {
             z_enc += 32.; // next power of 2 >= MAX_ZOOM
             ref = anti_ref_t;
-        } else { 
+        } else {
             ref = ref_t;
         }
 
         vec2 ref_tile = floor(ref * exp2(z));
-        tile_enc = (tile - ref_tile) + 32.; // 2^(# offset bits - 1)
+        vec2 diff = tile - ref_tile;
+        diff.s = mod(diff.s + exp2(z - 1.), exp2(z)) - exp2(z - 1.); // handle wraparound
+        tile_enc = diff + 32.; // 2^(# offset bits - 1)
     }
 
     gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);

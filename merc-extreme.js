@@ -868,15 +868,24 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         });
     }
     
-    /* linear interp issues
-       handle wraparound
-       using real tile offset in shader
-    */
-
     var _interp = function(a, b, k) {
         return (1. - k) * a + k * b;
     }
     var MIN_CELL_SIZE = 32;
+    this.computeTexCorners = function(offset, x0, x1, y0, y1, mp) {
+        var renderer = this;
+        mp = mp || [null, null, null, null];
+        $.each([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], function(i, e) {
+            if (!mp[i]) {
+                var merc_ll = xy_to_ll(e[0], e[1]);
+                var ll = translate_pole(merc_ll, renderer.curPole);
+                var r = ll_to_xy(ll[0], ll[1]);
+                r.x = offset.x + wraparound_diff(r.x - offset.x);
+                mp[i] = [r.x, r.y];
+            }
+        });
+        return mp;
+    }
     this.linearInterp = function(x0, x1, y0, y1, offset) {
         var buf = [];
         if (y0 < y1) {
@@ -885,16 +894,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         return buf;
     }
     this._linearInterp = function(buf, offset, x0, x1, y0, y1, mp) {
-        var renderer = this;
-        mp = mp || [null, null, null, null];
-        $.each([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], function(i, e) {
-            if (!mp[i]) {
-                var merc_ll = xy_to_ll(e[0], e[1]);
-                var ll = translate_pole(merc_ll, renderer.curPole);
-                var r = ll_to_xy(ll[0], ll[1]);
-                mp[i] = [r.x, r.y];
-            }
-        });
+        mp = this.computeTexCorners(offset, x0, x1, y0, y1, mp);
 
         var width = (y1 - y0);
         var height = (x1 - x0);
@@ -907,11 +907,11 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var p_center = [_interp(x0, x1, .5), _interp(y0, y1, .5)];
 
             var a = xy_to_ll(uv_interp[0], .5 - uv_interp[1]);
-            var b = inv_translate_pole(a, renderer.curPole);
+            var b = inv_translate_pole(a, this.curPole);
             var c = ll_to_xy(b[0], b[1]);
             var d = [c.x, .5 - c.y];
-            var diff = [p_center[0] - d[0], p_center[1] - d[1]];
-            var error = Math.sqrt(Math.pow(diff[0], 2) + Math.pow(diff[1], 2)) * renderer.scale_px;
+            var diff = [wraparound_diff(p_center[0] - d[0]), p_center[1] - d[1]];
+            var error = Math.sqrt(Math.pow(diff[0], 2) + Math.pow(diff[1], 2)) * this.scale_px;
 
             terminal = (error < APPROXIMATION_THRESHOLD);
         }
@@ -1289,6 +1289,11 @@ function paramThreeToGL (p, _gl) {
 // mod that doesn't suck for negative numbers
 function mod(a, b) {
     return ((a % b) + b) % b;
+}
+
+function wraparound_diff(diff, rng) {
+    rng = rng || 1.;
+    return mod(diff + .5 * rng, rng) - .5 * rng;
 }
 
 function lon_norm(lon) {
