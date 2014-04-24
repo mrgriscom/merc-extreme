@@ -232,7 +232,7 @@ void main() {
     if (out_of_bounds) {
         z_enc = 255.;
     } else {
-      <% if (geo_mode != 'flat') { %>
+      <% if (geo_mode == 'sphere') { %>
         tile = floor(abs_map * exp2(z));
       <% } %>
         vec2 ref;
@@ -259,7 +259,7 @@ void main() {
     bool z_oob;
     vec2 atlas_p;
 
-  <% if (geo_mode == 'flat') { %>
+  <% if (geo_mode != 'sphere') { %>
     tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
   <% } else { %>
     tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
@@ -267,7 +267,7 @@ void main() {
   <% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
     if (tex_id < 0 && z > 0.) {
         z -= 1.;
-      <% if (geo_mode == 'flat') { %>
+      <% if (geo_mode != 'sphere') { %>
         vec2 _tile = .5 * tile;
         vec2 _offset = .5 * tile_p;
         hp_reco(_tile, _offset, tile, tile_p);
