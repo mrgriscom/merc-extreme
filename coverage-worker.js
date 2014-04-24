@@ -10,14 +10,13 @@ self.addEventListener('message', function(e) {
         }
     }, false);
 
-function update_pole(pole_t) {
+function update_pole(poles) {
     self.pole_tiles = {};
     for (var z = 0; z <= 22; z++) {
-        self.pole_tiles[z] = {x: Math.floor(Math.pow(2., z) * pole_t.x), y: Math.floor(Math.pow(2., z) * pole_t.y)};
+        self.pole_tiles[z] = {x: Math.floor(Math.pow(2., z) * poles.ref.x), y: Math.floor(Math.pow(2., z) * poles.ref.y)};
     }
     for (var z = 0; z <= 22; z++) {
-        var antipole_t = {x: (pole_t.x + .5) % 1., y: 1. - pole_t.y};
-        self.pole_tiles[ANTI_OFFSET + z] = {x: Math.floor(Math.pow(2., z) * antipole_t.x), y: Math.floor(Math.pow(2., z) * antipole_t.y)};
+        self.pole_tiles[ANTI_OFFSET + z] = {x: Math.floor(Math.pow(2., z) * poles.antiref.x), y: Math.floor(Math.pow(2., z) * poles.antiref.y)};
     }
 }
 

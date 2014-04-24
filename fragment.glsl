@@ -12,7 +12,7 @@
 uniform vec2 pole;    // lat/lon degrees
 uniform vec2 pole_t;  // maptile coordinates
 uniform vec2 ref_t;
-//uniform vec2 anti_ref_t;
+uniform vec2 anti_ref_t;
 uniform float scale;  // pixels per earth circumference (undistorted)
 uniform float bias;   // overzoom is capped at 2^bias
 
@@ -211,17 +211,17 @@ void main() {
       <% if (geo_mode != 'flat') { %>
         tile = floor(abs_map * exp2(z));
       <% } %>
-        vec2 ref_t2;
+        vec2 ref;
 
         z_enc = z;
         if (anti_pole) {
             z_enc += 32.; // next power of 2 >= MAX_ZOOM
-            abs_antipode(ref_t, ref_t2);
+            ref = anti_ref_t;
         } else {
-            ref_t2 = ref_t;
+            ref = ref_t;
         }
 
-        vec2 ref_tile = floor(ref_t2 * exp2(z));
+        vec2 ref_tile = floor(ref * exp2(z));
         tile_enc = (tile - ref_tile) + 32.; // 2^(# offset bits - 1)
     }
 

@@ -368,7 +368,7 @@ function TextureLayer(context, tilefunc) {
         var gl = this.context.glContext;
         this.context.renderer.render(this.context.scene, this.context.camera, this.target);
         gl.readPixels(0, 0, this.sample_width, this.sample_height, gl.RGBA, gl.UNSIGNED_BYTE, this.sampleBuff); // RGBA required by spec
-        this.worker.postMessage(this.context.ref_t);
+        this.worker.postMessage({ref: this.context.ref_t, antiref: this.context.anti_ref_t});
         this.worker.postMessage(this.sampleBuff);
     }
     
@@ -626,6 +626,7 @@ function TextureLayer(context, tilefunc) {
                 pole: {type: 'v2', value: null},
                 pole_t: {type: 'v2', value: null},
                 ref_t: {type: 'v2', value: null},
+                anti_ref_t: {type: 'v2', value: null},
                 tx_ix: {type: 't', value: this.tex_index.tx},
                 tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
                 tx_z0: {type: 't', value: this.tex_z0.tx},
@@ -1044,23 +1045,17 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     
     this.setRefPoint = function() {
         var renderer = this;
-        var extremePoint = function(lo) {
-            return renderer.xyToWorld(lo ? 0 : renderer.width_px, 0.5 * renderer.height_px);
-        }
-        var exLo = extremePoint(true);
-        var exHi = extremePoint(false);
-        var refAnti = Math.abs(exLo.y) > Math.abs(exHi.y);
-        var refXY = refAnti ? exLo : exHi;
-
-        var merc_ll = xy_to_ll(refXY.x, refXY.y);
-        var ll = translate_pole(merc_ll, this.pole);
-        var refAbs = ll_to_xy(ll[0], ll[1]);
-        if (refAnti) {
-            refAbs = {x: (refAbs.x + .5) % 1., y: 1. - refAbs.y};
+        var refPoint = function(lo) {
+            var merc = renderer.xyToWorld(lo ? 0 : renderer.width_px, 0.5 * renderer.height_px);
+            var merc_ll = xy_to_ll(merc.x, merc.y);
+            var ll = translate_pole(merc_ll, renderer.pole);
+            return ll_to_xy(ll[0], ll[1]);
         }
         
-        this.ref_t = refAbs;
+        this.ref_t = refPoint(false);
         this.layer.uniforms.ref_t.value = new THREE.Vector2(this.ref_t.x, this.ref_t.y);
+        this.anti_ref_t = refPoint(true);
+        this.layer.uniforms.anti_ref_t.value = new THREE.Vector2(this.anti_ref_t.x, this.anti_ref_t.y);
     }
     
     this.start = function() {
