@@ -918,10 +918,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     var _interp = function(a, b, k) {
         return (1. - k) * a + k * b;
     }
-    var _interp2d = function(a, b, c, d, kx, ky) {
-        return _interp(_interp(a, b, kx), _interp(c, d, kx), ky);
-    }
-    var MIN_CELL_SIZE = 100; // cells may actually end up half as small
+    var MIN_CELL_SIZE = 64; // cells may actually end up half as small
     this.linearInterp = function(x0, x1, y0, y1) {
         var buf = [];
         this._linearInterp(buf, x0, x1, y0, y1);
