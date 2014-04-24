@@ -910,10 +910,9 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     /* linear interp issues
        handle wraparound
        handle antipole, potentially both visible at once
-       handle quadtree refinement
        using real tile offset in shader
 
-       drops to 8 tiles... why?
+       not showing near pole
     */
 
     var _interp = function(a, b, k) {
@@ -922,7 +921,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     var _interp2d = function(a, b, c, d, kx, ky) {
         return _interp(_interp(a, b, kx), _interp(c, d, kx), ky);
     }
-    var MIN_CELL_SIZE = 2;
+    var MIN_CELL_SIZE = 100; // cells may actually end up half as small
     this.linearInterp = function(x0, x1, y0, y1) {
         var buf = [];
         this._linearInterp(buf, x0, x1, y0, y1);
@@ -950,8 +949,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var terminal = width <= min_cell_size && height <= min_cell_size;
 
         if (!terminal) {
-            var uv_interp = [_interp2d(mp[0][0], mp[1][0], mp[2][0], mp[3][0], .5, .5),
-                             _interp2d(mp[0][1], mp[1][1], mp[2][1], mp[3][1], .5, .5)];
+            var uv_interp = [_interp(mp[0][0], mp[3][0], .5),
+                             _interp(mp[0][1], mp[3][1], .5)];
             var p_center = [_interp(x0, x1, .5), _interp(y0, y1, .5)];
 
             var a = xy_to_ll(uv_interp[0], .5 - uv_interp[1]);
