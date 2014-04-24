@@ -402,33 +402,38 @@ function TextureLayer(context, tilefunc) {
             MRU_counter = 0;
         }
         var ranges = {};
+        var range_basetile = {};
         $.each(tiles, function(i, tile) {
             var key = (tile.anti ? 1 : 0) + ':' + tile.z;
             var r = ranges[key];
             if (r == null) {
+                range_basetile[key] = tile;
                 ranges[key] = {xmin: tile.x, xmax: tile.x, ymin: tile.y, ymax: tile.y};
             } else {
-                r.xmin = Math.min(r.xmin, tile.x);
-                r.xmax = Math.max(r.xmax, tile.x);
+                var tile_x = unwraparound(range_basetile[key].x, tile.x, Math.max(Math.pow(2., tile.z), TEX_Z_IX_SIZE));
+                r.xmin = Math.min(r.xmin, tile_x);
+                r.xmax = Math.max(r.xmax, tile_x);
                 r.ymin = Math.min(r.ymin, tile.y);
                 r.ymax = Math.max(r.ymax, tile.y);
             }
         });
         $.each(ranges, function(k, v) {
-            // assert range <= TEX_Z_IX_SIZE / 2
+            // assert range <= TILE_OFFSET_RESOLUTION
+
+            var pcs = k.split(':');
+            var anti = +pcs[0];
+            var z = +pcs[1];
+
             var offset = function(min) {
-                return Math.floor(min / (TEX_Z_IX_SIZE / 2));
+                return Math.floor(mod(min, Math.pow(2., z)) / TILE_OFFSET_RESOLUTION);
             }
             var xoffset = offset(v.xmin);
             var yoffset = offset(v.ymin);
             var cur_offsets = layer.index_offsets[k];
             if (cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
                 layer.index_offsets[k] = {x: xoffset, y: yoffset};
-                layer.set_offset(k, xoffset, yoffset);
+                layer.set_offset(z, anti, xoffset, yoffset);
 
-                var pcs = k.split(':');
-                var anti = +pcs[0];
-                var z = +pcs[1];
                 layer.clear_tile_ix(z, anti);
                 // is this too slow?.... yes. yes it is
                 // FIXME performance
@@ -531,17 +536,14 @@ function TextureLayer(context, tilefunc) {
         MRU_counter++;
     }
     
-    this.set_offset = function(zkey, xo, yo) {
-        var pcs = zkey.split(':');
-        var anti = +pcs[0];
-        var z = +pcs[1];
-        
+    this.set_offset = function(z, anti, xo, yo) {
         var px = z;
         var py = (anti ? .5 : 0) * TEX_IX_SIZE + TEX_Z_IX_SIZE - 1;
         
         this.tex_index.update(function(ctx, w, h) {
             var buf = ctx.createImageData(1, 1);
             
+            // note this scheme can only properly handle up to z21; we could use the 3rd byte though
             buf.data[0] = Math.floor(xo / 256.);
             buf.data[1] = xo % 256;
             buf.data[2] = 0;
@@ -574,9 +576,9 @@ function TextureLayer(context, tilefunc) {
                 return;
             }
 
-            var dx = tile.x - TEX_Z_IX_SIZE / 2 * offsets.x;
-            var dy = tile.y - TEX_Z_IX_SIZE / 2 * offsets.y;
-            if (dx < 0 || dy < 0 || dx >= TEX_Z_IX_SIZE || dy >= TEX_Z_IX_SIZE) {
+            var dx = mod(tile.x - TILE_OFFSET_RESOLUTION * offsets.x, Math.pow(2., tile.z));
+            var dy = tile.y - TILE_OFFSET_RESOLUTION * offsets.y;
+            if (dx >= TEX_Z_IX_SIZE || dy < 0 || dy >= TEX_Z_IX_SIZE) {
                 // out of range for current offset
                 return;
             }
@@ -662,7 +664,7 @@ function TextureLayer(context, tilefunc) {
     this._debug_overview = function(data) {
         //console.log('worker result', data, _.size(data));
         var canvas = $('#tileovl')[0];
-        $(canvas).attr('width', (TEX_Z_IX_SIZE / 2 * (1 + MAX_ZOOM)) + 'px');
+        $(canvas).attr('width', (TILE_OFFSET_RESOLUTION * (1 + MAX_ZOOM)) + 'px');
         var ctx = canvas.getContext('2d');
         ctx.fillStyle = '#444';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -772,6 +774,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
         //this.curPole = [43.56057, -7.41375];
+        //this.curPole = [-16.159283,-180.];
     }
 
     this.setWorldMatrix = function(M) {
@@ -880,7 +883,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
                 var merc_ll = xy_to_ll(e[0], e[1]);
                 var ll = translate_pole(merc_ll, renderer.curPole);
                 var r = ll_to_xy(ll[0], ll[1]);
-                r.x = offset.x + wraparound_diff(r.x - offset.x);
+                r.x = unwraparound(offset.x, r.x);
                 mp[i] = [r.x, r.y];
             }
         });
@@ -1035,7 +1038,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
 
         $('#x').html(debug);
-
         _stats.update();
     }
     
@@ -1296,6 +1298,10 @@ function mod(a, b) {
 function wraparound_diff(diff, rng) {
     rng = rng || 1.;
     return mod(diff + .5 * rng, rng) - .5 * rng;
+}
+
+function unwraparound(base, val, rng) {
+    return base + wraparound_diff(val - base, rng);
 }
 
 function lon_norm(lon) {

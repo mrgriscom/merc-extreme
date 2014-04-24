@@ -63,15 +63,17 @@ void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
                                                 256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
 
     vec2 z_cell = vec2(mod(z, TEX_IX_CELLS), floor(z / TEX_IX_CELLS) + TEX_IX_CELLS * .5 * float(anti_pole));
-    vec2 ix_cell = TEX_Z_IX_SIZE * z_cell - offset + tile;
+    vec2 ix_offset = tile - offset;
+    ix_offset.s = mod(ix_offset.s, TEX_Z_IX_SIZE);
+    vec2 ix_cell = TEX_Z_IX_SIZE * z_cell + ix_offset;
+
     vec4 slot_enc = texture2D(tx_ix, (ix_cell + .5) / TEX_IX_SIZE);
     tex_id = int(255. * slot_enc.r) - 1;
     int slot_x = int(255. * slot_enc.g);
     int slot_y = int(255. * slot_enc.b);
     atlas_t = vec2(slot_x, slot_y);
 
-    atlas_oob = (tile.s < offset.s || tile.t < offset.t ||
-                 tile.s >= offset.s + TEX_Z_IX_SIZE || tile.t >= offset.t + TEX_Z_IX_SIZE);
+    atlas_oob = (ix_offset.s >= TEX_Z_IX_SIZE || ix_offset.t < 0. || ix_offset.t >= TEX_Z_IX_SIZE);
 }
 
 // given tile coordinates, get texture atlas coordinates suitable for actual texture access
