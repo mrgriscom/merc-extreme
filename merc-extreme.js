@@ -991,10 +991,12 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var yright = p1.y;
 
         var low_prec_cutoff_latrad = Math.acos(Math.min(this.scale_px / Math.pow(2., 23. - PREC_BUFFER), 1.));
+        // merc-y cutoff beyond which we must mitigate lack of shader precision
         var low_prec_cutoff = .5 - ll_to_xy(low_prec_cutoff_latrad * 180. / Math.PI, 0).y;
 
         var absy_min = ((yleft < 0) && (yright > 0) ? 0 : Math.min(Math.abs(yleft), Math.abs(yright)));
-        var absy_max = Math.max(Math.abs(yleft), Math.abs(yright));
+        var absy_max = Math.min(Math.max(Math.abs(yleft), Math.abs(yright)), 5.); // cap due to asympote issues
+        // merc-y cutoff below which a flat-earth approximation is too crude
         var flat_earth_cutoff = solve_eq(absy_min, absy_max, 1. / this.scale_px, function(x) {
             var lat = xy_to_ll(0, x)[0];
             return flat_earth_error_px(lat, renderer.scale_px, renderer.curPole[0]) < APPROXIMATION_THRESHOLD;

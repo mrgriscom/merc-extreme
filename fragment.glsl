@@ -280,14 +280,21 @@ void main() {
     }
   <% } %>
 
-    vec4 valA;
-    tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, valA);
+    vec4 result;
+    tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, result);
 
+    // tint according to geo_mode for debugging
+    if (false) {
+      vec4 tint = result;
    <% if (geo_mode == 'linear') { %>
-      valA = .9 * valA + .1 * vec4(1., 1., 0., 1.);
+      tint = vec4(0., 1., 0., 1.);
+   <% } else if (geo_mode == 'flat') { %>
+      tint = vec4(1., 0., 1., 1.);
    <% } %> 
+      result = mix(result, tint, .1);
+    }
 
-    gl_FragColor = valA;
+    gl_FragColor = result;
   <% } %>
 
 }
