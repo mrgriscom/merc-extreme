@@ -867,7 +867,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     
     /* linear interp issues
        handle wraparound
-       handle antipole, potentially both visible at once
        using real tile offset in shader
     */
 
@@ -963,7 +962,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             this.qPolar = this.makeQuad('flat');
             this.qPolarAnti = this.makeQuad('flat');
             this.qLinear = this.makeQuad('linear', 1024);
-            //this.qLinearAnti = this.makeQuad('linear', 1024);
+            this.qLinearAnti = this.makeQuad('linear', 1024);
             this.qGooeyMiddle = this.makeQuad('sphere');
         }
 
@@ -998,9 +997,9 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         flat_earth_cutoff = Math.max(flat_earth_cutoff, low_prec_cutoff);
 
         this.qPolarAnti.update(xtop, xbottom, yleft, -flat_earth_cutoff);
-        //this.addQuad(-1, -flat_earth_cutoff, 2, -low_prec_cutoff, 'linear');
+        this.qLinearAnti.updateAll(this.linearInterp(xtop, xbottom, Math.max(-flat_earth_cutoff, p0.y), Math.min(-low_prec_cutoff, p1.y)));
         this.qGooeyMiddle.update(xtop, xbottom, -low_prec_cutoff, low_prec_cutoff);
-        if (!window.X) this.qLinear.updateAll(this.linearInterp(xtop, xbottom, Math.max(low_prec_cutoff, p0.y), Math.min(flat_earth_cutoff, p1.y)));
+        this.qLinear.updateAll(this.linearInterp(xtop, xbottom, Math.max(low_prec_cutoff, p0.y), Math.min(flat_earth_cutoff, p1.y)));
         this.qPolar.update(xtop, xbottom, flat_earth_cutoff, yright);
 
 	    this.setPole(this.curPole[0], this.curPole[1]);
