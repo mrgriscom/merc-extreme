@@ -126,13 +126,13 @@ void main() {
     vec2 abs_map;
     vec2 tile;
 
-  <% if (geo_mode == 'flat') { %>
-
+  <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
     vec2 tile_p;
-
     vec2 base_tile;
     vec2 base_offset;
-    vec2 ray;
+  <% } %>
+
+  <% if (geo_mode == 'flat') { %>
 
     base_tile = hp_pole_tile;
     base_offset = hp_pole_offset;
@@ -147,39 +147,33 @@ void main() {
 
     float dist_rad = 2. * exp(-abs(merc_rad.t)); // distance to pole (radians)
     float dist = dist_rad / PI2 / cos(radians(pole.t)); // dist in unit merc
-    ray = dist * vec2(sin(theta), cos(theta));
+    vec2 ray = dist * vec2(sin(theta), cos(theta));
+    base_offset += ray;
 
     proj_scale_factor = dist_rad;
     abs_geo_lat = radians(pole.t) + dist_rad * cos(theta);
 
   <% } else if (geo_mode == 'linear') { %>
 
-    vec2 tile_p;
-
-    vec2 base_tile;
-
     if (anti_pole) {
       base_tile = hp_antiref_tile;
     } else {
       base_tile = hp_ref_tile;
     }
+    base_offset = altUV;
 
+  <% } %>
+
+  <% if (geo_mode == 'sphere' || geo_mode == 'linear') { %>
     vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
     proj_scale_factor = cos(geo_rad.t);
 
     vec2 abs_geo_rad;
     translate_pole(geo_rad, pole, abs_geo_rad);
     abs_geo_lat = abs_geo_rad.t;
-   
-  <% } else { %>
-
-    vec2 geo_rad = vec2(merc_rad.s, 2. * atan(exp(merc_rad.t)) - PI_2); // geographic coordinates, radians
-    proj_scale_factor = cos(geo_rad.t);
-
-    vec2 abs_geo_rad;
-    translate_pole(geo_rad, pole, abs_geo_rad);
-    abs_geo_lat = abs_geo_rad.t;
-
+  <% } %>
+  
+  <% if (geo_mode == 'sphere') { %>
     vec2 abs_merc_rad = vec2(abs_geo_rad.s, log(tan(.5 * abs_geo_rad.t + PI_4))); // projected mercator coordinates, radians
     mat3 merc_map_tx = mat3(
         1./PI2, 0, 0,
@@ -188,8 +182,7 @@ void main() {
     );
 
     abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
-    abs_map.x = mod(abs_map.x, 1.);
-    
+    abs_map.x = mod(abs_map.x, 1.);    
   <% } %>
 
     // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
@@ -200,19 +193,13 @@ void main() {
 
     bool out_of_bounds;
 
-  <% if (geo_mode == 'flat') { %>
-    hp_reco(base_tile * exp2(z), (base_offset + ray) * exp2(z), tile, tile_p);
+  <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
+    hp_reco(base_tile * exp2(z), base_offset * exp2(z), tile, tile_p);
     tile.s = mod(tile.s, exp2(z));
 
     out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
     abs_map = (tile + tile_p) * exp2(-z);
-  <% } else if (geo_mode == 'linear') { %>
-    hp_reco(base_tile * exp2(z), altUV * exp2(z), tile, tile_p);
-    tile.s = mod(tile.s, exp2(z));
-
-    out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
-    abs_map = (tile + tile_p) * exp2(-z);
-  <% } else { %>
+  <% } else if (geo_mode == 'sphere') { %>
     out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
   <% } %>
 
@@ -261,21 +248,22 @@ void main() {
     bool z_oob;
     vec2 atlas_p;
 
-  <% if (geo_mode != 'sphere') { %>
-    tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
-  <% } else { %>
+  <% if (geo_mode == 'sphere') { %>
     tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
+  <% } else if (geo_mode == 'flat' || geo_mode == 'linear') { %>
+    tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
   <% } %>
+
   <% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
     if (tex_id < 0 && z > 0.) {
         z -= 1.;
-      <% if (geo_mode != 'sphere') { %>
+      <% if (geo_mode == 'sphere') { %>
+        tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
+      <% } else if (geo_mode == 'flat' || geo_mode == 'linear') { %>
         vec2 _tile = .5 * tile;
         vec2 _offset = .5 * tile_p;
         hp_reco(_tile, _offset, tile, tile_p);
         tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
-      <% } else { %>
-        tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
       <% } %>
     }
   <% } %>
@@ -284,6 +272,7 @@ void main() {
     tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, result);
 
     // tint according to geo_mode for debugging
+    //if (true) {
     if (false) {
       vec4 tint = result;
    <% if (geo_mode == 'linear') { %>
