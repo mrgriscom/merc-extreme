@@ -185,10 +185,11 @@ void main() {
 
     abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
     abs_map.x = mod(abs_map.x, 1.);    
+    out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
   <% } %>
 
-    // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
     float res = PI2 / scale * proj_scale_factor; // radians per pixel
+    // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
     float base_res = PI2 / TILE_SIZE * cos(abs_geo_lat); // radians per pixel offered by the lowest zoom layer
     float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
     float z = clamp(ceil(fzoom), 0., MAX_ZOOM); // without clamping, -z would be the lod for mipmap of z0
@@ -200,9 +201,7 @@ void main() {
     tile.s = mod(tile.s, exp2(z));
 
     out_of_bounds = (tile.s < 0. || tile.t < 0. || tile.s >= exp2(z) || tile.t >= exp2(z));
-    abs_map = (tile + tile_p) * exp2(-z);
-  <% } else if (geo_mode == 'sphere') { %>
-    out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
+    abs_map = (tile + tile_p) * exp2(-z); // don't think this var would ever be needed in these modes
   <% } %>
 
 
@@ -212,8 +211,8 @@ void main() {
      // anti-pole - 1 bit
      // zoom bleed - 1 bit
      // tile fringe + dir - 5 bits
-     // x offset - 6 bits
-     // y offset - 6 bits
+     // x offset from ref - 6 bits
+     // y offset from ref - 6 bits
 
     float z_enc;
     vec2 tile_enc;
@@ -224,8 +223,8 @@ void main() {
       <% if (geo_mode == 'sphere') { %>
         tile = floor(abs_map * exp2(z));
       <% } %>
-        vec2 ref;
 
+        vec2 ref;
         z_enc = z;
         if (anti_pole) {
             z_enc += 32.; // next power of 2 >= MAX_ZOOM
