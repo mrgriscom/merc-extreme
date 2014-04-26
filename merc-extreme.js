@@ -63,6 +63,7 @@ var SAMPLE_TIME_FREQ = 1.;
 
 var TILE_FRINGE_WIDTH = .1; // set dynamically from SAMPLE_FREQ?
 var TILE_SKIRT = 2; //px
+var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
 
 var HIGH_PREC_Z_BASELINE = 16;
 
@@ -345,7 +346,7 @@ function TextureLayer(context, tilefunc) {
 
     this.tile_index = {};
     this.slot_index = {};
-    var TEX_SIZE_TILES = ATLAS_TEX_SIZE / TILE_SIZE;
+    var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
     for (var i = 0; i < TEX_SIZE_TILES; i++) {
         for (var j = 0; j < TEX_SIZE_TILES; j++) {
             this.slot_index[0 + ':' + i + ':' + j] = false;
@@ -524,7 +525,9 @@ function TextureLayer(context, tilefunc) {
                 }
                 
                 console.log('loading', tilekey(tile));
-                layer.tex_atlas[slot.tex].incrementalUpdate(img, TILE_SIZE * slot.x, TILE_SIZE * slot.y);
+                layer.tex_atlas[slot.tex].incrementalUpdate(img,
+                    ATLAS_TILE_SIZE * slot.x + TILE_SKIRT,
+                    ATLAS_TILE_SIZE * slot.y + TILE_SKIRT);
                 ix_entry.slot = slot;
                 layer.slot_index[slot.tex + ':' + slot.x + ':' + slot.y] = true;
                 
@@ -749,7 +752,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         console.log('max # texs', this.glContext.getParameter(this.glContext.MAX_TEXTURE_IMAGE_UNITS));
         console.log('prec (med)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.MEDIUM_FLOAT).precision);
         console.log('prec (high)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.HIGH_FLOAT).precision);
-        
+
         this.renderer.setSize(this.width_px, this.height_px);
         // TODO handle window/viewport resizing
         $container.append(this.renderer.domElement);
@@ -1148,6 +1151,7 @@ function configureShader(template, context) {
         'TEX_IX_CELLS',
         'TEX_IX_SIZE',
         'ATLAS_TEX_SIZE',
+        'ATLAS_TILE_SIZE',
         'TILE_FRINGE_WIDTH',
         'TILE_SKIRT',
     ];

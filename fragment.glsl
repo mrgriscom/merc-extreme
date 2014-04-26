@@ -81,7 +81,7 @@ void tex_lookup_coord(in float z, in bool anti_pole, in vec2 tile, in vec2 tile_
                       out int tex_id, out vec2 atlas_p, out bool atlas_oob) {
     vec2 atlas_t;
     tex_lookup_atlas(z, anti_pole, tile, tex_id, atlas_t, atlas_oob);
-    atlas_p = (atlas_t + tile_p) / (ATLAS_TEX_SIZE / TILE_SIZE);
+    atlas_p = (ATLAS_TILE_SIZE * atlas_t + TILE_SIZE * tile_p + TILE_SKIRT) / ATLAS_TEX_SIZE;
 }
 
 // given "world" coordinates (like tile coordinates but for z0), get texture atlas coordinates
