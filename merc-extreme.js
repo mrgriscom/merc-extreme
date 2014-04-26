@@ -263,11 +263,11 @@ GridGeometry = function(maxquads) {
     }
 
     this.clearQuads = function(beyond) {
-        var arr = this.attributes.index.array;
-        for (var i = beyond * 6; i < arr.length; i++) {
-            arr[i] = 0;
+        var attr = this.attributes.index;
+        for (var i = beyond * 6; i < attr.array.length; i++) {
+            attr.array[i] = 0;
         }
-        this.attributes.index.needsUpdate = true;
+        attr.needsUpdate = true;
     }
 
 }
@@ -874,31 +874,26 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     var _interp = function(a, b, k) {
         return (1. - k) * a + k * b;
     }
-    var MIN_CELL_SIZE = 32;
-    this.computeTexCorners = function(offset, x0, x1, y0, y1, mp) {
-        var renderer = this;
-        mp = mp || [null, null, null, null];
-        $.each([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], function(i, e) {
-            if (!mp[i]) {
-                var merc_ll = xy_to_ll(e[0], e[1]);
-                var ll = translate_pole(merc_ll, renderer.curPole);
-                var r = ll_to_xy(ll[0], ll[1]);
-                r.x = unwraparound(offset.x, r.x);
-                mp[i] = [r.x, r.y];
-            }
-        });
-        return mp;
+    var computeTex = function(x, y, offset, pole) {
+        var merc_ll = xy_to_ll(x, y);
+        var ll = translate_pole(merc_ll, pole);
+        var r = ll_to_xy(ll[0], ll[1]);
+        return [unwraparound(offset.x, r.x), r.y];
     }
+    var MIN_CELL_SIZE = 32;
     this.linearInterp = function(x0, x1, y0, y1, offset) {
         var buf = [];
         if (y0 < y1) {
-            this._linearInterp(buf, offset, x0, x1, y0, y1);
+            var renderer = this;
+            mp = _.map([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], function(e) {
+                return computeTex(e[0], e[1], offset, renderer.curPole);
+            });
+
+            this._linearInterp(buf, offset, x0, x1, y0, y1, mp);
         }
         return buf;
     }
     this._linearInterp = function(buf, offset, x0, x1, y0, y1, mp) {
-        mp = this.computeTexCorners(offset, x0, x1, y0, y1, mp);
-
         var width = (y1 - y0);
         var height = (x1 - x0);
         var min_cell_size = 2. * MIN_CELL_SIZE / this.scale_px;
@@ -927,16 +922,25 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var ycenter = _interp(y0, y1, .5);
 
             if (height / width > Math.sqrt(2.)) {
-                this._linearInterp(buf, offset, x0, xcenter, y0, y1, [mp[0], null, mp[2], null]);
-                this._linearInterp(buf, offset, xcenter, x1, y0, y1, [null, mp[1], null, mp[3]]);
+                var texleft = computeTex(xcenter, y0, offset, this.curPole);
+                var texright = computeTex(xcenter, y1, offset, this.curPole);
+                this._linearInterp(buf, offset, x0, xcenter, y0, y1, [mp[0], texleft, mp[2], texright]);
+                this._linearInterp(buf, offset, xcenter, x1, y0, y1, [texleft, mp[1], texright, mp[3]]);
             } else if (width / height > Math.sqrt(2.)) {
-                this._linearInterp(buf, offset, x0, x1, y0, ycenter, [mp[0], mp[1], null, null]);
-                this._linearInterp(buf, offset, x0, x1, ycenter, y1, [null, null, mp[2], mp[3]]);
+                var textop = computeTex(x0, ycenter, offset, this.curPole);
+                var texbottom = computeTex(x1, ycenter, offset, this.curPole);
+                this._linearInterp(buf, offset, x0, x1, y0, ycenter, [mp[0], mp[1], textop, texbottom]);
+                this._linearInterp(buf, offset, x0, x1, ycenter, y1, [textop, texbottom, mp[2], mp[3]]);
             } else {
-                this._linearInterp(buf, offset, x0, xcenter, y0, ycenter, [mp[0], null, null, null]);
-                this._linearInterp(buf, offset, x0, xcenter, ycenter, y1, [null, null, mp[2], null]);
-                this._linearInterp(buf, offset, xcenter, x1, y0, ycenter, [null, mp[1], null, null]);
-                this._linearInterp(buf, offset, xcenter, x1, ycenter, y1, [null, null, null, mp[3]]);
+                var texleft = computeTex(xcenter, y0, offset, this.curPole);
+                var texright = computeTex(xcenter, y1, offset, this.curPole);
+                var textop = computeTex(x0, ycenter, offset, this.curPole);
+                var texbottom = computeTex(x1, ycenter, offset, this.curPole);
+                var texcenter = computeTex(xcenter, ycenter, offset, this.curPole);
+                this._linearInterp(buf, offset, x0, xcenter, y0, ycenter, [mp[0], texleft, textop, texcenter]);
+                this._linearInterp(buf, offset, x0, xcenter, ycenter, y1, [textop, texcenter, mp[2], texright]);
+                this._linearInterp(buf, offset, xcenter, x1, y0, ycenter, [texleft, mp[1], texcenter, texbottom]);
+                this._linearInterp(buf, offset, xcenter, x1, ycenter, y1, [texcenter, texbottom, texright, mp[3]]);
             }
         }
     }
@@ -1114,7 +1118,8 @@ function tile_url(type) {
         trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
         mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
         mb2: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
-        topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}'
+        topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
+        hyp: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
     };
     return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
 }

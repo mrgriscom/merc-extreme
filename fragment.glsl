@@ -102,9 +102,13 @@ void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_i
     } else if (atlas_oob) {
         val = vec4(1, 0, 0, 1);
     } else if (tex_id >= 0) {
-        val = texture2D(tx_atlas[<%= num_atlas_pages - 1 %>], atlas_p);
+      <% for (var i = 0; i < num_atlas_pages; i++) { %>
+        if (tex_id == <%= i %>) {
+            val = texture2D(tx_atlas[<%= i %>], atlas_p);
+        }
+      <% } %>
     } else {
-        val = vec4(.65, .7, .75, 1.);
+        val = vec4(.65, .7, .75, 1);
     }
 }
 
@@ -127,6 +131,7 @@ void main() {
     float abs_geo_lat;
     vec2 abs_map;
     vec2 tile;
+    bool out_of_bounds;
 
   <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
     vec2 tile_p;
@@ -184,7 +189,7 @@ void main() {
     );
 
     abs_map = vec2(merc_map_tx * vec3(abs_merc_rad.s, abs_merc_rad.t, 1.)); // map tile coordiantes: lon:[-180,180] => x:[0,1], lat:[-90,90] => y:[+inf,-inf]
-    abs_map.x = mod(abs_map.x, 1.);    
+    abs_map.x = mod(abs_map.x, 1.);
     out_of_bounds = (abs_map.t < 0. || abs_map.t >= 1.);
   <% } %>
 
@@ -193,8 +198,6 @@ void main() {
     float base_res = PI2 / TILE_SIZE * cos(abs_geo_lat); // radians per pixel offered by the lowest zoom layer
     float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
     float z = clamp(ceil(fzoom), 0., MAX_ZOOM); // without clamping, -z would be the lod for mipmap of z0
-
-    bool out_of_bounds;
 
   <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
     hp_reco(base_tile * exp2(z), base_offset * exp2(z), tile, tile_p);
@@ -239,7 +242,7 @@ void main() {
         tile_enc = diff + 32.; // 2^(# offset bits - 1)
     }
 
-    gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1.);
+    gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1);
 
   <% } %>
 
@@ -277,11 +280,15 @@ void main() {
     if (false) {
       vec4 tint = result;
    <% if (geo_mode == 'linear') { %>
-      tint = vec4(0., 1., 0., 1.);
+      tint = vec4(0, 1, 0, 1);
    <% } else if (geo_mode == 'flat') { %>
-      tint = vec4(1., 0., 1., 1.);
+      tint = vec4(1, 0, 1, 1);
    <% } %> 
       result = mix(result, tint, .1);
+    }
+
+    if (merc.x < 0. || merc.x > 1.) {
+      result = mix(result, vec4(0, 0, 0, 1), .3);
     }
 
     gl_FragColor = result;
