@@ -73,7 +73,7 @@ var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#ccc';
 
 function init() {
-    vertex_shader = loadShader('vertex-default');
+    vertex_shader = loadShader('vertex');
     fragment_shader = loadShader('fragment');
     
     var merc = new MercatorRenderer($('#container'), window.innerWidth, window.innerHeight, 2.5, 0.5);
