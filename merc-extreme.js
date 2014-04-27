@@ -373,13 +373,15 @@ function TextureLayer(context, tilefunc) {
         var layer = this;
         this.worker.addEventListener('message', function(e) {
             layer.sample_coverage_postprocess(e.data);
+            layer.sampling_complete();
         }, false);
     }
     
-    this.sample_coverage = function() {
+    this.sample_coverage = function(oncomplete) {
         if (!this.sampleBuff) {
             this.sampleBuff = new Uint8Array(this.sample_width * this.sample_height * 4);
         }
+        this.sampling_complete = oncomplete;
         
         var gl = this.context.glContext;
         this.context.renderer.render(this.context.scene, this.context.camera, this.target);
@@ -1054,11 +1056,14 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             });
         }
 
-        if (this.last_sampling == null || timestamp - this.last_sampling > 1./SAMPLE_TIME_FREQ) {
+        if (!this.sampling_in_progress && (this.last_sampling == null || timestamp - this.last_sampling > 1./SAMPLE_TIME_FREQ)) {
+            this.sampling_in_progress = true;
             setMaterials('sampler');
-            this.layer.sample_coverage();
+            this.layer.sample_coverage(function() {
+                renderer.sampling_in_progress = false;
+                renderer.last_sampling = timestamp;
+            });
             setMaterials('image');
-            this.last_sampling = timestamp;
         }
 
         $('#x').html(debug);
