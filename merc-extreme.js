@@ -50,7 +50,8 @@ var SOUTH_POLE_COLOR = '#ccc';
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
-var MAX_SCREEN_DIAG = Math.sqrt(Math.pow(1920, 2) + Math.pow(1080, 2));
+var MAX_SCREEN_WIDTH = 1920;
+var MAX_SCREEN_HEIGHT = 1080;
 
 var TILE_SKIRT = 2; //px -- increase for mipmapping?
 var HIGH_PREC_Z_BASELINE = 16;
@@ -59,10 +60,16 @@ var HIGH_PREC_Z_BASELINE = 16;
 
 // maximum visible down-scaling for a tile
 var MAX_TILE_SHRINK = Math.pow(2, 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND);
+var tiles_per = function(dim, noround) {
+    var t = dim / TILE_SIZE * MAX_TILE_SHRINK;
+    return noround ? t : Math.ceil(t);
+}
+
+var MAX_SCREEN_DIAG = Math.sqrt(Math.pow(MAX_SCREEN_WIDTH, 2) + Math.pow(MAX_SCREEN_HEIGHT, 2));
 // maximum span of adjacent tiles of the same zoom level that can be visible at once
-var MAX_Z_TILE_SPAN = Math.ceil(MAX_SCREEN_DIAG / TILE_SIZE * MAX_TILE_SHRINK);
+var MAX_Z_TILE_SPAN = tiles_per(MAX_SCREEN_DIAG);
 // edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
-var TILE_FRINGE_WIDTH = Math.min(SAMPLE_FREQ / TILE_SIZE * MAX_TILE_SHRINK, .5);
+var TILE_FRINGE_WIDTH = Math.min(tiles_per(SAMPLE_FREQ, true), .5);
 // 
 var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
 // size of a single z-level's cell in the atlas index texture
@@ -75,9 +82,9 @@ var TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
 var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
 // number of tiles that can fit in one texture page (along one edge)
 var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
-
-
-var NUM_ATLAS_PAGES = 2;
+// an estimate of how many tiles can be active in the tile index at once
+var MAX_TILES_AT_ONCE = tiles_per(MAX_SCREEN_WIDTH) * tiles_per(MAX_SCREEN_HEIGHT) * 4./3.;
+var NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
 
 
 function init() {
