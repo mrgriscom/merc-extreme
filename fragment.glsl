@@ -113,6 +113,18 @@ void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_i
     }
 }
 
+void fringe(in float tile, in float tile_p, out float mode) {
+    bool fringelo = tile_p < TILE_FRINGE_WIDTH;
+    bool fringehi = tile_p > 1. - TILE_FRINGE_WIDTH;
+    bool fringeparent = mod(tile, 2.) == 0. ? tile_p < 2. * TILE_FRINGE_WIDTH : tile_p > 1. - 2. * TILE_FRINGE_WIDTH;
+
+    if (TILE_FRINGE_WIDTH < 1./3. ? fringeparent && !(fringelo || fringehi) : !fringeparent) {
+        mode = 3.;
+    } else {
+        mode = 2. * float(fringehi) + float(fringelo);
+    }
+}
+
 // perform addition on a 'high precision' number
 void hp_reco(in vec2 told, in vec2 oold, out vec2 tnew, out vec2 onew) {
   oold += fract(told);
@@ -216,6 +228,8 @@ void main() {
     float z_enc;
     bool zoom_bleed;
     vec2 tile_enc;
+    float xfringe_enc;
+    float yfringe_enc;
 
     if (out_of_bounds) {
         z_enc = 31.;
@@ -233,12 +247,15 @@ void main() {
         vec2 diff = tile - ref_tile;
         diff.s = mod(diff.s + exp2(z - 1.), exp2(z)) - exp2(z - 1.); // handle wraparound
         tile_enc = diff + 32.; // 2^(# offset bits - 1)
+
+        fringe(tile.s, tile_p.s, xfringe_enc);
+        fringe(tile.t, tile_p.t, yfringe_enc);
     }
 
     gl_FragColor = vec4(
         (float(anti_pole) * 64. + float(zoom_bleed) * 32. + z_enc) / 255.,
-        tile_enc.s / 255.,
-        tile_enc.t / 255.,
+        (xfringe_enc * 64. + tile_enc.s) / 255.,
+        (yfringe_enc * 64. + tile_enc.t) / 255.,
         1);
 
   <% } %>

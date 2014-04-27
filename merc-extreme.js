@@ -38,10 +38,10 @@ var fragment_shader;
 
 var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
-var SAMPLE_FREQ = 4.;              // (px) spatial frequency to sample tile coverage
-var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
-var SAMPLE_TIME_FREQ = 1.;         // (s) temporal frequency to sample tile coverage
-var ZOOM_BLEND = .6;               // range over which to fade between adjacent zoom levels
+var SAMPLE_FREQ = 10.;             // (px) spatial frequency to sample tile coverage
+var SAMPLE_TIME_FREQ = 3.;         // (hz) temporal frequency to sample tile coverage
+var ATLAS_TEX_SIZE = 8192;         // (px) dimensions of single page of texture atlas
+var ZOOM_BLEND = .0;               // range over which to fade between adjacent zoom levels
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
@@ -62,7 +62,7 @@ var MAX_TILE_SHRINK = Math.pow(2, 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND);
 // maximum span of adjacent tiles of the same zoom level that can be visible at once
 var MAX_Z_TILE_SPAN = Math.ceil(MAX_SCREEN_DIAG / TILE_SIZE * MAX_TILE_SHRINK);
 // edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
-var TILE_FRINGE_WIDTH = SAMPLE_FREQ / TILE_SIZE * MAX_TILE_SHRINK;
+var TILE_FRINGE_WIDTH = Math.min(SAMPLE_FREQ / TILE_SIZE * MAX_TILE_SHRINK, .5);
 // 
 var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
 // size of a single z-level's cell in the atlas index texture
@@ -495,7 +495,7 @@ function TextureLayer(context, tilefunc) {
                     }
                 });
                 if (slot == null) {
-                    console.log('no slot');
+                    //console.log('no slot');
                     var oldest_key = null;
                     var oldest = null;
                     $.each(layer.tile_index, function(k, v) {
@@ -526,7 +526,7 @@ function TextureLayer(context, tilefunc) {
                     layer.set_tile_ix({z: +pcs[0], x: +pcs[1], y: +pcs[2]}, null);
                 }
                 
-                console.log('loading', tilekey(tile));
+                //console.log('loading', tilekey(tile));
                 layer.tex_atlas[slot.tex].incrementalUpdate(img,
                     ATLAS_TILE_SIZE * slot.x + TILE_SKIRT,
                     ATLAS_TILE_SIZE * slot.y + TILE_SKIRT);
@@ -1041,7 +1041,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             });
         }
 
-        if (this.last_sampling == null || timestamp - this.last_sampling > SAMPLE_TIME_FREQ) {
+        if (this.last_sampling == null || timestamp - this.last_sampling > 1./SAMPLE_TIME_FREQ) {
             setMaterials('sampler');
             this.layer.sample_coverage();
             setMaterials('image');
