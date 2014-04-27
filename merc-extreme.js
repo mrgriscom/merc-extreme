@@ -36,42 +36,44 @@ var _stats;
 var vertex_shader;
 var fragment_shader;
 
-var TILE_SIZE = 256;
-var MAX_ZOOM = 22; // max zoom level to attempt to fetch image tiles
+var TILE_SIZE = 256;               // (px) dimensions of a map tile
+var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
+var SAMPLE_FREQ = 4.;              // (px) spatial frequency to sample tile coverage
+var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
+var SAMPLE_TIME_FREQ = 1.;         // (s) temporal frequency to sample tile coverage
+var ZOOM_BLEND = .6;               // range over which to fade between adjacent zoom levels
+var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
+var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
+var NORTH_POLE_COLOR = '#ccc';
+var SOUTH_POLE_COLOR = '#ccc';
 
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
 var MAX_SCREEN_DIAG = Math.sqrt(Math.pow(1920, 2) + Math.pow(1080, 2));
-var MAX_Z_TILE_SPAN = Math.ceil(MAX_SCREEN_DIAG / TILE_SIZE * Math.pow(2, 1. - MIN_BIAS + MAX_ZOOM_BLEND));
 
-var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
-// size of the texture index for a single zoom level; the maximum visible area
-// at a single zoom level should never span more than half this number of tiles
-var TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
-
-var TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
-var TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
-
-/* if this is too low, there is a chance that visible tiles will be missed and
-   not loaded. how low you can get away with closely relates to how much buffer
-   zone is set in the tile cache
-*/
-var SAMPLE_FREQ = 1/4.;
-var ATLAS_TEX_SIZE = 4096;
-var SAMPLE_TIME_FREQ = 1.;
-
-var TILE_FRINGE_WIDTH = .1; // set dynamically from SAMPLE_FREQ?
-var TILE_SKIRT = 2; //px
-var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
-
+var TILE_SKIRT = 2; //px -- increase for mipmapping?
 var HIGH_PREC_Z_BASELINE = 16;
 
-var APPROXIMATION_THRESHOLD = 0.5; //px
-var PREC_BUFFER = 2;
+//// computed constants
 
-var NORTH_POLE_COLOR = '#ccc';
-var SOUTH_POLE_COLOR = '#ccc';
+// maximum visible down-scaling for a tile
+var MAX_TILE_SHRINK = Math.pow(2, 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND);
+// maximum span of adjacent tiles of the same zoom level that can be visible at once
+var MAX_Z_TILE_SPAN = Math.ceil(MAX_SCREEN_DIAG / TILE_SIZE * MAX_TILE_SHRINK);
+// edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
+var TILE_FRINGE_WIDTH = SAMPLE_FREQ / TILE_SIZE * MAX_TILE_SHRINK;
+// 
+var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
+// size of a single z-level's cell in the atlas index texture
+var TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
+//
+var TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
+// size of the atlas index texture
+var TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
+// size of a padded tile in the atlas texture
+var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
+
 
 function init() {
     vertex_shader = loadShader('vertex');
@@ -316,8 +318,8 @@ function TextureLayer(context, tilefunc) {
     this.context = context;
     this.tilefunc = tilefunc;
     
-    this.sample_width = Math.round(this.context.width_px * SAMPLE_FREQ);
-    this.sample_height = Math.round(this.context.height_px * SAMPLE_FREQ);
+    this.sample_width = Math.round(this.context.width_px / SAMPLE_FREQ);
+    this.sample_height = Math.round(this.context.height_px / SAMPLE_FREQ);
     this.target = new THREE.WebGLRenderTarget(this.sample_width, this.sample_height, {format: THREE.RGBFormat});
     this.target.generateMipmaps = false;
     
@@ -635,6 +637,7 @@ function TextureLayer(context, tilefunc) {
                 tx_ix: {type: 't', value: this.tex_index.tx},
                 tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
                 tx_z0: {type: 't', value: this.tex_z0.tx},
+                zoom_blend: {type: 'f', value: ZOOM_BLEND},
 
                 hp_pole_tile: {type: 'v2', value: null},
                 hp_pole_offset: {type: 'v2', value: null},
@@ -646,7 +649,7 @@ function TextureLayer(context, tilefunc) {
             uniforms: this.uniforms,
             vertexShader: configureShader(vertex_shader),
             fragmentShader: configureShader(fragment_shader, params)
-        });        
+        });
     }
     
     this.init();
@@ -752,6 +755,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         console.log('max # texs', this.glContext.getParameter(this.glContext.MAX_TEXTURE_IMAGE_UNITS));
         console.log('prec (med)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.MEDIUM_FLOAT).precision);
         console.log('prec (high)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.HIGH_FLOAT).precision);
+        console.log(this.glContext.getSupportedExtensions());
 
         this.renderer.setSize(this.width_px, this.height_px);
         // TODO handle window/viewport resizing

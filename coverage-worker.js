@@ -1,29 +1,32 @@
 
-ANTI_OFFSET = 32;
 TILE_OFFSET = 32;
 MAX_ZOOM = 22;
 
 self.addEventListener('message', function(e) {
-        if (e.data instanceof Uint8Array) {
-            self.postMessage(process_buffer(e.data));
-        } else {
-            self.update_pole(e.data);
-        }
-    }, false);
+    if (e.data instanceof Uint8Array) {
+        self.postMessage(process_buffer(e.data));
+    } else {
+        self.update_pole(e.data);
+    }
+}, false);
 
 function update_pole(poles) {
     self.pole_tiles = {};
     for (var z = 0; z <= MAX_ZOOM; z++) {
-        self.pole_tiles[z] = {x: Math.floor(Math.pow(2., z) * poles.ref.x), y: Math.floor(Math.pow(2., z) * poles.ref.y)};
+        self.pole_tiles[zenc(false, z)] = {x: Math.floor(Math.pow(2., z) * poles.ref.x), y: Math.floor(Math.pow(2., z) * poles.ref.y)};
     }
     for (var z = 0; z <= MAX_ZOOM; z++) {
-        self.pole_tiles[ANTI_OFFSET + z] = {x: Math.floor(Math.pow(2., z) * poles.antiref.x), y: Math.floor(Math.pow(2., z) * poles.antiref.y)};
+        self.pole_tiles[zenc(true, z)] = {x: Math.floor(Math.pow(2., z) * poles.antiref.x), y: Math.floor(Math.pow(2., z) * poles.antiref.y)};
     }
 }
 
 // mod that doesn't suck for negative numbers
 function mod(a, b) {
     return ((a % b) + b) % b;
+}
+
+function zenc(anti, z) {
+    return +anti + ':' + z;
 }
 
 function condense_data(buff) {
@@ -43,24 +46,24 @@ function process_buffer(buff) {
 
     tiles = {};
     for (var e in data) {
-        var a = (e >> 16) & 0xff;
+        var anti = (e >> 22) & 0x1;
+        var bleed = (e >> 21) & 0x1;
+        var z = (e >> 16) & 0x1f;
+
         var b = (e >> 8) & 0xff;
         var c = e & 0xff;
 
-        var _z = a;
-        var _x = b - TILE_OFFSET;
-        var _y = c - TILE_OFFSET;
-        var pole_tile = self.pole_tiles[_z];
-        if (pole_tile == null) {
+        if (z > MAX_ZOOM) {
+            // out of bounds
             continue;
         }
 
-        var anti = (_z >= ANTI_OFFSET ? 1 : 0);
-        var z = _z % ANTI_OFFSET;
-        var extent = Math.pow(2, z);
+        var xdiff = b - TILE_OFFSET;
+        var ydiff = c - TILE_OFFSET;
+        var pole_tile = self.pole_tiles[zenc(anti, z)];
+        var x = mod(xdiff + pole_tile.x, Math.pow(2, z));
+        var y = ydiff + pole_tile.y;
 
-        var x = mod(_x + pole_tile.x, extent);
-        var y = _y + pole_tile.y;
         tiles[anti + ':' + z + ':' + x + ':' + y] = true;
     }
     return tiles;

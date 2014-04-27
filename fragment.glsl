@@ -15,6 +15,7 @@ uniform vec2 ref_t;
 uniform vec2 anti_ref_t;
 uniform float scale;  // pixels per earth circumference (undistorted)
 uniform float bias;   // overzoom is capped at 2^bias
+uniform float zoom_blend;
 
 uniform vec2 hp_pole_tile;
 uniform vec2 hp_pole_offset;
@@ -57,8 +58,8 @@ void translate_pole(in vec2 llr, in vec2 fake_pole, out vec2 llr_trans) {
 // given tile coordinates, find the location of the relevant tile in the texture atlas
 void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
                       out int tex_id, out vec2 atlas_t, out bool atlas_oob) {
-    vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, (4. * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 1.) + .5) / TEX_IX_SIZE);
-    vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, (4. * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 2.) + .5) / TEX_IX_SIZE);
+    vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, (.5 * TEX_IX_CELLS * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 1.) + .5) / TEX_IX_SIZE);
+    vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, (.5 * TEX_IX_CELLS * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 2.) + .5) / TEX_IX_SIZE);
     vec2 offset = TILE_OFFSET_RESOLUTION * vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
                                                 256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
 
@@ -133,7 +134,7 @@ void main() {
     vec2 tile;
     bool out_of_bounds;
 
-  <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
+  <% if (geo_mode == 'flat' || geo_mode == 'linear' || output_mode == 'tile') { %>
     vec2 tile_p;
     vec2 base_tile;
     vec2 base_offset;
@@ -162,11 +163,7 @@ void main() {
 
   <% } else if (geo_mode == 'linear') { %>
 
-    if (anti_pole) {
-      base_tile = hp_antiref_tile;
-    } else {
-      base_tile = hp_ref_tile;
-    }
+    base_tile = (anti_pole ? hp_antiref_tile : hp_ref_tile);
     base_offset = altUV;
 
   <% } %>
@@ -196,7 +193,7 @@ void main() {
     float res = PI2 / scale * proj_scale_factor; // radians per pixel
     // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
     float base_res = PI2 / TILE_SIZE * cos(abs_geo_lat); // radians per pixel offered by the lowest zoom layer
-    float fzoom = log2(base_res / res) - bias; // necessary zoom level (on a continuous scale)
+    float fzoom = log2(base_res / res) - bias + .5 * zoom_blend; // necessary zoom level (on a continuous scale)
     float z = clamp(ceil(fzoom), 0., MAX_ZOOM); // without clamping, -z would be the lod for mipmap of z0
 
   <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
@@ -213,36 +210,36 @@ void main() {
      // zoom level - 5 bits
      // anti-pole - 1 bit
      // zoom bleed - 1 bit
-     // tile fringe + dir - 5 bits
-     // x offset from ref - 6 bits
-     // y offset from ref - 6 bits
+     // tile fringe + dir - 2 bits each for x, y
+     // offset from ref - 6 bits each for x, y
 
     float z_enc;
+    bool zoom_bleed;
     vec2 tile_enc;
 
     if (out_of_bounds) {
-        z_enc = 255.;
+        z_enc = 31.;
     } else {
       <% if (geo_mode == 'sphere') { %>
         tile = floor(abs_map * exp2(z));
+        tile_p = fract(abs_map * exp2(z));
       <% } %>
 
-        vec2 ref;
         z_enc = z;
-        if (anti_pole) {
-            z_enc += 32.; // next power of 2 >= MAX_ZOOM
-            ref = anti_ref_t;
-        } else {
-            ref = ref_t;
-        }
+        zoom_bleed = fract(fzoom) < zoom_blend;
 
+        vec2 ref = anti_pole ? anti_ref_t : ref_t;
         vec2 ref_tile = floor(ref * exp2(z));
         vec2 diff = tile - ref_tile;
         diff.s = mod(diff.s + exp2(z - 1.), exp2(z)) - exp2(z - 1.); // handle wraparound
         tile_enc = diff + 32.; // 2^(# offset bits - 1)
     }
 
-    gl_FragColor = vec4(z_enc / 255., tile_enc.s / 255., tile_enc.t / 255., 1);
+    gl_FragColor = vec4(
+        (float(anti_pole) * 64. + float(zoom_bleed) * 32. + z_enc) / 255.,
+        tile_enc.s / 255.,
+        tile_enc.t / 255.,
+        1);
 
   <% } %>
 
