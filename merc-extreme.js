@@ -281,10 +281,13 @@ GridGeometry = function(maxquads) {
 }
 GridGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
 
-function TexBuffer(size, texopts, aspect) {
+function TexBuffer(size, texopts, bufopts) {
+    bufopts = bufopts || {};
     this.width = size;
-    this.height = size * (aspect || 1.);
+    this.height = size * (bufopts.aspect || 1.);
     
+    // if bufopts.nocanvas, we don't actually need the <canvas>, but can't
+    // figure out how to initialize texture otherwise
     var $tx = $('<canvas />');
     $tx.attr('width', this.width);
     $tx.attr('height', this.height);
@@ -336,7 +339,7 @@ function TextureLayer(context, tilefunc) {
         minFilter: THREE.LinearMipMapLinearFilter,
         wrapS: THREE.RepeatWrapping, // still getting seams... why?
         flipY: false,
-    }, 2.);
+    }, {aspect: 2.});
     this.tex_atlas = [];
     for (var i = 0; i < NUM_ATLAS_PAGES; i++) {
         var page = new TexBuffer(ATLAS_TEX_SIZE, {
@@ -345,7 +348,7 @@ function TextureLayer(context, tilefunc) {
             magFilter: THREE.LinearFilter,
             minFilter: THREE.LinearFilter,
             flipY: false,
-        });
+        }, {nocanvas: true});
         this.tex_atlas.push(page);
     }
     this.tex_index = new TexBuffer(TEX_IX_SIZE, {
