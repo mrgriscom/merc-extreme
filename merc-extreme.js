@@ -38,8 +38,8 @@ var fragment_shader;
 
 var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
-var SAMPLE_FREQ = 10.;             // (px) spatial frequency to sample tile coverage
-var SAMPLE_TIME_FREQ = 3.;         // (hz) temporal frequency to sample tile coverage
+var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
+var SAMPLE_TIME_FREQ = 2.5;        // (hz) temporal frequency to sample tile coverage
 var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
 var ZOOM_BLEND = .0;               // range over which to fade between adjacent zoom levels
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
@@ -51,7 +51,7 @@ var SOUTH_POLE_COLOR = '#ccc';
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
 var MAX_SCREEN_WIDTH = 1920;
-var MAX_SCREEN_HEIGHT = 1080;
+var MAX_SCREEN_HEIGHT = 1200;
 
 var TILE_SKIRT = 2; //px -- increase for mipmapping?
 var HIGH_PREC_Z_BASELINE = 16;
@@ -392,6 +392,7 @@ function TextureLayer(context, tilefunc) {
         
         var gl = this.context.glContext;
         this.context.renderer.render(this.context.scene, this.context.camera, this.target);
+        // readPixels is slow and a bottleneck, seemingly regardless of buffer size
         gl.readPixels(0, 0, this.sample_width, this.sample_height, gl.RGBA, gl.UNSIGNED_BYTE, this.sampleBuff); // RGBA required by spec
         this.worker.postMessage({ref: this.context.ref_t, antiref: this.context.anti_ref_t});
         this.worker.postMessage(this.sampleBuff);
@@ -996,6 +997,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 
     this.render = function(timestamp) {
         var renderer = this;
+
         if (!this.currentObjs.length) {
             this.qPolar = this.makeQuad('flat');
             this.qPolarAnti = this.makeQuad('flat');
@@ -1068,7 +1070,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             setMaterials('sampler');
             this.layer.sample_coverage(function() {
                 renderer.sampling_in_progress = false;
-                renderer.last_sampling = timestamp;
+                renderer.last_sampling = timestamp; // should probably set this to *current* timestamp
             });
             setMaterials('image');
         }
