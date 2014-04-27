@@ -219,11 +219,11 @@ void main() {
 
   <% if (output_mode == 'tile') { %>
 
-     // zoom level - 5 bits
-     // anti-pole - 1 bit
-     // zoom bleed - 1 bit
-     // tile fringe + dir - 2 bits each for x, y
-     // offset from ref - 6 bits each for x, y
+    // zoom level - 5 bits
+    // anti-pole - 1 bit
+    // zoom bleed - 1 bit
+    // tile fringe - 2 bits each for x, y
+    // offset from ref - 6 bits each for x, y
 
     float z_enc;
     bool zoom_bleed;

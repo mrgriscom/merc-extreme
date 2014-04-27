@@ -40,7 +40,7 @@ var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
 var SAMPLE_FREQ = 10.;             // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 3.;         // (hz) temporal frequency to sample tile coverage
-var ATLAS_TEX_SIZE = 8192;         // (px) dimensions of single page of texture atlas
+var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
 var ZOOM_BLEND = .0;               // range over which to fade between adjacent zoom levels
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
@@ -73,6 +73,11 @@ var TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
 var TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
 // size of a padded tile in the atlas texture
 var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
+// number of tiles that can fit in one texture page (along one edge)
+var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
+
+
+var NUM_ATLAS_PAGES = 2;
 
 
 function init() {
@@ -332,13 +337,17 @@ function TextureLayer(context, tilefunc) {
         wrapS: THREE.RepeatWrapping, // still getting seams... why?
         flipY: false,
     }, 2.);
-    this.tex_atlas = [new TexBuffer(ATLAS_TEX_SIZE, {
-        // mipmapping must be done manually due to non-continguity of images
-        generateMipmaps: false,
-        magFilter: THREE.LinearFilter,
-        minFilter: THREE.LinearFilter,
-        flipY: false,
-    })];
+    this.tex_atlas = [];
+    for (var i = 0; i < NUM_ATLAS_PAGES; i++) {
+        var page = new TexBuffer(ATLAS_TEX_SIZE, {
+            // mipmapping must be done manually due to non-continguity of images
+            generateMipmaps: false,
+            magFilter: THREE.LinearFilter,
+            minFilter: THREE.LinearFilter,
+            flipY: false,
+        });
+        this.tex_atlas.push(page);
+    }
     this.tex_index = new TexBuffer(TEX_IX_SIZE, {
         generateMipmaps: false,
         magFilter: THREE.NearestFilter,
@@ -348,10 +357,11 @@ function TextureLayer(context, tilefunc) {
 
     this.tile_index = {};
     this.slot_index = {};
-    var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
-    for (var i = 0; i < TEX_SIZE_TILES; i++) {
+    for (var i = 0; i < this.tex_atlas.length; i++) {
         for (var j = 0; j < TEX_SIZE_TILES; j++) {
-            this.slot_index[0 + ':' + i + ':' + j] = false;
+            for (var k = 0; k < TEX_SIZE_TILES; k++) {
+                this.slot_index[i + ':' + j + ':' + k] = false;
+            }
         }
     }
     this.index_offsets = {};
@@ -1165,7 +1175,7 @@ function configureShader(template, context) {
     });
     context.constants = const_ctx;
 
-    context.num_atlas_pages = 1;
+    context.num_atlas_pages = NUM_ATLAS_PAGES;
 
     //console.log(template(context));
     return template(context);
@@ -1319,4 +1329,11 @@ function unwraparound(base, val, rng) {
 
 function lon_norm(lon) {
     return mod(lon + 180., 360.) - 180.;
+}
+
+function prof(tag, func, ctx) {
+    var start = new Date();
+    func.call(ctx);
+    var end = new Date();
+    console.log(tag, end - start);
 }
