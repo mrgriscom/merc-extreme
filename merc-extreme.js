@@ -1154,7 +1154,7 @@ function tile_url(type) {
         topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
         hyp: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
     };
-    return function(z, x, y) { return _tile_url(specs[type], z, {x: x, y: y}); };
+    return compile_tile_spec(specs[type]);
 }
 
 //=== UTIL ===
@@ -1227,14 +1227,14 @@ function renderLoop(render) {
 
 
 
-function init_spec(spec) {
+function compile_tile_spec(spec) {
     var converters = {
-        z: function(zoom, point) { return zoom; },
-        x: function(zoom, point) { return point.x; },
-        y: function(zoom, point) { return point.y; },
-        '-y': function(zoom, point) { return Math.pow(2, zoom) - 1 - point.y; },
-        s: function(zoom, point, arg) {
-            var k = point.x + point.y;
+        z: function(zoom, x, y) { return zoom; },
+        x: function(zoom, x, y) { return x; },
+        y: function(zoom, x, y) { return y; },
+        '-y': function(zoom, x, y) { return Math.pow(2, zoom) - 1 - y; },
+        s: function(zoom, x, y, arg) {
+            var k = x + y;
             if (arg.indexOf('-') == -1) {
                 return arg.split('')[k % arg.length];
             } else {
@@ -1244,14 +1244,14 @@ function init_spec(spec) {
                 return min + k % (max - min + 1);
             }
         },
-        qt: function(zoom, point, arg) {
+        qt: function(zoom, x, y, arg) {
             var bin_digit = function(h, i) {
                 return Math.floor(h / Math.pow(2, i) % 2);
             }
             
             var qt = '';
             for (var i = zoom - 1; i >= 0; i--) {
-                var q = 2 * bin_digit(point.y, i) + bin_digit(point.x, i);
+                var q = 2 * bin_digit(y, i) + bin_digit(x, i);
                 qt += (arg != null ? arg[q] : q);
             }
             return qt;
@@ -1259,7 +1259,7 @@ function init_spec(spec) {
     };
 
     regex = new RegExp('{(.+?)(:.+?)?}', 'g');
-    return function(zoom, point) {
+    return function(zoom, x, y) {
         return spec.replace(regex, function(full_match, key, key_args) {
             if (!key_args) {
                 key_args = null;
@@ -1267,18 +1267,9 @@ function init_spec(spec) {
                 key_args = key_args.substring(1);
             }
 
-            return converters[key](zoom, point, key_args);
+            return converters[key](zoom, x, y, key_args);
         });
     }
-}
-
-
-_TILE_SPEC = {}
-function _tile_url(spec, zoom, point) {
-    if (!_TILE_SPEC[spec]) {
-        _TILE_SPEC[spec] = init_spec(spec);
-    }
-    return _TILE_SPEC[spec](zoom, point);
 }
 
 
