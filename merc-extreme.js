@@ -52,16 +52,14 @@ var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
 var MAX_SCREEN_WIDTH = 1920;
 var MAX_SCREEN_HEIGHT = 1200;
-
-var TILE_SKIRT = 2; //px -- increase for mipmapping?
 var HIGH_PREC_Z_BASELINE = 16;
 
 //// computed constants
 
-// maximum visible down-scaling for a tile
-var MAX_TILE_SHRINK = Math.pow(2, 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND);
+var MAX_Z_WARP = 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND;
+var MIPMAP_LEVELS = Math.ceil(MAX_Z_WARP);
 var tiles_per = function(dim, noround) {
-    var t = dim / TILE_SIZE * MAX_TILE_SHRINK;
+    var t = dim / TILE_SIZE *  Math.pow(2, MAX_Z_WARP);
     return noround ? t : Math.ceil(t);
 }
 
@@ -74,11 +72,12 @@ var TILE_FRINGE_WIDTH = Math.min(tiles_per(SAMPLE_FREQ, true), .5);
 var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
 // size of a single z-level's cell in the atlas index texture
 var TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
-//
+// number of z index cells in one edge of the index texture
 var TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
 // size of the atlas index texture
 var TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
 // size of a padded tile in the atlas texture
+var TILE_SKIRT = Math.pow(2, MIPMAP_LEVELS); //px
 var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
 // number of tiles that can fit in one texture page (along one edge)
 var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
@@ -401,7 +400,7 @@ function TextureLayer(context, tilefunc) {
     this.first_run = true;
     this.sample_coverage_postprocess = function(data) {
         this._debug_overview(data);
-        
+
         var tilekey = function(tile) {
             return tile.z + ':' + tile.x + ':' + tile.y;
         }
@@ -1228,20 +1227,13 @@ function renderLoop(render) {
 
 
 
-
-
-function _tile_url(spec, zoom, point) {
-    var replace = function(key, sub) {
-        spec = spec.replace(new RegExp('{' + key + '(:[^}]+)?}', 'g'), function(match, submatch) {
-                return sub(submatch == null || submatch.length == 0 ? null : submatch.substring(1));
-            });
-    }
-
-    replace('z', function() { return zoom; });
-    replace('x', function() { return point.x; });
-    replace('y', function() { return point.y; });
-    replace('-y', function() { return Math.pow(2, zoom) - 1 - point.y; });
-    replace('s', function(arg) {
+function init_spec(spec) {
+    var converters = {
+        z: function(zoom, point) { return zoom; },
+        x: function(zoom, point) { return point.x; },
+        y: function(zoom, point) { return point.y; },
+        '-y': function(zoom, point) { return Math.pow(2, zoom) - 1 - point.y; },
+        s: function(zoom, point, arg) {
             var k = point.x + point.y;
             if (arg.indexOf('-') == -1) {
                 return arg.split('')[k % arg.length];
@@ -1251,21 +1243,42 @@ function _tile_url(spec, zoom, point) {
                 var max = +bounds[1];
                 return min + k % (max - min + 1);
             }
-        });
-    replace('qt', function(arg) {
+        },
+        qt: function(zoom, point, arg) {
             var bin_digit = function(h, i) {
                 return Math.floor(h / Math.pow(2, i) % 2);
             }
-
+            
             var qt = '';
             for (var i = zoom - 1; i >= 0; i--) {
                 var q = 2 * bin_digit(point.y, i) + bin_digit(point.x, i);
                 qt += (arg != null ? arg[q] : q);
             }
             return qt;
-        });
+        },
+    };
 
-    return spec;
+    regex = new RegExp('{(.+?)(:.+?)?}', 'g');
+    return function(zoom, point) {
+        return spec.replace(regex, function(full_match, key, key_args) {
+            if (!key_args) {
+                key_args = null;
+            } else {
+                key_args = key_args.substring(1);
+            }
+
+            return converters[key](zoom, point, key_args);
+        });
+    }
+}
+
+
+_TILE_SPEC = {}
+function _tile_url(spec, zoom, point) {
+    if (!_TILE_SPEC[spec]) {
+        _TILE_SPEC[spec] = init_spec(spec);
+    }
+    return _TILE_SPEC[spec](zoom, point);
 }
 
 
@@ -1349,8 +1362,8 @@ function lon_norm(lon) {
 }
 
 function prof(tag, func, ctx) {
-    var start = new Date();
+    var start = window.performance.now();
     func.call(ctx);
-    var end = new Date();
+    var end = window.performance.now();
     console.log(tag, end - start);
 }
