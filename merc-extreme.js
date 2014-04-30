@@ -451,11 +451,11 @@ function TextureLayer(context, tilefunc) {
     });
 
     this.tile_index = {};
-    this.slot_index = {};
+    this.free_slots = {};
     for (var i = 0; i < this.tex_atlas.length; i++) {
         for (var j = 0; j < TEX_SIZE_TILES; j++) {
             for (var k = 0; k < TEX_SIZE_TILES; k++) {
-                this.slot_index[i + ':' + j + ':' + k] = false;
+                this.free_slots[i + ':' + j + ':' + k] = true;
             }
         }
     }
@@ -607,10 +607,20 @@ function TextureLayer(context, tilefunc) {
                 ix_entry.mru = MRU_counter;
             }
         });
-        
+        this.tiles_by_age = _.sortBy(_.filter(_.pairs(this.tile_index), function(e) {
+            return e[1].slot != null;
+        }), function(e) {
+            return -e[1].mru;
+        });
+
+        var split_slot_key = function(key) {
+            var pcs = key.split(':');
+            return {tex: +pcs[0], x: +pcs[1], y: +pcs[2]};
+        };
+
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
-            //if (tile.z > 7) {
+            //if (tile.z > 16) {
             //    return;
             //}
             
@@ -632,45 +642,23 @@ function TextureLayer(context, tilefunc) {
                 // tile is even still in view
 
                 var slot = null;
-                // don't define this here
-                var split_slot_key = function(key) {
-                    var pcs = key.split(':');
-                    return {tex: +pcs[0], x: +pcs[1], y: +pcs[2]};
-                };
-                // make this lookup more efficient
-                $.each(layer.slot_index, function(key, occupied) {
-                    if (!occupied) {
-                        slot = split_slot_key(key);
-                        return false;
-                    }
+                $.each(layer.free_slots, function(k, v) {
+                    // always pick first and bail
+                    slot = split_slot_key(k);
+                    return false;
                 });
                 if (slot == null) {
                     //console.log('no slot');
-                    var oldest_key = null;
-                    var oldest = null;
-                    // make this lookup more efficient
-                    $.each(layer.tile_index, function(k, v) {
-                        if (v.status != 'loaded') {
-                            return;
-                        }
-                        if (k == '0:0:0') {
-                            // not stored in texture atlas
-                            return;
-                        }
-                        
-                        if (oldest == null || v.mru < oldest.mru) {
-                            oldest_key = k;
-                            oldest = v;
-                        }
-                    });
-                    
-                    if (oldest.mru == MRU_counter) {
-                        // tile cache is full (TODO provision extra space?)
+                    var _oldest = layer.tiles_by_age.pop() || [null, null];
+                    var oldest_key = _oldest[0];
+                    var oldest_entry = _oldest[1];
+                    if (oldest_entry == null || oldest_entry.mru == MRU_counter) {
+                        // tile cache is full (provision extra space?)
                         console.log('tile cache is full!');
                         return;
                     }
                     
-                    slot = oldest.slot;
+                    slot = oldest_entry.slot;
                     delete layer.tile_index[oldest_key];
 
                     var pcs = oldest_key.split(':');
@@ -682,7 +670,7 @@ function TextureLayer(context, tilefunc) {
                     ATLAS_TILE_SIZE * slot.x + TILE_SKIRT,
                     ATLAS_TILE_SIZE * slot.y + TILE_SKIRT);
                 ix_entry.slot = slot;
-                layer.slot_index[slot.tex + ':' + slot.x + ':' + slot.y] = true;
+                delete layer.free_slots[slot.tex + ':' + slot.x + ':' + slot.y];
                 
                 layer.tile_index_add(tile, slot);
                 ix_entry.mru = MRU_counter;
@@ -1149,7 +1137,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.qPolar.update(xtop, xbottom, flat_earth_cutoff, yright);
 
         this.renderer.render(this.scene, this.camera);
-        
+
         var setMaterials = function(output_mode) {
             $.each(renderer.currentObjs, function(i, e) {
                 e.material = renderer.layer._materials[output_mode][e.geo_mode];
