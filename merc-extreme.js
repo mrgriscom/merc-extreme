@@ -618,6 +618,11 @@ function TextureLayer(context, tilefunc) {
             return {tex: +pcs[0], x: +pcs[1], y: +pcs[2]};
         };
 
+        this.active_tiles = {};
+        _.each(tiles, function(tile) {
+            layer.active_tiles[tilekey(tile)] = true;
+        });
+
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             //if (tile.z > 16) {
@@ -637,9 +642,12 @@ function TextureLayer(context, tilefunc) {
                     layer.mk_top_level_tile(img);
                     return;
                 }
-                
-                // note: by the time we get here there is no guarantee that the
-                // tile is even still in view
+
+                if (!layer.active_tiles[tilekey(tile)]) {
+                    //console.log('tile moot');
+                    delete layer.tile_index[tilekey(tile)];
+                    return;
+                }
 
                 var slot = null;
                 $.each(layer.free_slots, function(k, v) {
