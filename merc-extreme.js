@@ -316,6 +316,11 @@ function TexBuffer(size, texopts, bufopts) {
         });
         texbuf.incrUpdates = [];
     }
+    this.tx.preUpdate = function() {
+        if (texbuf.preUpdate) {
+            texbuf.preUpdate();
+        }
+    }
     
     this.update = function(draw) {
         draw(this.ctx, this.width, this.height);
@@ -324,6 +329,87 @@ function TexBuffer(size, texopts, bufopts) {
     
     this.incrementalUpdate = function(image, xo, yo) {
         this.incrUpdates.push({img: image, xo: xo, yo: yo});
+    }
+}
+
+function IndexFragment(z, xoffset, yoffset, layer) {
+    var ctx = layer.tex_index.ctx;
+    var dim = Math.min(Math.pow(2, z), TILE_OFFSET_RESOLUTION);
+    this.buf = ctx.createImageData(dim, dim);
+    this.offsets = {x: xoffset, y: yoffset};
+    this.z = z;
+    this.tiles = {};
+    this.dirty = false;
+
+    this.addTile = function(tile, slot) {
+        this.set_px(tile.x, tile.y, slot);
+        this.tiles[tile.z + ':' + tile.x + ':' + tile.y] = true;
+        this.setDirty();
+    }
+
+    this.removeTile = function(z, x, y) {
+        this.set_px(x, y, null);
+        delete this.tiles[z + ':' + x + ':' + y];
+        this.setDirty();
+    }
+
+    this.setDirty = function() {
+        this.dirty = true;
+        layer.tex_index.tx.needsUpdate = true;
+    }
+
+    this.empty = function() {
+        return this.tiles.length == 0;
+    }
+
+    this.set_px = function(x, y, slot) {
+        var dx = x - this.offsets.x * TILE_OFFSET_RESOLUTION;
+        var dy = y - this.offsets.y * TILE_OFFSET_RESOLUTION;
+        var base = 4 * (dy * this.buf.width + dx);
+        this.buf.data[base] = slot ? slot.tex + 1 : 0;
+        this.buf.data[base + 1] = slot ? slot.x : 0;
+        this.buf.data[base + 2] = slot ? slot.y : 0;
+        this.buf.data[base + 3] = 255;
+    }
+
+    this._update = function(anti) {
+        var ix_offsets = layer.index_offsets[(anti ? 1 : 0) + ':' + this.z];
+        if (ix_offsets == null) {
+            return;
+        }
+
+        var dx = mod((this.offsets.x - ix_offsets.x) * TILE_OFFSET_RESOLUTION, Math.pow(2., this.z));
+        var dy = (this.offsets.y - ix_offsets.y) * TILE_OFFSET_RESOLUTION;
+        if (dx >= TEX_Z_IX_SIZE || dy < 0 || dy >= TEX_Z_IX_SIZE) {
+            // out of range for current offset
+            return;
+        }
+ 
+        var zx = this.z % (TEX_IX_SIZE / TEX_Z_IX_SIZE);
+        var zy = Math.floor(this.z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
+        
+        var px = zx * TEX_Z_IX_SIZE + dx;
+        var py = zy * TEX_Z_IX_SIZE + dy;
+
+        var frag = this;
+        layer.tex_index.update(function(ctx, w, h) {
+            ctx.putImageData(frag.buf, px, py);
+        });
+    }
+
+    this.update = function() {
+        if (!this.dirty) {
+            return;
+        }
+
+        this._update(false);
+        this._update(true);
+        this.dirty = false;
+
+        if (this.empty()) {
+            // purge self
+            delete layer.index_fragments[this.z + ':' + this.offsets.x + ':' + this.offsets.y];
+        }
     }
 }
 
@@ -374,6 +460,19 @@ function TextureLayer(context, tilefunc) {
         }
     }
     this.index_offsets = {};
+    this.index_fragments = {};
+    var layer = this;
+    this.tex_index.preUpdate = function() {
+        _.each(layer.index_offsets, function(v, k) {
+            var pcs = k.split(':');
+            var anti = +pcs[0];
+            var z = +pcs[1];
+
+            layer.each_fragment_for_z(z, v.x, v.y, function(frag) {
+                frag.update();
+            });
+        });
+    }
     
     this.init = function() {
         var layer = this;
@@ -397,6 +496,44 @@ function TextureLayer(context, tilefunc) {
         this.worker.postMessage(this.sampleBuff);
     }
     
+    var offset = function(min, z) {
+        return Math.floor(mod(min, Math.pow(2., z)) / TILE_OFFSET_RESOLUTION);
+    }
+
+    this.each_fragment_for_z = function(z, xo, yo, func) {
+        for (var i = 0; i < 2; i++) {
+            var x = mod(xo + i, Math.pow(2, z) / TILE_OFFSET_RESOLUTION);
+            for (var j = 0; j < 2; j++) {
+                var y = yo + j;
+                var frag = this.index_fragments[z + ':' + x + ':' + y];
+                if (frag) {
+                    func(frag);
+                }
+            }
+        }
+    }
+
+    this.tile_index_add = function(tile, slot) {
+        var xo = offset(tile.x, tile.z);
+        var yo = offset(tile.y, tile.z);
+        var fragkey = tile.z + ':' + xo + ':' + yo;
+        var frag = this.index_fragments[fragkey];
+        if (!frag) {
+            frag = new IndexFragment(tile.z, xo, yo, this);
+            this.index_fragments[fragkey] = frag;
+        }
+        frag.addTile(tile, slot);
+    }
+
+    this.tile_index_remove = function(z, x, y) {
+        var xo = offset(x, z);
+        var yo = offset(y, z);
+        var fragkey = z + ':' + xo + ':' + yo;
+        var frag = this.index_fragments[fragkey];
+        frag.removeTile(z, x, y);
+        // removal of empty frag from index_fragments happens after texture refresh
+    }
+
     this.first_run = true;
     this.sample_coverage_postprocess = function(data) {
         this._debug_overview(data);
@@ -449,27 +586,16 @@ function TextureLayer(context, tilefunc) {
             var anti = +pcs[0];
             var z = +pcs[1];
 
-            var offset = function(min) {
-                return Math.floor(mod(min, Math.pow(2., z)) / TILE_OFFSET_RESOLUTION);
-            }
-            var xoffset = offset(v.xmin);
-            var yoffset = offset(v.ymin);
+            var xoffset = offset(v.xmin, z);
+            var yoffset = offset(v.ymin, z);
             var cur_offsets = layer.index_offsets[k];
             if (cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
                 layer.index_offsets[k] = {x: xoffset, y: yoffset};
                 layer.set_offset(z, anti, xoffset, yoffset);
 
                 layer.clear_tile_ix(z, anti);
-                // is this too slow?.... yes. yes it is
-                // FIXME performance
-                $.each(layer.tile_index, function(k, v) {
-                    if (v.status != 'loaded') {
-                        return;
-                    }
-
-                    var pcs = k.split(':');
-                    var tile = {z: +pcs[0], x: +pcs[1], y: +pcs[2]};
-                    layer.set_tile_ix(tile, v.slot);
+                layer.each_fragment_for_z(z, xoffset, yoffset, function(frag) {
+                    frag.setDirty();
                 });
             }
         });
@@ -506,10 +632,12 @@ function TextureLayer(context, tilefunc) {
                 // tile is even still in view
 
                 var slot = null;
+                // don't define this here
                 var split_slot_key = function(key) {
                     var pcs = key.split(':');
                     return {tex: +pcs[0], x: +pcs[1], y: +pcs[2]};
                 };
+                // make this lookup more efficient
                 $.each(layer.slot_index, function(key, occupied) {
                     if (!occupied) {
                         slot = split_slot_key(key);
@@ -520,6 +648,7 @@ function TextureLayer(context, tilefunc) {
                     //console.log('no slot');
                     var oldest_key = null;
                     var oldest = null;
+                    // make this lookup more efficient
                     $.each(layer.tile_index, function(k, v) {
                         if (v.status != 'loaded') {
                             return;
@@ -545,7 +674,7 @@ function TextureLayer(context, tilefunc) {
                     delete layer.tile_index[oldest_key];
 
                     var pcs = oldest_key.split(':');
-                    layer.set_tile_ix({z: +pcs[0], x: +pcs[1], y: +pcs[2]}, null);
+                    layer.tile_index_remove(+pcs[0], +pcs[1], +pcs[2]);
                 }
                 
                 //console.log('loading', tilekey(tile));
@@ -555,7 +684,7 @@ function TextureLayer(context, tilefunc) {
                 ix_entry.slot = slot;
                 layer.slot_index[slot.tex + ':' + slot.x + ':' + slot.y] = true;
                 
-                layer.set_tile_ix(tile, slot);
+                layer.tile_index_add(tile, slot);
                 ix_entry.mru = MRU_counter;
             });
         });
@@ -594,48 +723,7 @@ function TextureLayer(context, tilefunc) {
             ctx.fillRect(zx * TEX_Z_IX_SIZE, zy * TEX_Z_IX_SIZE, size, size);
         });
     }
-    
-    this.set_tile_ix = function(tile, slot) {
-        var layer = this;
-        var helper = function(anti) {
-            var offsets = layer.index_offsets[(anti ? 1 : 0) + ':' + tile.z];
-            if (offsets == null) {
-                return;
-            }
-
-            var dx = mod(tile.x - TILE_OFFSET_RESOLUTION * offsets.x, Math.pow(2., tile.z));
-            var dy = tile.y - TILE_OFFSET_RESOLUTION * offsets.y;
-            if (dx >= TEX_Z_IX_SIZE || dy < 0 || dy >= TEX_Z_IX_SIZE) {
-                // out of range for current offset
-                return;
-            }
- 
-            var zx = tile.z % (TEX_IX_SIZE / TEX_Z_IX_SIZE);
-            var zy = Math.floor(tile.z / (TEX_IX_SIZE / TEX_Z_IX_SIZE)) + (anti ? .5 : 0) * (TEX_IX_SIZE / TEX_Z_IX_SIZE);
-        
-            var px = zx * TEX_Z_IX_SIZE + dx;
-            var py = zy * TEX_Z_IX_SIZE + dy;
-
-            layer.tex_index.update(function(ctx, w, h) {
-                var buf = ctx.createImageData(1, 1);
-                if (slot != null) {
-                    buf.data[0] = slot.tex + 1;
-                    buf.data[1] = slot.x;
-                    buf.data[2] = slot.y;
-                } else {
-                    buf.data[0] = 0;
-                    buf.data[1] = 0;
-                    buf.data[2] = 0;
-                }
-                buf.data[3] = 255;
-                ctx.putImageData(buf, px, py);
-            });
-        };
-        
-        helper(false);
-        helper(true);
-    }
-    
+      
     this.mk_top_level_tile = function(img) {
         this.tex_z0.update(function(ctx, w, h) {
             ctx.fillStyle = NORTH_POLE_COLOR;
@@ -744,6 +832,10 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     // monkeypatch to support tex update sub-image
     var _setTexture = this.renderer.setTexture;
     this.renderer.setTexture = function(texture, slot) {
+        if (texture.preUpdate) {
+            texture.preUpdate();
+        }
+
         _setTexture(texture, slot);
         
         if (texture.incrementalUpdate) {
