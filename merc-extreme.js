@@ -536,8 +536,6 @@ function TextureLayer(context, tilefunc) {
 
     this.first_run = true;
     this.sample_coverage_postprocess = function(data) {
-        this._debug_overview(data);
-
         var tilekey = function(tile) {
             return tile.z + ':' + tile.x + ':' + tile.y;
         }
@@ -551,12 +549,27 @@ function TextureLayer(context, tilefunc) {
                 y: +pcs[3]
             };
         }
-        var tiles = _.sortBy($.map(data, function(v, k) { return unpack_tile(k); }), function(e) { return e.z + (e.anti ? .5 : 0.); });
         if (this.first_run) {
             // always load z0 tile even if not in current view
-            tiles.push({anti: false, z: 0, x: 0, y: 0}); // may be a duplicate, but the code below should handle it ok
+            data['0:0:0:0'] = true;
             this.first_run = false;
         }
+        // include all parent tiles of visible tiles
+        _.each(_.clone(data), function(v, k) {
+            var t = unpack_tile(k);
+            while (true) {
+                t.z -= 1;
+                t.x = Math.floor(t.x / 2);
+                t.y = Math.floor(t.y / 2);
+                var key = +t.anti + ':' + t.z + ':' + t.x + ':' + t.y;
+                if (t.z >= 0 && !data[key]) {
+                    data[key] = true;
+                } else {
+                    break;
+                }
+            }
+        });
+        var tiles = _.sortBy($.map(data, function(v, k) { return unpack_tile(k); }), function(e) { return e.z + (e.anti ? .5 : 0.); });
 
         var layer = this;
         
@@ -625,6 +638,7 @@ function TextureLayer(context, tilefunc) {
 
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
+            //TODO replace with movement-based criteria
             //if (tile.z > 16) {
             //    return;
             //}
@@ -686,6 +700,8 @@ function TextureLayer(context, tilefunc) {
         });
         
         MRU_counter++;
+
+        this._debug_overview(data);
     }
     
     this.set_offset = function(z, anti, xo, yo) {
@@ -892,6 +908,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 	    //this.curPole = [-34.0,18.4];
         //this.curPole = [43.56057, -7.41375];
         //this.curPole = [-16.159283,-180.];
+        //this.curPole = [89.9999, 0];
     }
 
     this.setWorldMatrix = function(M) {
@@ -1157,7 +1174,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             setMaterials('sampler');
             this.layer.sample_coverage(function() {
                 renderer.sampling_in_progress = false;
-                renderer.last_sampling = timestamp; // should probably set this to *current* timestamp
+                renderer.last_sampling = clock();
             });
             setMaterials('image');
         }
@@ -1299,17 +1316,15 @@ window.requestAnimFrame = (function(callback){
 
 function renderLoop(render) {
     var cb = function(timestamp) {
-        timestamp /= 1000.;
-        if (!window.T0) {
-            T0 = timestamp;
-        }
-        render(timestamp - T0);
+        render(clock());
         requestAnimationFrame(cb);
     }
     requestAnimationFrame(cb);
 }
 
-
+function clock() {
+    return window.performance.now() / 1000;
+}
 
 
 
