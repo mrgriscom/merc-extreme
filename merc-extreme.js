@@ -104,6 +104,18 @@ function init() {
         }
     });
     
+    var $l = $('#layers');
+    _.each(tile_specs, function(v, k) {
+        var $k = $('<span />');
+        $k.text(k);
+        $k.click(function() {
+            merc.setLayer(k);
+        });
+        $l.append($k);
+        $l.append('<span>&middot;</span>');
+    });
+    merc.setLayer('map');
+
     merc.start();
 }
 
@@ -413,10 +425,12 @@ function IndexFragment(z, xoffset, yoffset, layer) {
     }
 }
 
-function TextureLayer(context, tilefunc) {
+function TextureLayer(context) {
     
     this.context = context;
-    this.tilefunc = tilefunc;
+
+    this.curlayer = null;
+    this.tilefunc = null;
     
     this.sample_width = Math.round(this.context.width_px / SAMPLE_FREQ);
     this.sample_height = Math.round(this.context.height_px / SAMPLE_FREQ);
@@ -482,6 +496,11 @@ function TextureLayer(context, tilefunc) {
         }, false);
     }
     
+    this.setLayer = function(type) {
+        this.curlayer = type;
+        this.tilefunc = tile_url(type);
+    }
+
     this.sample_coverage = function(oncomplete) {
         if (!this.sampleBuff) {
             this.sampleBuff = new Uint8Array(this.sample_width * this.sample_height * 4);
@@ -551,6 +570,7 @@ function TextureLayer(context, tilefunc) {
         }
         if (this.first_run) {
             // always load z0 tile even if not in current view
+            // (this is redundant since we're also loading all parent tiles)
             data['0:0:0:0'] = true;
             this.first_run = false;
         }
@@ -642,13 +662,17 @@ function TextureLayer(context, tilefunc) {
             //if (tile.z > 16) {
             //    return;
             //}
-            
+
             if (layer.tile_index[tilekey(tile)] != null) {
                 return;
             }
             
             layer.tile_index[tilekey(tile)] = {status: 'loading'};
             load_image(layer.tilefunc(tile.z, tile.x, tile.y), function(img) {
+                if (img == null) {
+                    return;
+                }
+
                 var ix_entry = layer.tile_index[tilekey(tile)];
                 ix_entry.status = 'loaded';
                 
@@ -894,7 +918,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.scene = new THREE.Scene();
         this.group = new THREE.Object3D();
         this.scene.add(this.group);
-        this.layer = new TextureLayer(this, tile_url('map'));
+        this.layer = new TextureLayer(this);
         this.currentObjs = [];
 
 	    var M = new THREE.Matrix4();
@@ -909,6 +933,11 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         //this.curPole = [43.56057, -7.41375];
         //this.curPole = [-16.159283,-180.];
         //this.curPole = [89.9999, 0];
+    }
+
+    this.setLayer = function(layer) {
+        this.last_sampling = null;
+        this.layer.setLayer(layer);
     }
 
     this.setWorldMatrix = function(M) {
@@ -1240,6 +1269,7 @@ function hp_split(val) {
 function load_image(url, onload) {
     var img = new Image();
     img.onload = function() { onload(img); };
+    img.onerror = function() { onload(null); }; // 404 or CORS denial
     img.crossOrigin = 'anonymous';
     img.src = url;
 }
@@ -1247,19 +1277,19 @@ function load_image(url, onload) {
 
 //=== TILE SERVICES ===
 
+var tile_specs = {
+    map: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    sat: 'https://khms{s:0-3}.google.com/kh/v=147&x={x}&y={y}&z={z}',
+    terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+    osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
+    mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+    mb2: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
+    topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
+    hyp: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
+};
 function tile_url(type) {
-    var specs = {
-        map: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        sat: 'https://khms{s:0-3}.google.com/kh/v=147&x={x}&y={y}&z={z}',
-        terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
-        osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
-        mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
-        mb2: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
-        topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
-        hyp: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
-    };
-    return compile_tile_spec(specs[type]);
+    return compile_tile_spec(tile_specs[type]);
 }
 
 //=== UTIL ===
