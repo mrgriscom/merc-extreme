@@ -224,6 +224,7 @@ void main() {
     // zoom bleed - 1 bit
     // tile fringe - 2 bits each for x, y
     // offset from ref - 6 bits each for x, y
+    // 1 bit left over... primary vs. secondary overlay?
 
     float z_enc;
     bool zoom_bleed;

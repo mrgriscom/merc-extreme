@@ -50,8 +50,8 @@ var SOUTH_POLE_COLOR = '#ccc';
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
-var MAX_SCREEN_WIDTH = 1920;
-var MAX_SCREEN_HEIGHT = 1200;
+var MAX_SCREEN_WIDTH = 1920; //screen.width;
+var MAX_SCREEN_HEIGHT = 1200; //screen.height;
 var HIGH_PREC_Z_BASELINE = 16;
 
 //// computed constants
@@ -105,16 +105,15 @@ function init() {
     });
     
     var $l = $('#layers');
-    _.each(tile_specs, function(v, k) {
-        var $k = $('<span />');
-        $k.text(k);
+    _.each(tile_specs, function(e) {
+        var $k = $('<div />');
+        $k.text(e.name);
         $k.click(function() {
-            merc.setLayer(k);
+            merc.setLayer(e);
         });
         $l.append($k);
-        $l.append('<span>&middot;</span>');
     });
-    merc.setLayer('map');
+    merc.setLayer(tile_specs[0]);
 
     merc.start();
 }
@@ -498,12 +497,12 @@ function TextureLayer(context) {
     }
     
     this.setLayer = function(type) {
-        if (type == this.curlayer) {
+        if (type.id == this.curlayer) {
             return;
         }
 
-        this.curlayer = type;
-        this.tilefunc = tile_url(type);
+        this.curlayer = type.id;
+        this.tilefunc = compile_tile_spec(type.url);
 
         // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
         // this ensures the tile is reloaded when the layer is switched back
@@ -938,7 +937,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 	    //this.curPole = [41.63, -72.59];
         this.curPole = [42.4, -71.1];
 	    //this.curPole = [-34.0,18.4];
-        //this.curPole = [43.56057, -7.41375];
+        //this.curPole = [43.56060, -7.41384];
         //this.curPole = [-16.159283,-180.];
         //this.curPole = [89.9999, 0];
     }
@@ -1284,21 +1283,64 @@ function load_image(url, onload) {
 
 //=== TILE SERVICES ===
 
-var tile_specs = {
-    map: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-    sat: 'https://khms{s:0-3}.google.com/kh/v=147&x={x}&y={y}&z={z}',
-    terr: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
-    osm: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    trans: 'http://mts{s:0-3}.google.com/vt/lyrs=m@230051588,transit:comp%7Cvm:1&hl=en&src=app&opts=r&x={x}&y={y}&z={z}',
-    mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
-    mb2: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
-    topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
-    space: 'https://api.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
-    hyp: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
-};
-function tile_url(type) {
-    return compile_tile_spec(tile_specs[type]);
-}
+var tile_specs = [
+    {
+        id: 'gmap',
+        name: 'Google Map',
+        url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    },
+    {
+        id: 'gsat',
+        name: 'Google Satellite',
+        url: 'https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        //url: 'https://khms{s:0-3}.google.com/kh/v=149&x={x}&y={y}&z={z}',
+    },
+    {
+        id: 'gterr',
+        name: 'Google Terrain',
+        url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+    },
+    {
+        id: 'gtrans',
+        name: 'Google Transit',
+        url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
+    },
+    {
+        id: 'osm',
+        name: 'OSM Mapnik',
+        url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    },
+    {
+        id: 'mbstr',
+        name: 'Mapbox Streets',
+        url: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
+    },
+    {
+        id: 'mbterr',
+        name: 'Mapbox Terrain',
+        url: 'https://api.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
+    },
+    {
+        id: 'space',
+        name: 'Mapbox Space Station Earth',
+        url: 'https://api.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
+    },
+    {
+        id: 'pint',
+        name: 'Stamen Pinterest',
+        url: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+    },
+    {
+        id: 'topo',
+        name: 'ESRI Topographic',
+        url: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
+    },
+    {
+        id: 'hypso',
+        name: 'Maps-for-Free Elevation',
+        url: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
+    },
+];
 
 //=== UTIL ===
 
