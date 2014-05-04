@@ -60,8 +60,8 @@ void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
                       out int tex_id, out vec2 atlas_t, out bool atlas_oob) {
     vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, (.5 * TEX_IX_CELLS * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 1.) + .5) / TEX_IX_SIZE);
     vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, (.5 * TEX_IX_CELLS * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 2.) + .5) / TEX_IX_SIZE);
-    vec2 offset = TILE_OFFSET_RESOLUTION * vec2(256 * int(255. * x_offset_enc.r) + int(255. * x_offset_enc.g),
-                                                256 * int(255. * y_offset_enc.r) + int(255. * y_offset_enc.g));
+    vec2 offset = TILE_OFFSET_RESOLUTION * vec2(65536 * int(255. * x_offset_enc.r) + 256 * int(255. * x_offset_enc.g) + int(255. * x_offset_enc.b),
+                                                65536 * int(255. * y_offset_enc.r) + 256 * int(255. * y_offset_enc.g) + int(255. * y_offset_enc.b));
 
     vec2 z_cell = vec2(mod(z, TEX_IX_CELLS), floor(z / TEX_IX_CELLS) + TEX_IX_CELLS * .5 * float(anti_pole));
     vec2 ix_offset = tile - offset;
@@ -205,8 +205,9 @@ void main() {
     float res = PI2 / scale * proj_scale_factor; // radians per pixel
     // compensate for the fact the map imagery is mercator projected, and has higher resolution towards the poles
     float base_res = PI2 / TILE_SIZE * cos(abs_geo_lat); // radians per pixel offered by the lowest zoom layer
-    float fzoom = log2(base_res / res) - bias + .5 * zoom_blend; // necessary zoom level (on a continuous scale)
-    float z = clamp(ceil(fzoom), 0., MAX_ZOOM); // without clamping, -z would be the lod for mipmap of z0
+    float fzoom = min(log2(base_res / res) - bias + .5 * zoom_blend, MAX_ZOOM); // necessary zoom level (on a continuous scale)
+    float z = max(ceil(fzoom), 0.); // without clamping, -z would be the lod for mipmap of z0
+    float zblend = (fract(fzoom) == 0. ? 1. : min(fract(fzoom) / zoom_blend, 1.)); // fract(fzoom) == 0 special case needed due to z = ceil(fzoom)
 
   <% if (geo_mode == 'flat' || geo_mode == 'linear') { %>
     hp_reco(base_tile * exp2(z), base_offset * exp2(z), tile, tile_p);
@@ -241,7 +242,7 @@ void main() {
       <% } %>
 
         z_enc = z;
-        zoom_bleed = fract(fzoom) < zoom_blend;
+        zoom_bleed = (zblend < 1.);
 
         vec2 ref = anti_pole ? anti_ref_t : ref_t;
         vec2 ref_tile = floor(ref * exp2(z));
@@ -273,6 +274,7 @@ void main() {
     tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
   <% } %>
 
+    float z_orig = z;
   <% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
     if (tex_id < 0 && z > 0.) {
         z -= 1.;
@@ -289,6 +291,28 @@ void main() {
 
     vec4 result;
     tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, result);
+
+    if (zoom_blend > 0.) {
+        vec4 parent = result;
+        if (!(z < z_orig || z == 0. || zblend == 1.)) {
+
+            // only one iteration; we don't care if parent tile is not loaded
+            z -= 1.;
+          <% if (geo_mode == 'sphere') { %>
+            tex_lookup_abs(z, anti_pole, abs_map, tex_id, atlas_p, z_oob);
+          <% } else if (geo_mode == 'flat' || geo_mode == 'linear') { %>
+            vec2 _tile = .5 * tile;
+            vec2 _offset = .5 * tile_p;
+            hp_reco(_tile, _offset, tile, tile_p);
+            tex_lookup_coord(z, anti_pole, tile, tile_p, tex_id, atlas_p, z_oob);
+          <% } %>
+
+            if (tex_id >= 0) {
+                tex_lookup_val(z, abs_map, z_oob, tex_id, atlas_p, parent);
+            }
+        }
+        result = mix(parent, result, zblend);
+    }
 
     // tint according to geo_mode for debugging
     //if (true) {

@@ -676,11 +676,11 @@ function TextureLayer(context) {
             
             layer.tile_index[tilekey(tile)] = {status: 'loading'};
             load_image(layer.tilefunc(tile.z, tile.x, tile.y), function(img) {
+                var ix_entry = layer.tile_index[tilekey(tile)];
                 if (img == null) {
+                    ix_entry.status = 'noexist';
                     return;
                 }
-
-                var ix_entry = layer.tile_index[tilekey(tile)];
                 ix_entry.status = 'loaded';
                 
                 if (!layer.active_tiles[tilekey(tile)]) {
@@ -742,16 +742,15 @@ function TextureLayer(context) {
         this.tex_index.update(function(ctx, w, h) {
             var buf = ctx.createImageData(1, 1);
             
-            // note this scheme can only properly handle up to z21; we could use the 3rd byte though
-            buf.data[0] = Math.floor(xo / 256.);
-            buf.data[1] = xo % 256;
-            buf.data[2] = 0;
+            buf.data[0] = (xo >> 16) & 0xff;
+            buf.data[1] = (xo >> 8) & 0xff;
+            buf.data[2] = xo & 0xff;
             buf.data[3] = 255;
             ctx.putImageData(buf, px, py);
             
-            buf.data[0] = Math.floor(yo / 256.);
-            buf.data[1] = yo % 256;
-            buf.data[2] = 0;
+            buf.data[0] = (yo >> 16) & 0xff;
+            buf.data[1] = (yo >> 8) & 0xff;
+            buf.data[2] = yo & 0xff;
             buf.data[3] = 255;
             ctx.putImageData(buf, px, py - 1);
         });
