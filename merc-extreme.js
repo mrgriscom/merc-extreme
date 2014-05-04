@@ -344,11 +344,12 @@ function TexBuffer(size, texopts, bufopts) {
     }
 }
 
-function IndexFragment(z, xoffset, yoffset, layer) {
+function IndexFragment(type, z, xoffset, yoffset, layer) {
     var ctx = layer.tex_index.ctx;
     var dim = Math.min(Math.pow(2, z), TILE_OFFSET_RESOLUTION);
     this.buf = ctx.createImageData(dim, dim);
     this.offsets = {x: xoffset, y: yoffset};
+    this.type = type;
     this.z = z;
     this.tiles = {};
     this.dirty = false;
@@ -482,7 +483,7 @@ function TextureLayer(context) {
             var anti = +pcs[0];
             var z = +pcs[1];
 
-            layer.each_fragment_for_z(z, v.x, v.y, function(frag) {
+            layer.each_fragment_for_z(layer.curlayer, z, v.x, v.y, function(frag) {
                 frag.update();
             });
         });
@@ -497,8 +498,19 @@ function TextureLayer(context) {
     }
     
     this.setLayer = function(type) {
+        if (type == this.curlayer) {
+            return;
+        }
+
         this.curlayer = type;
         this.tilefunc = tile_url(type);
+
+        // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
+        // this ensures the tile is reloaded when the layer is switched back
+        delete this.tile_index[this.shown_layer + ':0:0:0'];
+
+        // trigger immediate reload
+        context.last_sampling = null;
     }
 
     this.sample_coverage = function(oncomplete) {
@@ -519,12 +531,12 @@ function TextureLayer(context) {
         return Math.floor(mod(min, Math.pow(2., z)) / TILE_OFFSET_RESOLUTION);
     }
 
-    this.each_fragment_for_z = function(z, xo, yo, func) {
+    this.each_fragment_for_z = function(layer, z, xo, yo, func) {
         for (var i = 0; i < 2; i++) {
             var x = mod(xo + i, Math.pow(2, z) / TILE_OFFSET_RESOLUTION);
             for (var j = 0; j < 2; j++) {
                 var y = yo + j;
-                var frag = this.index_fragments[z + ':' + x + ':' + y];
+                var frag = this.index_fragments[layer + ':' + z + ':' + x + ':' + y];
                 if (frag) {
                     func(frag);
                 }
@@ -532,31 +544,31 @@ function TextureLayer(context) {
         }
     }
 
-    this.tile_index_add = function(tile, slot) {
+    this.tile_index_add = function(layer_type, tile, slot) {
         var xo = offset(tile.x, tile.z);
         var yo = offset(tile.y, tile.z);
-        var fragkey = tile.z + ':' + xo + ':' + yo;
+        var fragkey = layer_type + ':' + tile.z + ':' + xo + ':' + yo;
         var frag = this.index_fragments[fragkey];
         if (!frag) {
-            frag = new IndexFragment(tile.z, xo, yo, this);
+            frag = new IndexFragment(layer_type, tile.z, xo, yo, this);
             this.index_fragments[fragkey] = frag;
         }
         frag.addTile(tile, slot);
     }
 
-    this.tile_index_remove = function(z, x, y) {
+    this.tile_index_remove = function(layer_type, z, x, y) {
         var xo = offset(x, z);
         var yo = offset(y, z);
-        var fragkey = z + ':' + xo + ':' + yo;
+        var fragkey = layer_type + ':' + z + ':' + xo + ':' + yo;
         var frag = this.index_fragments[fragkey];
         frag.removeTile(z, x, y);
         // removal of empty frag from index_fragments happens after texture refresh
     }
 
-    this.first_run = true;
     this.sample_coverage_postprocess = function(data) {
+        var layer_type = this.curlayer;
         var tilekey = function(tile) {
-            return tile.z + ':' + tile.x + ':' + tile.y;
+            return layer_type + ':' + tile.z + ':' + tile.x + ':' + tile.y;
         }
         
         var unpack_tile = function(key) {
@@ -568,13 +580,8 @@ function TextureLayer(context) {
                 y: +pcs[3]
             };
         }
-        if (this.first_run) {
-            // always load z0 tile even if not in current view
-            // (this is redundant since we're also loading all parent tiles)
-            data['0:0:0:0'] = true;
-            this.first_run = false;
-        }
         // include all parent tiles of visible tiles
+        // support smoother zoom-out, and we always need the z0 tile loaded
         _.each(_.clone(data), function(v, k) {
             var t = unpack_tile(k);
             while (true) {
@@ -622,16 +629,17 @@ function TextureLayer(context) {
             var xoffset = offset(v.xmin, z);
             var yoffset = offset(v.ymin, z);
             var cur_offsets = layer.index_offsets[k];
-            if (cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
+            if (layer.shown_layer != layer.curlayer || cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
                 layer.index_offsets[k] = {x: xoffset, y: yoffset};
                 layer.set_offset(z, anti, xoffset, yoffset);
 
                 layer.clear_tile_ix(z, anti);
-                layer.each_fragment_for_z(z, xoffset, yoffset, function(frag) {
+                layer.each_fragment_for_z(layer.curlayer, z, xoffset, yoffset, function(frag) {
                     frag.setDirty();
                 });
             }
         });
+        this.shown_layer = this.curlayer;
 
         // mark all tiles for LRU if exist in cache
         $.each(tiles, function(i, tile) {
@@ -676,14 +684,14 @@ function TextureLayer(context) {
                 var ix_entry = layer.tile_index[tilekey(tile)];
                 ix_entry.status = 'loaded';
                 
-                if (tile.z == 0) {
-                    layer.mk_top_level_tile(img);
-                    return;
-                }
-
                 if (!layer.active_tiles[tilekey(tile)]) {
                     //console.log('tile moot');
                     delete layer.tile_index[tilekey(tile)];
+                    return;
+                }
+
+                if (tile.z == 0) {
+                    layer.mk_top_level_tile(img);
                     return;
                 }
 
@@ -708,7 +716,7 @@ function TextureLayer(context) {
                     delete layer.tile_index[oldest_key];
 
                     var pcs = oldest_key.split(':');
-                    layer.tile_index_remove(+pcs[0], +pcs[1], +pcs[2]);
+                    layer.tile_index_remove(pcs[0], +pcs[1], +pcs[2], +pcs[3]);
                 }
                 
                 //console.log('loading', tilekey(tile));
@@ -718,7 +726,7 @@ function TextureLayer(context) {
                 ix_entry.slot = slot;
                 delete layer.free_slots[slot.tex + ':' + slot.x + ':' + slot.y];
                 
-                layer.tile_index_add(tile, slot);
+                layer.tile_index_add(layer_type, tile, slot);
                 ix_entry.mru = MRU_counter;
             });
         });
@@ -936,7 +944,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
     }
 
     this.setLayer = function(layer) {
-        this.last_sampling = null;
         this.layer.setLayer(layer);
     }
 
@@ -1286,6 +1293,7 @@ var tile_specs = {
     mb: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
     mb2: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
     topo: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
+    space: 'https://api.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
     hyp: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
 };
 function tile_url(type) {
