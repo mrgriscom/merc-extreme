@@ -305,12 +305,9 @@ function TexBuffer(size, texopts, bufopts) {
     
     // if bufopts.nocanvas, we don't actually need the <canvas>, but can't
     // figure out how to initialize texture otherwise
-    var $tx = $('<canvas />');
-    $tx.attr('width', this.width);
-    $tx.attr('height', this.height);
-    this.$tx = $tx[0];
-    
-    this.ctx = this.$tx.getContext('2d');
+    var tmp = mk_canvas(this.width, this.height);
+    this.$tx = tmp.canvas;
+    this.ctx = tmp.context;
 
     this.tx = new THREE.Texture(this.$tx);
     var texbuf = this;
@@ -430,7 +427,6 @@ function TextureLayer(context) {
     this.context = context;
 
     this.curlayer = null;
-    this.tilefunc = null;
     
     this.sample_width = Math.round(this.context.width_px / SAMPLE_FREQ);
     this.sample_height = Math.round(this.context.height_px / SAMPLE_FREQ);
@@ -501,8 +497,8 @@ function TextureLayer(context) {
             return;
         }
 
+        type.tilefunc = compile_tile_spec(type.url);
         this.curlayer = type;
-        this.tilefunc = compile_tile_spec(type.url);
 
         // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
         // ensure the tile is reloaded when the layer is switched back
@@ -515,13 +511,6 @@ function TextureLayer(context) {
             }
         }
         flag_tile(0, 0, 0);
-        if (this.curlayer.no_z0) {
-            for (var i = 0; i < 2; i++) {
-                for (var j = 0; j < 2; j++) {
-                    flag_tile(1, i, j);
-                }
-            }
-        }
 
         // trigger immediate reload
         context.last_sampling = null;
@@ -679,9 +668,7 @@ function TextureLayer(context) {
             layer.active_tiles[tilekey(tile)] = true;
         });
 
-        var min_depth = curlayer.no_z0 ? 1 : 0;
-        var max_depth = curlayer.max_depth || MAX_ZOOM;
-        var tiles = _.filter(tiles, function(e) { return e.z >= min_depth && e.z <= max_depth; });
+        var tiles = _.filter(tiles, function(e) { return e.z <= (curlayer.max_depth || MAX_ZOOM); });
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             //TODO replace with movement-based criteria
@@ -695,7 +682,7 @@ function TextureLayer(context) {
             }
             
             layer.tile_index[tilekey(tile)] = {status: 'loading'};
-            load_image(layer.tilefunc(tile.z, tile.x, tile.y), function(img) {
+            load_image(curlayer, tile, function(img) {
                 var ix_entry = layer.tile_index[tilekey(tile)];
                 if (img == null) {
                     ix_entry.status = 'noexist';
@@ -711,14 +698,7 @@ function TextureLayer(context) {
 
                 if (tile.z == 0) {
                     layer.mk_top_level_tile(img);
-                    return;
-                }
-                if (tile.z == 1 && curlayer.no_z0) {
-                    layer.mk_top_level_tile(img, tile.x, tile.y);
-                }
-                if (ix_entry.rebuild_z0) {
                     delete ix_entry.rebuild_z0;
-                    // our work here is done
                     return;
                 }
 
@@ -794,20 +774,13 @@ function TextureLayer(context) {
         });
     }
 
-    this.mk_top_level_tile = function(img, x, y) {
+    this.mk_top_level_tile = function(img) {
         this.tex_z0.update(function(ctx, w, h) {
             ctx.fillStyle = NORTH_POLE_COLOR;
             ctx.fillRect(0, 0, TILE_SIZE, .5*TILE_SIZE);
             ctx.fillStyle = SOUTH_POLE_COLOR;
             ctx.fillRect(0, 1.5*TILE_SIZE, TILE_SIZE, .5*TILE_SIZE);
-            
-            if (x == null && y == null) {
-                // normal z0
-                ctx.drawImage(img, 0, .5*TILE_SIZE);
-            } else {
-                // 'bing' mode
-                ctx.drawImage(img, x * .5*TILE_SIZE, (y + 1) * .5*TILE_SIZE, .5*TILE_SIZE, .5*TILE_SIZE);
-            }
+            ctx.drawImage(img, 0, .5*TILE_SIZE);
         });
     }
     
@@ -1305,14 +1278,48 @@ function hp_split(val) {
 
 
 
-function load_image(url, onload) {
+function load_image(layer, tile, onload) {
+    if (tile.z == 0 && layer.no_z0) {
+        load_image_bing_hack(layer, onload);
+        return;
+    }
+
     var img = new Image();
     img.onload = function() { onload(img); };
     img.onerror = function() { onload(null); }; // 404 or CORS denial
     img.crossOrigin = 'anonymous';
-    img.src = url;
+    img.src = layer.tilefunc(tile.z, tile.x, tile.y);
 }
 
+function load_image_bing_hack(layer, onload) {
+    var num_loaded = 0;
+    var num_errors = 0;
+    var c = mk_canvas(TILE_SIZE, TILE_SIZE);
+
+    var mk_onload = function(x, y) {
+        return function(img) {
+            num_loaded++;
+            if (img != null) {
+                c.context.drawImage(img, x * .5*TILE_SIZE, y * .5*TILE_SIZE, .5*TILE_SIZE, .5*TILE_SIZE);
+            } else {
+                num_errors++;
+            }
+            if (num_loaded == 4) {
+                if (num_errors == 4) {
+                    onload(null);
+                } else {
+                    onload(c.canvas);
+                }
+            }
+        }
+    };
+
+    for (var i = 0; i < 2; i++) {
+        for (var j = 0; j < 2; j++) {
+            load_image(layer, {z: 1, x: i, y: j}, mk_onload(i, j));
+        }
+    }
+}
 
 //=== TILE SERVICES ===
 
@@ -1554,6 +1561,17 @@ function paramThreeToGL (p, _gl) {
     return 0;
 
 };
+
+function mk_canvas(w, h) {
+    var $c = $('<canvas />');
+    $c.attr('width', w);
+    $c.attr('height', h);
+    var c = $c[0];
+    var ctx = c.getContext('2d');
+    return {canvas: c, context: ctx};
+}
+
+
 
 // mod that doesn't suck for negative numbers
 function mod(a, b) {
