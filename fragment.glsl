@@ -275,6 +275,7 @@ void main() {
   <% } %>
 
     float z_orig = z;
+    bool zoob_orig = z_oob;
   <% for (var i = 0; i < constants.MAX_ZOOM; i++) { %>        
     if (tex_id < 0 && z > 0.) {
         z -= 1.;

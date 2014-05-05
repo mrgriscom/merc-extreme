@@ -45,7 +45,7 @@ var ZOOM_BLEND = .0;               // range over which to fade between adjacent 
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
-var SOUTH_POLE_COLOR = '#ccc';
+var SOUTH_POLE_COLOR = '#aaa';
 
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var MIN_BIAS = 0.;
@@ -482,7 +482,7 @@ function TextureLayer(context) {
             var anti = +pcs[0];
             var z = +pcs[1];
 
-            layer.each_fragment_for_z(layer.curlayer, z, v.x, v.y, function(frag) {
+            layer.each_fragment_for_z(layer.curlayer.id, z, v.x, v.y, function(frag) {
                 frag.update();
             });
         });
@@ -497,11 +497,11 @@ function TextureLayer(context) {
     }
     
     this.setLayer = function(type) {
-        if (type.id == this.curlayer) {
+        if (this.curlayer != null && type.id == this.curlayer.id) {
             return;
         }
 
-        this.curlayer = type.id;
+        this.curlayer = type;
         this.tilefunc = compile_tile_spec(type.url);
 
         // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
@@ -565,9 +565,9 @@ function TextureLayer(context) {
     }
 
     this.sample_coverage_postprocess = function(data) {
-        var layer_type = this.curlayer;
+        var curlayer = this.curlayer;
         var tilekey = function(tile) {
-            return layer_type + ':' + tile.z + ':' + tile.x + ':' + tile.y;
+            return curlayer.id + ':' + tile.z + ':' + tile.x + ':' + tile.y;
         }
         
         var unpack_tile = function(key) {
@@ -628,17 +628,17 @@ function TextureLayer(context) {
             var xoffset = offset(v.xmin, z);
             var yoffset = offset(v.ymin, z);
             var cur_offsets = layer.index_offsets[k];
-            if (layer.shown_layer != layer.curlayer || cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
+            if (layer.shown_layer != layer.curlayer.id || cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
                 layer.index_offsets[k] = {x: xoffset, y: yoffset};
                 layer.set_offset(z, anti, xoffset, yoffset);
 
                 layer.clear_tile_ix(z, anti);
-                layer.each_fragment_for_z(layer.curlayer, z, xoffset, yoffset, function(frag) {
+                layer.each_fragment_for_z(layer.curlayer.id, z, xoffset, yoffset, function(frag) {
                     frag.setDirty();
                 });
             }
         });
-        this.shown_layer = this.curlayer;
+        this.shown_layer = this.curlayer.id;
 
         // mark all tiles for LRU if exist in cache
         $.each(tiles, function(i, tile) {
@@ -664,6 +664,12 @@ function TextureLayer(context) {
         });
 
         $.each(tiles, function(i, tile) {
+            if (tile.z > (layer.curlayer.max_depth || 99)) {
+                return;
+            }
+            if (tile.z == 0 && layer.curlayer.no_z0) {
+                return;
+            }
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             //TODO replace with movement-based criteria
             //if (tile.z > 16) {
@@ -692,6 +698,9 @@ function TextureLayer(context) {
                 if (tile.z == 0) {
                     layer.mk_top_level_tile(img);
                     return;
+                }
+                if (tile.z == 1 && curlayer.no_z0) {
+                    layer.mk_top_level_tile(img, tile.x, tile.y);
                 }
 
                 var slot = null;
@@ -725,7 +734,7 @@ function TextureLayer(context) {
                 ix_entry.slot = slot;
                 delete layer.free_slots[slot.tex + ':' + slot.x + ':' + slot.y];
                 
-                layer.tile_index_add(layer_type, tile, slot);
+                layer.tile_index_add(curlayer.id, tile, slot);
                 ix_entry.mru = MRU_counter;
             });
         });
@@ -765,15 +774,21 @@ function TextureLayer(context) {
             ctx.fillRect(zx * TEX_Z_IX_SIZE, zy * TEX_Z_IX_SIZE, size, size);
         });
     }
-      
-    this.mk_top_level_tile = function(img) {
+
+    this.mk_top_level_tile = function(img, x, y) {
         this.tex_z0.update(function(ctx, w, h) {
             ctx.fillStyle = NORTH_POLE_COLOR;
-            ctx.fillRect(0, 0, w, .5 * h);
+            ctx.fillRect(0, 0, TILE_SIZE, .5*TILE_SIZE);
             ctx.fillStyle = SOUTH_POLE_COLOR;
-            ctx.fillRect(0, .5 * h, w, .5 * h);
+            ctx.fillRect(0, 1.5*TILE_SIZE, TILE_SIZE, .5*TILE_SIZE);
             
-            ctx.drawImage(img, 0, .25 * h);
+            if (x == null && y == null) {
+                // normal z0
+                ctx.drawImage(img, 0, .5*TILE_SIZE);
+            } else {
+                // 'bing' mode
+                ctx.drawImage(img, x * .5*TILE_SIZE, (y + 1) * .5*TILE_SIZE, .5*TILE_SIZE, .5*TILE_SIZE);
+            }
         });
     }
     
@@ -1298,6 +1313,7 @@ var tile_specs = [
         id: 'gterr',
         name: 'Google Terrain',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+        max_depth: 15,
     },
     {
         id: 'gtrans',
@@ -1305,39 +1321,50 @@ var tile_specs = [
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
     },
     {
-        id: 'osm',
-        name: 'OSM Mapnik',
-        url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    },
-    {
         id: 'mbstr',
         name: 'Mapbox Streets',
-        url: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
-    },
-    {
-        id: 'mbterr',
-        name: 'Mapbox Terrain',
         url: 'https://api.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
+        //url: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
     },
     {
         id: 'space',
-        name: 'Mapbox Space Station Earth',
+        name: 'Mapbox Space',
         url: 'https://api.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
     },
     {
         id: 'pint',
-        name: 'Stamen Pinterest',
+        name: 'Mapbox Pinterest',
         url: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
     },
     {
-        id: 'topo',
-        name: 'ESRI Topographic',
-        url: 'http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',
+        id: 'bingmap',
+        name: 'Bing Map',
+        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+        no_z0: true,
+    },
+    {
+        id: 'bingsat',
+        name: 'Bing Satellite',
+        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/a{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+        no_z0: true,
+    },
+    {
+        id: 'bingsatl',
+        name: 'Bing Satellite Labelled',
+        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+        no_z0: true,
     },
     {
         id: 'hypso',
-        name: 'Maps-for-Free Elevation',
-        url: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
+        name: 'SRTM Elevation',
+        //url: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
+        url: 'http://localhost:8002/tileproxy/maps4free/{z}/{x},{y}',
+        max_depth: 11,
+    },
+    {
+        id: 'osm',
+        name: 'OSM Mapnik',
+        url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     },
 ];
 
@@ -1538,5 +1565,5 @@ function prof(tag, func, ctx) {
     var start = window.performance.now();
     func.call(ctx);
     var end = window.performance.now();
-    console.log(tag, end - start);
+    console.log(tag, (end - start).toFixed(3) + ' ms');
 }
