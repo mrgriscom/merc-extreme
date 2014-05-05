@@ -50,8 +50,8 @@ var SOUTH_POLE_COLOR = '#aaa';
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
-var MAX_SCREEN_WIDTH = 1920; //screen.width;
-var MAX_SCREEN_HEIGHT = 1200; //screen.height;
+var SCREEN_WIDTH = Math.min(screen.width, 1920);
+var SCREEN_HEIGHT = Math.min(screen.height, 1200);
 var HIGH_PREC_Z_BASELINE = 16;
 
 //// computed constants
@@ -63,9 +63,9 @@ var tiles_per = function(dim, noround) {
     return noround ? t : Math.ceil(t);
 }
 
-var MAX_SCREEN_DIAG = Math.sqrt(Math.pow(MAX_SCREEN_WIDTH, 2) + Math.pow(MAX_SCREEN_HEIGHT, 2));
+var SCREEN_DIAG = Math.sqrt(Math.pow(SCREEN_WIDTH, 2) + Math.pow(SCREEN_HEIGHT, 2));
 // maximum span of adjacent tiles of the same zoom level that can be visible at once
-var MAX_Z_TILE_SPAN = tiles_per(MAX_SCREEN_DIAG);
+var MAX_Z_TILE_SPAN = tiles_per(SCREEN_DIAG);
 // edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
 var TILE_FRINGE_WIDTH = Math.min(tiles_per(SAMPLE_FREQ, true), .5);
 // 
@@ -82,7 +82,7 @@ var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
 // number of tiles that can fit in one texture page (along one edge)
 var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
 // an estimate of how many tiles can be active in the tile index at once
-var MAX_TILES_AT_ONCE = tiles_per(MAX_SCREEN_WIDTH) * tiles_per(MAX_SCREEN_HEIGHT) * 4./3.;
+var MAX_TILES_AT_ONCE = tiles_per(SCREEN_WIDTH) * tiles_per(SCREEN_HEIGHT) * 4./3.;
 var NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
 
 
@@ -830,20 +830,22 @@ function TextureLayer(context) {
         //console.log('worker result', data, _.size(data));
         var canvas = $('#tileovl')[0];
         $(canvas).attr('width', (TILE_OFFSET_RESOLUTION * (1 + MAX_ZOOM)) + 'px');
+        $(canvas).attr('height', (TILE_OFFSET_RESOLUTION * 2) + 'px');
         var ctx = canvas.getContext('2d');
         ctx.fillStyle = '#444';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
+        var TO = TILE_OFFSET_RESOLUTION;
         for (var i = 0; i < 1 + MAX_ZOOM; i++) {
             for (var j = 0; j < 2; j++) {
                 ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
-                ctx.fillRect(32 * i, 32 * j, Math.min(Math.pow(2, i), 32), Math.min(Math.pow(2, i), 32));
+                ctx.fillRect(TO * i, TO * j, Math.min(Math.pow(2, i), TO), Math.min(Math.pow(2, i), TO));
 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#555';
                 ctx.font = '12pt sans-serif';
-                ctx.fillText(i, 32 * (i + .5), 32 * (j + .5));
+                ctx.fillText(i, TO * (i + .5), TO * (j + .5));
             }
         }
         
@@ -851,11 +853,11 @@ function TextureLayer(context) {
             var pcs = k.split(':');
             var anti = +pcs[0];
             var z = +pcs[1];
-            var dx = pcs[2] % 32;
-            var dy = pcs[3] % 32;
+            var dx = pcs[2] % TO;
+            var dy = pcs[3] % TO;
             
             ctx.fillStyle = 'white';
-            ctx.fillRect(32 * z + dx, 32 * ((anti ? 1 : 0)) + dy, 1, 1);
+            ctx.fillRect(TO * z + dx, TO * ((anti ? 1 : 0)) + dy, 1, 1);
         });
     }
 }
@@ -1349,18 +1351,18 @@ var tile_specs = [
     {
         id: 'mbstr',
         name: 'Mapbox Streets',
-        url: 'https://api.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
         //url: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
     },
     {
         id: 'space',
         name: 'Mapbox Space',
-        url: 'https://api.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
     },
     {
         id: 'pint',
         name: 'Mapbox Pinterest',
-        url: 'https://api.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
     },
     {
         id: 'bingmap',
