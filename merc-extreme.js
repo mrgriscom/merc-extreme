@@ -505,12 +505,20 @@ function TextureLayer(context) {
         this.tilefunc = compile_tile_spec(type.url);
 
         // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
-        // this ensures the tile is reloaded when the layer is switched back
-        delete this.tile_index[this.shown_layer + ':0:0:0'];
+        // ensure the tile is reloaded when the layer is switched back
+        var that = this;
+        var flag_tile = function(z, x, y) {
+            var key = that.shown_layer + ':' + z + ':' + x + ':' + y;
+            var entry = that.tile_index[key];
+            if (entry) {
+                entry.rebuild_z0 = true;
+            }
+        }
+        flag_tile(0, 0, 0);
         if (this.curlayer.no_z0) {
             for (var i = 0; i < 2; i++) {
                 for (var j = 0; j < 2; j++) {
-                    delete this.tile_index[this.shown_layer + ':1:' + i + ':' + j];
+                    flag_tile(1, i, j);
                 }
             }
         }
@@ -681,7 +689,8 @@ function TextureLayer(context) {
             //    return;
             //}
 
-            if (layer.tile_index[tilekey(tile)] != null) {
+            var entry = layer.tile_index[tilekey(tile)];
+            if (entry != null && !entry.rebuild_z0) {
                 return;
             }
             
@@ -706,6 +715,11 @@ function TextureLayer(context) {
                 }
                 if (tile.z == 1 && curlayer.no_z0) {
                     layer.mk_top_level_tile(img, tile.x, tile.y);
+                }
+                if (ix_entry.rebuild_z0) {
+                    delete ix_entry.rebuild_z0;
+                    // our work here is done
+                    return;
                 }
 
                 var slot = null;
