@@ -507,6 +507,13 @@ function TextureLayer(context) {
         // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
         // this ensures the tile is reloaded when the layer is switched back
         delete this.tile_index[this.shown_layer + ':0:0:0'];
+        if (this.curlayer.no_z0) {
+            for (var i = 0; i < 2; i++) {
+                for (var j = 0; j < 2; j++) {
+                    delete this.tile_index[this.shown_layer + ':1:' + i + ':' + j];
+                }
+            }
+        }
 
         // trigger immediate reload
         context.last_sampling = null;
@@ -595,7 +602,8 @@ function TextureLayer(context) {
                 }
             }
         });
-        var tiles = _.sortBy($.map(data, function(v, k) { return unpack_tile(k); }), function(e) { return e.z + (e.anti ? .5 : 0.); });
+        var tiles = _.sortBy(_.map(data, function(v, k) { return unpack_tile(k); }),
+                             function(e) { return e.z + (e.anti ? .5 : 0.); });
 
         var layer = this;
         
@@ -663,13 +671,10 @@ function TextureLayer(context) {
             layer.active_tiles[tilekey(tile)] = true;
         });
 
+        var min_depth = curlayer.no_z0 ? 1 : 0;
+        var max_depth = curlayer.max_depth || MAX_ZOOM;
+        var tiles = _.filter(tiles, function(e) { return e.z >= min_depth && e.z <= max_depth; });
         $.each(tiles, function(i, tile) {
-            if (tile.z > (layer.curlayer.max_depth || 99)) {
-                return;
-            }
-            if (tile.z == 0 && layer.curlayer.no_z0) {
-                return;
-            }
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             //TODO replace with movement-based criteria
             //if (tile.z > 16) {
@@ -1350,16 +1355,9 @@ var tile_specs = [
     },
     {
         id: 'bingsatl',
-        name: 'Bing Satellite Labelled',
+        name: 'Bing Satellite w/ Labels',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
         no_z0: true,
-    },
-    {
-        id: 'hypso',
-        name: 'SRTM Elevation',
-        //url: 'http://maps-for-free.com/layer/relief/z{z}/row{y}/{z}_{x}-{y}.jpg' // non-CORS
-        url: 'http://localhost:8002/tileproxy/maps4free/{z}/{x},{y}',
-        max_depth: 11,
     },
     {
         id: 'osm',
