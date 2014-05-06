@@ -319,9 +319,7 @@ function TexBuffer(size, texopts, bufopts) {
     this.incrUpdates = [];
     var texbuf = this;
     this.tx.incrementalUpdate = function(updatefunc) {
-        $.each(texbuf.incrUpdates, function(i, e) {
-            updatefunc(e.img, e.xo, e.yo);
-        });
+        _.each(texbuf.incrUpdates, function(e) { e(updatefunc); });
         texbuf.incrUpdates = [];
     }
     this.tx.preUpdate = function() {
@@ -335,8 +333,8 @@ function TexBuffer(size, texopts, bufopts) {
         this.tx.needsUpdate = true;
     }
     
-    this.incrementalUpdate = function(image, xo, yo) {
-        this.incrUpdates.push({img: image, xo: xo, yo: yo});
+    this.incrementalUpdate = function(updater) {
+        this.incrUpdates.push(updater);
     }
 }
 
@@ -434,6 +432,8 @@ function TextureLayer(context) {
     this.target.generateMipmaps = false;
     
     this.worker = new Worker('coverage-worker.js');
+
+    this.pending = [];
     
     this.tex_z0 = new TexBuffer(TILE_SIZE, {
         generateMipmaps: true,
@@ -689,6 +689,7 @@ function TextureLayer(context) {
                     return;
                 }
                 ix_entry.status = 'loaded';
+                ix_entry.img = img;
                 
                 if (!layer.active_tiles[tilekey(tile)]) {
                     //console.log('tile moot');
@@ -726,12 +727,10 @@ function TextureLayer(context) {
                     layer.tile_index_remove(pcs[0], +pcs[1], +pcs[2], +pcs[3]);
                 }
                 
-                //console.log('loading', tilekey(tile));
-                layer.tex_atlas[slot.tex].incrementalUpdate(img,
-                    ATLAS_TILE_SIZE * slot.x + TILE_SKIRT,
-                    ATLAS_TILE_SIZE * slot.y + TILE_SKIRT);
                 ix_entry.slot = slot;
+                ix_entry.pending = true;
                 delete layer.free_slots[slot.tex + ':' + slot.x + ':' + slot.y];
+                layer.pending.push({layer: curlayer, tile: tile, img: img, slot: slot});
                 
                 layer.tile_index_add(curlayer.id, tile, slot);
                 ix_entry.mru = MRU_counter;
@@ -741,6 +740,77 @@ function TextureLayer(context) {
         MRU_counter++;
 
         this._debug_overview(data);
+    }
+
+    var seamCorner = mk_canvas(1, 1);
+    var seamHoriz = mk_canvas(TILE_SIZE, 1);
+    var seamVert = mk_canvas(1, TILE_SIZE);
+
+    this.handlePending = function() {
+        var layer = this;
+        var tilekey = function(layer, tile) {
+            return layer.id + ':' + tile.z + ':' + tile.x + ':' + tile.y;
+        }
+        var seamCoords = function(slot, dx, dy) {
+            var xoffset = (dx < 0 ? -1 : dx > 0 ? TILE_SIZE : 0);
+            var yoffset = (dy < 0 ? -1 : dy > 0 ? TILE_SIZE : 0);
+            return {x: ATLAS_TILE_SIZE * slot.x + TILE_SKIRT + xoffset,
+                    y: ATLAS_TILE_SIZE * slot.y + TILE_SKIRT + yoffset};
+        }
+        var writeImgData = function(slot, dx, dy, getimg) {
+            layer.tex_atlas[slot.tex].incrementalUpdate(function(update) {
+                var coord = seamCoords(slot, dx, dy);
+                update(getimg(), coord.x, coord.y);
+            });
+        }
+        var imgOffset = function(k) {
+            return k < 0 ? 1 - TILE_SIZE : 0;
+        }
+
+        _.each(this.pending, function(e) {
+            var img = e.img;
+            var tile = e.tile;
+            var slot = e.slot;
+
+            //console.log('loading', tilekey(tile));
+            writeImgData(slot, 0, 0, function() { return img; });
+
+            var handle_neighbor = function(dx, dy) {
+                var buf = (dx != 0 && dy != 0 ? seamCorner : dx != 0 ? seamVert : seamHoriz);
+                var neighbor = {z: tile.z, x: mod(tile.x + dx, Math.pow(2., tile.z)), y: tile.y + dy};
+                var n_entry = layer.tile_index[tilekey(e.layer, neighbor)];
+                if (neighbor.y < 0 || neighbor.y >= Math.pow(2., tile.z)) {
+                    // out of bounds
+                    writeImgData(slot, dx, dy, function() {
+                        buf.context.fillStyle = (dy < 0 ? NORTH_POLE_COLOR : SOUTH_POLE_COLOR);
+                        buf.context.fillRect(0, 0, buf.canvas.width, buf.canvas.height);
+                        return buf.canvas;
+                    });
+                } else if (n_entry != null && n_entry.slot && !n_entry.pending) {
+                    //write this edge to other tile
+                    writeImgData(n_entry.slot, -dx, -dy, function() {
+                        buf.context.drawImage(img, imgOffset(dx), imgOffset(dy));
+                        return buf.canvas;
+                    });
+                    //write other tile's edge to this tile
+                    writeImgData(slot, dx, dy, function() {
+                        buf.context.drawImage(n_entry.img, imgOffset(-dx), imgOffset(-dy));
+                        return buf.canvas;
+                    });
+                }
+            };
+
+            for (var dx = -1; dx < 2; dx++) {
+                for (var dy = -1; dy < 2; dy++) {
+                    if (dx == 0 && dy == 0) {
+                        continue;
+                    }
+                    handle_neighbor(dx, dy);
+                }
+            }
+            delete layer.tile_index[tilekey(e.layer, tile)].pending;
+        });
+        this.pending = [];
     }
     
     this.set_offset = function(z, anti, xo, yo) {
@@ -900,13 +970,10 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var updatefunc = function(image, xoffset, yoffset) {
                 if (first) {
                     // texture should already be bound from default setTexture behavior
-                    
                     _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, texture.flipY);
                     _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, texture.premultiplyAlpha);
-                    
                     first = false;
                 }
-                
                 _gl.texSubImage2D(_gl.TEXTURE_2D, 0, xoffset, yoffset, glFormat, glType, image);
             };
             
@@ -1204,6 +1271,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             this.hp_ref_t));
         this.qPolar.update(xtop, xbottom, flat_earth_cutoff, yright);
 
+        this.layer.handlePending();
         this.renderer.render(this.scene, this.camera);
 
         var setMaterials = function(output_mode) {
@@ -1349,7 +1417,7 @@ var tile_specs = [
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
     },
     {
-        id: 'mbstr',
+        id: 'mb',
         name: 'Mapbox Streets',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
         //url: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
