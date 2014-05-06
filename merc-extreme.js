@@ -39,7 +39,7 @@ var fragment_shader;
 var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
-var SAMPLE_TIME_FREQ = 2.5;        // (hz) temporal frequency to sample tile coverage
+var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
 var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
 var ZOOM_BLEND = .0;               // range over which to fade between adjacent zoom levels
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
@@ -319,7 +319,9 @@ function TexBuffer(size, texopts, bufopts) {
     this.incrUpdates = [];
     var texbuf = this;
     this.tx.incrementalUpdate = function(updatefunc) {
-        _.each(texbuf.incrUpdates, function(e) { e(updatefunc); });
+        for (var i = 0; i < texbuf.incrUpdates.length; i++) {
+            texbuf.incrUpdates[i](updatefunc);
+        }
         texbuf.incrUpdates = [];
     }
     this.tx.preUpdate = function() {
@@ -334,6 +336,8 @@ function TexBuffer(size, texopts, bufopts) {
     }
     
     this.incrementalUpdate = function(updater) {
+        // for inspecting canvas
+        //updater(function(img, x, y) { texbuf.ctx.drawImage(img, x, y); });
         this.incrUpdates.push(updater);
     }
 }
@@ -742,9 +746,10 @@ function TextureLayer(context) {
         this._debug_overview(data);
     }
 
-    var seamCorner = mk_canvas(1, 1);
-    var seamHoriz = mk_canvas(TILE_SIZE, 1);
-    var seamVert = mk_canvas(1, TILE_SIZE);
+    var skirt = 1;
+    var seamCorner = mk_canvas(skirt, skirt);
+    var seamHoriz = mk_canvas(TILE_SIZE, skirt);
+    var seamVert = mk_canvas(skirt, TILE_SIZE);
 
     this.handlePending = function() {
         var layer = this;
@@ -752,8 +757,8 @@ function TextureLayer(context) {
             return layer.id + ':' + tile.z + ':' + tile.x + ':' + tile.y;
         }
         var seamCoords = function(slot, dx, dy) {
-            var xoffset = (dx < 0 ? -1 : dx > 0 ? TILE_SIZE : 0);
-            var yoffset = (dy < 0 ? -1 : dy > 0 ? TILE_SIZE : 0);
+            var xoffset = (dx < 0 ? -skirt : dx > 0 ? TILE_SIZE : 0);
+            var yoffset = (dy < 0 ? -skirt : dy > 0 ? TILE_SIZE : 0);
             return {x: ATLAS_TILE_SIZE * slot.x + TILE_SKIRT + xoffset,
                     y: ATLAS_TILE_SIZE * slot.y + TILE_SKIRT + yoffset};
         }
@@ -764,7 +769,7 @@ function TextureLayer(context) {
             });
         }
         var imgOffset = function(k) {
-            return k < 0 ? 1 - TILE_SIZE : 0;
+            return k > 0 ? skirt - TILE_SIZE : 0;
         }
 
         _.each(this.pending, function(e) {

@@ -60,8 +60,8 @@ void tex_lookup_atlas(in float z, in bool anti_pole, in vec2 tile,
                       out int tex_id, out vec2 atlas_t, out bool atlas_oob) {
     vec4 x_offset_enc = texture2D(tx_ix, (vec2(z, (.5 * TEX_IX_CELLS * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 1.) + .5) / TEX_IX_SIZE);
     vec4 y_offset_enc = texture2D(tx_ix, (vec2(z, (.5 * TEX_IX_CELLS * float(anti_pole) + 1.) * TEX_Z_IX_SIZE - 2.) + .5) / TEX_IX_SIZE);
-    vec2 offset = TILE_OFFSET_RESOLUTION * vec2(65536 * int(255. * x_offset_enc.r) + 256 * int(255. * x_offset_enc.g) + int(255. * x_offset_enc.b),
-                                                65536 * int(255. * y_offset_enc.r) + 256 * int(255. * y_offset_enc.g) + int(255. * y_offset_enc.b));
+    vec2 offset = TILE_OFFSET_RESOLUTION * vec2(65536. * floor(255. * x_offset_enc.r) + 256. * floor(255. * x_offset_enc.g) + floor(255. * x_offset_enc.b),
+                                                65536. * floor(255. * y_offset_enc.r) + 256. * floor(255. * y_offset_enc.g) + floor(255. * y_offset_enc.b));
 
     vec2 z_cell = vec2(mod(z, TEX_IX_CELLS), floor(z / TEX_IX_CELLS) + TEX_IX_CELLS * .5 * float(anti_pole));
     vec2 ix_offset = tile - offset;
