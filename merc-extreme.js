@@ -1014,9 +1014,6 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 	    M.multiply(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
         this.setWorldMatrix(M);
 
-	    //this.curPole = [41.63, -72.59];
-        this.curPole = [42.4, -71.1];
-	    //this.curPole = [-34.0,18.4];
         //this.curPole = [43.56060, -7.41384];
         //this.curPole = [-16.159283,-180.];
         //this.curPole = [89.9999, 0];
