@@ -772,48 +772,48 @@ function TextureLayer(context) {
             return k > 0 ? skirt - TILE_SIZE : 0;
         }
 
-        _.each(this.pending, function(e) {
-            var img = e.img;
+        var handle_neighbor = function(e, dx, dy) {
             var tile = e.tile;
             var slot = e.slot;
 
-            //console.log('loading', tilekey(tile));
-            writeImgData(slot, 0, 0, function() { return img; });
+            var buf = (dx != 0 && dy != 0 ? seamCorner : dx != 0 ? seamVert : seamHoriz);
+            var neighbor = {z: tile.z, x: mod(tile.x + dx, Math.pow(2., tile.z)), y: tile.y + dy};
+            var n_entry = layer.tile_index[tilekey(e.layer, neighbor)];
+            if (neighbor.y < 0 || neighbor.y >= Math.pow(2., tile.z)) {
+                // out of bounds
+                writeImgData(slot, dx, dy, function() {
+                    buf.context.fillStyle = (dy < 0 ? NORTH_POLE_COLOR : SOUTH_POLE_COLOR);
+                    buf.context.fillRect(0, 0, buf.canvas.width, buf.canvas.height);
+                    return buf.canvas;
+                });
+            } else if (n_entry != null && n_entry.slot && !n_entry.pending) {
+                //write this edge to other tile
+                writeImgData(n_entry.slot, -dx, -dy, function() {
+                    buf.context.drawImage(e.img, imgOffset(dx), imgOffset(dy));
+                    return buf.canvas;
+                });
+                //write other tile's edge to this tile
+                writeImgData(slot, dx, dy, function() {
+                    buf.context.drawImage(n_entry.img, imgOffset(-dx), imgOffset(-dy));
+                    return buf.canvas;
+                });
+            }
+        }
 
-            var handle_neighbor = function(dx, dy) {
-                var buf = (dx != 0 && dy != 0 ? seamCorner : dx != 0 ? seamVert : seamHoriz);
-                var neighbor = {z: tile.z, x: mod(tile.x + dx, Math.pow(2., tile.z)), y: tile.y + dy};
-                var n_entry = layer.tile_index[tilekey(e.layer, neighbor)];
-                if (neighbor.y < 0 || neighbor.y >= Math.pow(2., tile.z)) {
-                    // out of bounds
-                    writeImgData(slot, dx, dy, function() {
-                        buf.context.fillStyle = (dy < 0 ? NORTH_POLE_COLOR : SOUTH_POLE_COLOR);
-                        buf.context.fillRect(0, 0, buf.canvas.width, buf.canvas.height);
-                        return buf.canvas;
-                    });
-                } else if (n_entry != null && n_entry.slot && !n_entry.pending) {
-                    //write this edge to other tile
-                    writeImgData(n_entry.slot, -dx, -dy, function() {
-                        buf.context.drawImage(img, imgOffset(dx), imgOffset(dy));
-                        return buf.canvas;
-                    });
-                    //write other tile's edge to this tile
-                    writeImgData(slot, dx, dy, function() {
-                        buf.context.drawImage(n_entry.img, imgOffset(-dx), imgOffset(-dy));
-                        return buf.canvas;
-                    });
-                }
-            };
+        _.each(this.pending, function(e) {
+            //console.log('loading', tilekey(tile));
+            writeImgData(e.slot, 0, 0, function() { return e.img; });
 
             for (var dx = -1; dx < 2; dx++) {
                 for (var dy = -1; dy < 2; dy++) {
                     if (dx == 0 && dy == 0) {
                         continue;
                     }
-                    handle_neighbor(dx, dy);
+                    handle_neighbor(e, dx, dy);
                 }
             }
-            delete layer.tile_index[tilekey(e.layer, tile)].pending;
+
+            delete layer.tile_index[tilekey(e.layer, e.tile)].pending;
         });
         this.pending = [];
     }
