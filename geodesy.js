@@ -214,13 +214,16 @@ function interpolate_curve(func, anchors, error, max_err, min_dt) {
 
 
 
+function base_lon(p0, dist) {
+    return dist > .5 * Math.PI * EARTH_MEAN_RAD ? lon_norm(p0[1] + 180.) : p0[1];
+}
 
 function lineplot(p0, heading, maxdist, scale_px) {
-    return mercplot(line_plotter(p0, heading), [0, .5 * maxdist, maxdist], p0[1], scale_px, 100);
+    return mercplot(line_plotter(p0, heading), [0, .5 * maxdist, maxdist], base_lon(p0, maxdist), scale_px, 100);
 }
 
 function circplot(p0, radius, scale_px) {
-    return mercplot(arc_plotter(p0, radius), [0, 60, 120, 180, 240, 300, 360], p0[1], scale_px, 1);
+    return mercplot(arc_plotter(p0, radius), [0, 60, 120, 180, 240, 300, 360], base_lon(p0, radius), scale_px, 1);
 }
 
 function mercplot(plotter, anchors, base_lon, scale_px, min_dt) {

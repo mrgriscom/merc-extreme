@@ -11,9 +11,10 @@ TileLayer = L.TileLayer.extend({
 
 function init_companion() {
     var map = new L.Map('map', {
-        fadeAnimation: false,
-        zoomAnimation: false,
         attributionControl: false,
+        zoomControl: false,
+        //fadeAnimation: false,
+        //zoomAnimation: false,
     });
     map.addControl(new L.Control.Scale({
         maxWidth: 125,
@@ -66,6 +67,8 @@ function mk_geojson(data, scale_px) {
     return geojson;
 }
 
+ZOOM_TIMEOUT = 1.5;
+LAST_ZOOM_CHANGE = -99999;
 function update(map, data) {
     if (map.cur_layer == null || map.cur_layer.tag != data.layer.id) {
         var new_layer = mk_layer(data.layer);
@@ -75,7 +78,28 @@ function update(map, data) {
         }
         map.cur_layer = new_layer;
     }
-    map.setView(data.pole, map.getZoom() || 1);
+
+    if (data.dist < .5 * Math.PI * EARTH_MEAN_RAD) {
+        var center = data.pole;
+        var dist = data.dist;
+    } else {
+        var center = [-data.pole[0], lon_norm(data.pole[1] + 180.)];
+        var dist = Math.PI * EARTH_MEAN_RAD - data.dist;
+    }
+    var lon_extent = max_lon_extent(center[0], dist);
+    var lat_extent = dist / EARTH_MEAN_RAD * DEG_RAD;
+    var bounds = new L.latLngBounds([Math.max(center[0] - lat_extent, -90), center[1] - lon_extent],
+                                [Math.min(center[0] + lat_extent, 90), center[1] + lon_extent])
+    var oldz = map.getZoom();
+    // wait a bit before switching zoom level?
+    if (window.performance.now()/1000 - LAST_ZOOM_CHANGE > ZOOM_TIMEOUT) {
+        map.fitBounds(bounds, {padding: [60, 60]});
+    }
+    map.setView(center, map.getZoom());
+    if (map.getZoom() != oldz) {
+        LAST_ZOOM_CHANGE = window.performance.now()/1000
+    }
+
 
     if (map.geodata) {
         map.removeLayer(map.geodata);
@@ -98,10 +122,9 @@ function update(map, data) {
 
 function mk_layer(layer) {
     var opts = {
-        maxZoom: layer.max_depth || MAX_ZOOM,
+        maxZoom: layer.max_depth || 19,
         minZoom: layer.no_z0 ? 1 : 0,
     };
-    // TODO attribution
     var maplayer = new TileLayer(layer.url, opts);
     maplayer.tag = layer.id;
     return maplayer;
