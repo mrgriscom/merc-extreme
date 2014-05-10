@@ -1,4 +1,4 @@
-/* guide to hungarian notation
+/* guide to hungarian notation (TODO)
  * 
  * units prefix:
  * - mr: mercator-projected radians
@@ -14,16 +14,13 @@
  * - p: projected -- coordinates correspond to planet with shifted pole
  */
 
+/*
 function Point(unit, ref, data) {
     this.unit = unit;
     this.ref = ref;
     this.data = data;
 }
-
-//function mr_to_m(p) {
-//    var scale = 2 * Math.PI;
-//    reutrn {x: , y: }
-//}
+*/
 
 // return next highest power of 2 >= x
 function pow2ceil(x) {
@@ -48,10 +45,12 @@ var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
 
 // these aren't really meant to be changed... more just to justify how various constants got their values
+var SCREEN_WIDTH_SOFTMAX = 1920;
+var SCREEN_HEIGHT_SOFTMAX = 1200;
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
-var SCREEN_WIDTH = Math.min(screen.width, 1920);
-var SCREEN_HEIGHT = Math.min(screen.height, 1200);
+var SCREEN_WIDTH = Math.min(screen.width, SCREEN_WIDTH_SOFTMAX);
+var SCREEN_HEIGHT = Math.min(screen.height, SCREEN_HEIGHT_SOFTMAX);
 var HIGH_PREC_Z_BASELINE = 16;
 
 //// computed constants
@@ -91,7 +90,8 @@ function init() {
     fragment_shader = loadShader('fragment');
     
     var merc = new MercatorRenderer($('#container'), window.innerWidth, window.innerHeight, 2.5, 0.5);
-    
+    MERC = merc;
+
     _stats = new Stats();
     _stats.domElement.style.position = 'absolute';
     _stats.domElement.style.top = '0px';
@@ -116,6 +116,10 @@ function init() {
     merc.setLayer(tile_specs[0]);
 
     merc.start();
+
+    $('#companion').click(function() {
+        COMPANION = window.open('companion.html', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
+    });
 }
 
 
@@ -1279,6 +1283,18 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.layer.handlePending();
         this.renderer.render(this.scene, this.camera);
 
+        if (window.COMPANION) {
+            var tf = this.layer.curlayer.tilefunc;
+            delete this.layer.curlayer.tilefunc;
+            COMPANION.postMessage({
+                pole: this.pole,
+                layer: this.layer.curlayer,
+                dist: dist * 1000,
+                bearing: bearing,
+            }, '*');
+            this.layer.curlayer.tilefunc = tf;
+        }
+
         var setMaterials = function(output_mode) {
             $.each(renderer.currentObjs, function(i, e) {
                 e.material = renderer.layer._materials[output_mode][e.geo_mode];
@@ -1341,6 +1357,15 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         renderLoop(function(t) { merc.render(t); });
     }
     
+
+    this.poleAt = function(lat, lon, soft) {
+        this.curPole = [lat, lon];
+        if (!soft) {
+            this.last_sampling = null;
+        }
+    }
+
+
     this.init();
 }
 
@@ -1403,62 +1428,78 @@ var tile_specs = [
         id: 'gmap',
         name: 'Google Map',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attr: ['Google'],
     },
     {
         id: 'gsat',
         name: 'Google Satellite',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
         //url: 'https://khms{s:0-3}.google.com/kh/v=149&x={x}&y={y}&z={z}',
+        attr: ['Google'],
     },
     {
         id: 'gterr',
         name: 'Google Terrain',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         max_depth: 15,
+        attr: ['Google'],
     },
     {
         id: 'gtrans',
         name: 'Google Transit',
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
+        attr: ['Google'],
     },
     {
         id: 'mb',
-        name: 'Mapbox Streets',
+        name: 'Mapbox Terrain',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
-        //url: 'https://api.tiles.mapbox.com/v3/examples.map-vyofok3q/{z}/{x}/{y}.png',
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         id: 'space',
-        name: 'Mapbox Space',
+        name: '"Space Station" by Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    {
+        id: 'zomb',
+        name: '"Zombie World" by Mapbox',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.fb8f9523/{z}/{x}/{y}.jpg',
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         id: 'pint',
-        name: 'Mapbox Pinterest',
+        name: 'Pinterest theme by Stamen/Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+        attr: [['Pinterest'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         id: 'bingmap',
         name: 'Bing Map',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
         no_z0: true,
+        attr: ['Microsoft', 'Nokia'],
     },
     {
         id: 'bingsat',
         name: 'Bing Satellite',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/a{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
         no_z0: true,
+        attr: ['Microsoft', 'Nokia'],
     },
     {
         id: 'bingsatl',
-        name: 'Bing Satellite w/ Labels',
+        name: 'Bing Hybrid',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
         no_z0: true,
+        attr: ['Microsoft', 'Nokia'],
     },
     {
         id: 'osm',
         name: 'OSM Mapnik',
         url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
 ];
 
