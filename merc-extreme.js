@@ -95,6 +95,8 @@ function init() {
         if (e.keyCode == 32) {
             merc.toggle_drag_mode();
             return false;
+        } else if (e.keyCode == 113) {
+            launchDebug();
         }
     });
     
@@ -114,7 +116,7 @@ function init() {
     $('#companion').click(function() {
         COMPANION = window.open('companion.html', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
     });
-    launchDebug();
+    DEBUG = {postMessage: function(){}};
 }
 
 function launchDebug() {
@@ -142,6 +144,9 @@ function xy_to_ll(x, y) {
     return [lat, lon];
 }
 
+/*
+use versions in geodesy.js instead
+
 // g -> v
 function ll_to_xyz(lat, lon) {
     var rlat = lat * Math.PI / 180.;
@@ -155,15 +160,16 @@ function xyz_to_ll(x, y, z) {
     var rlat = Math.atan2(z, Math.sqrt(x*x + y*y));
     return [rlat * 180. / Math.PI, rlon * 180. / Math.PI];
 }
+*/
 
 // gp -> gw
 function translate_pole(pos, pole) {
-    var xyz = ll_to_xyz(pos[0], pos[1]);
+    var xyz = ll_to_xyz(pos);
     var pole_rlat = pole[0] * Math.PI / 180.;
     
     var latrot = pole_rlat - .5 * Math.PI;
     var xyz_trans = new THREE.Vector3(xyz[0], xyz[1], xyz[2]).applyMatrix4(new THREE.Matrix4().makeRotationY(-latrot));
-    var pos_trans = xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
+    var pos_trans = xyz_to_ll([xyz_trans.x, xyz_trans.y, xyz_trans.z]);
     pos_trans[1] = lon_norm(pos_trans[1] + pole[1]);
     return pos_trans;
 }
@@ -173,9 +179,9 @@ function inv_translate_pole(pos, pole) {
     var latrot = pole_rlat - .5 * Math.PI;
  
     pos[1] -= pole[1];
-    var xyz = ll_to_xyz(pos[0], pos[1]);
+    var xyz = ll_to_xyz(pos);
     var xyz_trans = new THREE.Vector3(xyz[0], xyz[1], xyz[2]).applyMatrix4(new THREE.Matrix4().makeRotationY(latrot));
-    return xyz_to_ll(xyz_trans.x, xyz_trans.y, xyz_trans.z);
+    return xyz_to_ll([xyz_trans.x, xyz_trans.y, xyz_trans.z]);
 }
 
 // estimate the error from using a flat earth approximation (ie, plotting
@@ -1201,17 +1207,21 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var merc_ll = xy_to_ll(p.x, p.y);
             var ll = translate_pole(merc_ll, renderer.curPole);
 
-            dist = 6371.009 * Math.PI / 180. * (90. - merc_ll[0]);
+            dist = EARTH_MEAN_RAD * Math.PI / 180. * (90. - merc_ll[0]);
             bearing = lon_norm(180. - merc_ll[1]);
-            scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * 6371009;
-            debug = {
-                pole: this.curPole[0].toFixed(5) + ' ' + this.curPole[1].toFixed(5),
-                antipole: (-this.curPole[0]).toFixed(5) + ' ' + lon_norm(this.curPole[1] + 180.).toFixed(5),
-                pos: ll[0].toFixed(5) + ' ' + ll[1].toFixed(5),
-                dist: dist.toFixed(4),
-                bearing: bearing.toFixed(1),
-                scale: scale.toFixed(2),
-            };
+            scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * EARTH_MEAN_RAD;
+            orient = line_plotter(this.curPole, bearing)(dist, true)[1];
+
+            var polefmt = fmt_pos(this.curPole, 5);
+            $('#poleinfo span').text(polefmt.lat + ' ' + polefmt.lon);
+            var antipolefmt = fmt_pos(antipode(this.curPole), 5);
+            $('#antipoleinfo span').text(antipolefmt.lat + ' ' + antipolefmt.lon);
+            var posfmt = fmt_pos(ll, 5);
+            $('#mouseinfo #pos').text(posfmt.lat + ' ' + posfmt.lon);
+            $('#mouseinfo #dist').text(dist.toFixed(1));
+            $('#mouseinfo #bearing').text(bearing.toFixed(1));
+            $('#mouseinfo #orient').text(orient.toFixed(1));
+            $('#mouseinfo #scale').text(scale.toFixed(2));
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -1259,7 +1269,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             COMPANION.postMessage({
                 pole: this.pole,
                 layer: this.layer.curlayer,
-                dist: dist * 1000,
+                dist: dist,
                 bearing: bearing,
             }, '*');
             this.layer.curlayer.tilefunc = tf;
@@ -1682,4 +1692,27 @@ function prof(tag, func, ctx) {
     func.call(ctx);
     var end = window.performance.now();
     console.log(tag, (end - start).toFixed(3) + ' ms');
+}
+
+function npad(n, pad) {
+    var s = '' + n;
+    while (s.length < pad) {
+        s = '0' + s;
+    }
+    return s;
+}
+
+function fmt_ll(k, dir, pad, prec) {
+    return dir[k >= 0 ? 0 : 1] + npad(Math.abs(k).toFixed(prec), prec + 1 + pad) + '\xb0';
+};
+
+function fmt_pos(ll, prec) {
+    return {
+        lat: fmt_ll(ll[0], 'NS', 2, prec),
+        lon: fmt_ll(ll[1], 'EW', 3, prec)
+    };
+}
+
+function antipode(ll) {
+    return [-ll[0], lon_norm(ll[1] + 180.)];
 }

@@ -7,6 +7,7 @@
 <script src="lib/jquery-latest.min.js"></script>
 <script src="lib/underscore.min.js"></script>
 <script src="merc-extreme.js"></script>
+<script src="geodesy.js"></script>
 <script src="coords-db.js"></script>
 
 <script>
@@ -34,7 +35,24 @@ body {
 
 <div id="container"></div>
 
-<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 20px; bottom: 20px;"><button id="companion">companion map</button></div>
+<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 10px; top: 10px;"><button id="companion">companion map</button></div>
+
+<div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 10px; bottom: 10px;">
+  POLE<br><span></span>
+</div>
+<div id="antipoleinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 10px; bottom: 10px;">
+  ANTI-POLE<br><span></span>
+</div>
+<div id="mouseinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 10px; top: 10px;">
+  MOUSEPOS
+  <div>
+    <div id="pos"></div>
+    <div id="dist"></div>
+    <div id="bearing"></div>
+    <div id="orient"></div>
+    <div id="scale"></div>
+  </div>
+</div>
 
 </body>
 </html>
