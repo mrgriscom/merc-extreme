@@ -54,6 +54,11 @@ function vadd(a, b) {
     return result;
 }
 
+// a - b
+function vdiff(a, b) {
+    return vadd(a, vscale(b, -1));
+}
+
 // normalize vector; return null if length 0
 function vnorm(v) {
     var norm = vlen(v);
@@ -187,13 +192,16 @@ function max_lon_extent(lat, radius) {
     return (Math.abs(k) > 1. ? Math.PI : Math.asin(k)) * DEG_RAD;
 }
 
-function interpolate_curve(func, anchors, error, max_err, min_dt) {
+function interpolate_curve(func, anchors, error_thresh, min_dt) {
     var points = [];
     var _interp = function(lo, hi, flo, fhi) {
+        if (Math.abs(hi - lo) <= min_dt) {
+            return;
+        }
+        
         var mid = .5 * (lo + hi);
         var fmid = func(mid);
-        var err = error(fmid, flo, fhi);
-        if (err > max_err && (hi - lo) > min_dt) {
+        if (error_thresh(fmid, flo, fhi)) {
             _interp(lo, mid, flo, fmid);
             points.push(fmid);
             _interp(mid, hi, fmid, fhi);
@@ -214,20 +222,38 @@ function interpolate_curve(func, anchors, error, max_err, min_dt) {
 
 
 
-function base_lon(p0, dist) {
-    return dist > .5 * Math.PI * EARTH_MEAN_RAD ? lon_norm(p0[1] + 180.) : p0[1];
+
+
+function base_point(p0, dist) {
+    if (dist / EARTH_MEAN_RAD > .5 * Math.PI) {
+        // antipode
+        return [-p0[0], lon_norm(p0[1] + 180.)];
+    } else {
+        return p0;
+    }
 }
 
 function lineplot(p0, heading, maxdist, scale_px) {
-    // don't start at zero to avoid clipping error when using antipole as basis
-    return mercplot(line_plotter(p0, heading), [1e-6 * maxdist, .5 * maxdist, maxdist], base_lon(p0, maxdist), scale_px, 100);
+    return mapplot(
+        line_plotter(p0, heading),
+        // don't start at zero to avoid clipping error when using antipole as basis
+        [1e-6 * maxdist, .5 * maxdist, maxdist],
+        base_point(p0, maxdist), scale_px, 100
+    );
 }
 
 function circplot(p0, radius, scale_px) {
-    return mercplot(arc_plotter(p0, radius), [0, 60, 120, 180, 240, 300, 360], base_lon(p0, radius), scale_px, 1);
+    return mapplot(
+        arc_plotter(p0, radius),
+        [0, 60, 120, 180, 240, 300, 360],
+        base_point(p0, radius), scale_px, 1
+    );
 }
 
-function mercplot(plotter, anchors, base_lon, scale_px, min_dt) {
+function mapplot(plotter, anchors, pbase, scale_px, min_dt) {
+    var base_merc = ll_to_xy(pbase[0], pbase[1]);
+    base_merc = [base_merc.x, base_merc.y];
+
     return _.map(interpolate_curve(
         function(t) {
             var ll = plotter(t);
@@ -237,8 +263,15 @@ function mercplot(plotter, anchors, base_lon, scale_px, min_dt) {
         anchors,
         function(fmid, flo, fhi) {
             var approx = vadd(vscale(flo.xy, .5), vscale(fhi.xy, .5));
-            return vlen(vadd(fmid.xy, vscale(approx, -1)));
+            var diff = vlen(vdiff(fmid.xy, approx));
+
+            var remoteness = vlen(vdiff(approx, base_merc));
+            var MAX_VIEWPORT_RADIUS = 1024;
+            var threshold_scale = Math.max(remoteness * scale_px / MAX_VIEWPORT_RADIUS, 1.);
+
+            var threshold = .25 / scale_px * threshold_scale;
+            return diff > threshold;
         },
-        .25 / scale_px, min_dt
-    ), function(e) { return [unwraparound(base_lon, e.ll[1], 360), e.ll[0]]; });
+        min_dt
+    ), function(e) { return [unwraparound(pbase[1], e.ll[1], 360), e.ll[0]]; });
 }

@@ -107,7 +107,7 @@ function update(map, data) {
     geodata = new L.geoJson(mk_geojson(data, 256 * Math.pow(2, map.getZoom())), {
         style: function(feature) {
             return {
-                color: feature.properties.name == 'arc' ? 'blue' : 'red',
+                color: feature.properties.name == 'arc' ? '#0af' : 'red',
                 opacity: .8,
                 weight: 2,
             }
