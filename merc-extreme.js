@@ -97,6 +97,8 @@ function init() {
             return false;
         } else if (e.keyCode == 113) {
             launchDebug();
+        } else if (e.keyCode == 117) {
+            METRIC = !METRIC;
         }
     });
     
@@ -117,6 +119,7 @@ function init() {
         COMPANION = window.open('companion.html', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
     });
     DEBUG = {postMessage: function(){}};
+    METRIC = true;
 }
 
 function launchDebug() {
@@ -990,13 +993,14 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.curPole = COORDS.home;
         //this.curPole = COORDS.home_ct;
         //this.curPole = COORDS.home_za;
-        this.curPole = [43.56060, -7.41384];
+        //this.curPole = [43.56060, -7.41384];
         //this.curPole = [-16.159283,-180.];
         //this.curPole = [89.9999, 0];
     }
 
     this.setLayer = function(layer) {
         this.layer.setLayer(layer);
+        $('#attribution span').html(formatAttr(layer.attr));
     }
 
     this.setWorldMatrix = function(M) {
@@ -1208,7 +1212,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var ll = translate_pole(merc_ll, renderer.curPole);
 
             dist = EARTH_MEAN_RAD * Math.PI / 180. * (90. - merc_ll[0]);
-            bearing = lon_norm(180. - merc_ll[1]);
+            bearing = mod(180. - merc_ll[1], 360.);
             scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * EARTH_MEAN_RAD;
             orient = line_plotter(this.curPole, bearing)(dist, true)[1];
 
@@ -1218,9 +1222,14 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             $('#antipoleinfo span').text(antipolefmt.lat + ' ' + antipolefmt.lon);
             var posfmt = fmt_pos(ll, 5);
             $('#mouseinfo #pos').text(posfmt.lat + ' ' + posfmt.lon);
-            $('#mouseinfo #dist').text(dist.toFixed(1));
-            $('#mouseinfo #bearing').text(bearing.toFixed(1));
-            $('#mouseinfo #orient').text(orient.toFixed(1));
+            if (METRIC) {
+                unit = dist < 1000 ? ['m', 1.] : ['km', 1000.];
+            } else {
+                unit = dist < Math.sqrt(2000 * 5280) * .3048 ? ['ft', .3048] : ['mi', 1609.344];
+            }
+            $('#mouseinfo #dist').text(format_with_unit(dist, scale, unit[0], unit[1]));
+            $('#mouseinfo #bearing').text(bearing.toFixed(prec_digits_for_res(360. / this.scale_px)) + '\xb0');
+            $('#orient span').css('transform', 'rotate(' + (270 - orient) + 'deg)');
             $('#mouseinfo #scale').text(scale.toFixed(2));
         }
 
@@ -1483,6 +1492,16 @@ var tile_specs = [
     },
 ];
 
+function formatAttr(attr) {
+    return 'map &copy; ' + _.map(attr, function(e) {
+        if (typeof e == 'string') {
+            return e;
+        } else {
+            return '<a target="_blank" href="' + e[1] + '">' + e[0] + '</a>';
+        }
+    }).join(', ');
+}
+
 //=== UTIL ===
 
 function loadShader(name) {
@@ -1716,3 +1735,14 @@ function fmt_pos(ll, prec) {
 function antipode(ll) {
     return [-ll[0], lon_norm(ll[1] + 180.)];
 }
+
+function prec_digits_for_res(delta) {
+    return Math.max(-Math.round(Math.log(delta) / Math.LN10), 0);
+}
+
+ADD_COMMAS = new RegExp('\\B(?=(?:\\d{3})+(?!\\d))', 'g');
+function format_with_unit(val, delta, unitname, unitsize) {
+    var num = (val / unitsize).toFixed(prec_digits_for_res(delta / unitsize));
+    return num.replace(ADD_COMMAS, ',') + ' ' + unitname;
+}
+
