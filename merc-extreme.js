@@ -29,7 +29,6 @@ function pow2ceil(x) {
     return Math.pow(2., Math.ceil(lgx - EPSILON));
 }
 
-var _stats;
 var vertex_shader;
 var fragment_shader;
 
@@ -92,11 +91,6 @@ function init() {
     var merc = new MercatorRenderer($('#container'), window.innerWidth, window.innerHeight, 2.5, 0.5);
     MERC = merc;
 
-    _stats = new Stats();
-    _stats.domElement.style.position = 'absolute';
-    _stats.domElement.style.top = '0px';
-    document.body.appendChild(_stats.domElement);
-    
     $(window).keypress(function(e) {
         if (e.keyCode == 32) {
             merc.toggle_drag_mode();
@@ -120,8 +114,12 @@ function init() {
     $('#companion').click(function() {
         COMPANION = window.open('companion.html', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
     });
+    launchDebug();
 }
 
+function launchDebug() {
+    DEBUG = window.open('debug.html', 'debug', 'width=800,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
+}
 
 
 /* xy is google style upper left=(0, 0), lower right=(1, 1) */
@@ -747,7 +745,7 @@ function TextureLayer(context) {
         
         MRU_counter++;
 
-        this._debug_overview(data);
+        DEBUG.postMessage({type: 'tiles', data: data}, '*');
     }
 
     var skirt = 1;
@@ -903,43 +901,8 @@ function TextureLayer(context) {
             'flat': this.material({geo_mode: 'flat', output_mode: 'tile'}),
         },
     };
+}    
     
-    
-    this._debug_overview = function(data) {
-        //console.log('worker result', data, _.size(data));
-        var canvas = $('#tileovl')[0];
-        $(canvas).attr('width', (TILE_OFFSET_RESOLUTION * (1 + MAX_ZOOM)) + 'px');
-        $(canvas).attr('height', (TILE_OFFSET_RESOLUTION * 2) + 'px');
-        var ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#444';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        var TO = TILE_OFFSET_RESOLUTION;
-        for (var i = 0; i < 1 + MAX_ZOOM; i++) {
-            for (var j = 0; j < 2; j++) {
-                ctx.fillStyle = ((i + j) % 2 == 0 ? '#200' : '#002');
-                ctx.fillRect(TO * i, TO * j, Math.min(Math.pow(2, i), TO), Math.min(Math.pow(2, i), TO));
-
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#555';
-                ctx.font = '12pt sans-serif';
-                ctx.fillText(i, TO * (i + .5), TO * (j + .5));
-            }
-        }
-        
-        $.each(data, function(k, v) {
-            var pcs = k.split(':');
-            var anti = +pcs[0];
-            var z = +pcs[1];
-            var dx = pcs[2] % TO;
-            var dy = pcs[3] % TO;
-            
-            ctx.fillStyle = 'white';
-            ctx.fillRect(TO * z + dx, TO * ((anti ? 1 : 0)) + dy, 1, 1);
-        });
-    }
-}
 
 function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, extentS, lonOffset, lonExtent) {
     this.width_px = viewportWidth;
@@ -1021,7 +984,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.curPole = COORDS.home;
         //this.curPole = COORDS.home_ct;
         //this.curPole = COORDS.home_za;
-        //this.curPole = [43.56060, -7.41384];
+        this.curPole = [43.56060, -7.41384];
         //this.curPole = [-16.159283,-180.];
         //this.curPole = [89.9999, 0];
     }
@@ -1232,7 +1195,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         this.setPole(this.curPole[0], this.curPole[1]);
         this.setRefPoint();
         
-        var debug = '';
+        var debug = {};
         if (window.POS) {
             var p = renderer.xyToWorld(POS.x, POS.y);
             var merc_ll = xy_to_ll(p.x, p.y);
@@ -1241,7 +1204,14 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             dist = 6371.009 * Math.PI / 180. * (90. - merc_ll[0]);
             bearing = lon_norm(180. - merc_ll[1]);
             scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * 6371009;
-            debug = this.curPole[0].toFixed(5) + ' ' + this.curPole[1].toFixed(5) + '<br>' + (-this.curPole[0]).toFixed(5) + ' ' + lon_norm(this.curPole[1] + 180.).toFixed(5) + '<br>' + ll[0].toFixed(5) + ' ' + ll[1].toFixed(5) + '<br>' + dist.toFixed(4) + '<br>' + bearing.toFixed(1) + '<br>' + scale.toFixed(2) + '<br>';
+            debug = {
+                pole: this.curPole[0].toFixed(5) + ' ' + this.curPole[1].toFixed(5),
+                antipole: (-this.curPole[0]).toFixed(5) + ' ' + lon_norm(this.curPole[1] + 180.).toFixed(5),
+                pos: ll[0].toFixed(5) + ' ' + ll[1].toFixed(5),
+                dist: dist.toFixed(4),
+                bearing: bearing.toFixed(1),
+                scale: scale.toFixed(2),
+            };
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -1311,8 +1281,8 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             setMaterials('image');
         }
 
-        $('#x').html(debug);
-        _stats.update();
+        DEBUG.postMessage({type: 'frame'}, '*');
+        DEBUG.postMessage({type: 'text', data: debug}, '*');
     }
     
     this.setPole = function(lat, lon) {

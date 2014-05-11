@@ -26,6 +26,7 @@ function init_companion() {
     }, false);
 }
 
+// nicely split up geometry that crosses the IDL
 function process_geo(points) {
     var segments = [];
     var segment = [];
@@ -51,6 +52,8 @@ function mk_geojson(data, scale_px) {
         features: []
     };
     var addMulti = function(props, points) {
+        // need to split into separate linestring features because
+        // leaflet geojson has issues with multi*
         _.each(process_geo(points), function(e) {
             geojson.features.push({
                 type: 'Feature',

@@ -1,19 +1,20 @@
 <html>
 <head>
-<title>merc extreme: companion map</title>
+<title>merc extreme: debug dashboard</title>
 
 <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r66/three.min.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.2/leaflet.js"></script>
 <script src="lib/jquery-latest.min.js"></script>
 <script src="lib/underscore.min.js"></script>
-<script src="companion.js"></script>
+<script src="debug.js"></script>
 <script src="merc-extreme.js"></script>
 <script src="geodesy.js"></script>
+<script src="lib/stats.min.js"></script>
 <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.2/leaflet.css">
 
 <script>
 
-$(document).ready(init_companion);
+$(document).ready(init_debug);
 
 </script>
 
@@ -22,20 +23,15 @@ $(document).ready(init_companion);
 
 <style>
 
-body {
-  margin: 0;
-  height: 100%;
-}
-
-#map {
-  width: 100%;
-  height: 100%;
-}
-
 </style>
 
-<div id="map"></div>
+<canvas id="tileovl"></canvas>
+
+<div id="text"></div>
 
 </body>
 </html>
+
+
+
 
