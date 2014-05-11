@@ -219,7 +219,8 @@ function base_lon(p0, dist) {
 }
 
 function lineplot(p0, heading, maxdist, scale_px) {
-    return mercplot(line_plotter(p0, heading), [0, .5 * maxdist, maxdist], base_lon(p0, maxdist), scale_px, 100);
+    // don't start at zero to avoid clipping error when using antipole as basis
+    return mercplot(line_plotter(p0, heading), [1e-6 * maxdist, .5 * maxdist, maxdist], base_lon(p0, maxdist), scale_px, 100);
 }
 
 function circplot(p0, radius, scale_px) {
