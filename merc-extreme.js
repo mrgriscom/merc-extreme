@@ -447,12 +447,15 @@ function TextureLayer(context) {
     this.context = context;
 
     this.curlayer = null;
-    
-    this.sample_width = Math.round(this.context.width_px / SAMPLE_FREQ);
-    this.sample_height = Math.round(this.context.height_px / SAMPLE_FREQ);
-    this.target = new THREE.WebGLRenderTarget(this.sample_width, this.sample_height, {format: THREE.RGBFormat});
-    this.target.generateMipmaps = false;
-    
+
+    this.onViewportSet = function() {
+        this.sample_width = Math.round(this.context.width_px / SAMPLE_FREQ);
+        this.sample_height = Math.round(this.context.height_px / SAMPLE_FREQ);
+        this.target = new THREE.WebGLRenderTarget(this.sample_width, this.sample_height, {format: THREE.RGBFormat});
+        this.target.generateMipmaps = false;
+        this.sampleBuff = new Uint8Array(this.sample_width * this.sample_height * 4);
+    }
+
     this.worker = new Worker('coverage-worker.js');
 
     this.pending = [];
@@ -538,9 +541,6 @@ function TextureLayer(context) {
     }
 
     this.sample_coverage = function(oncomplete) {
-        if (!this.sampleBuff) {
-            this.sampleBuff = new Uint8Array(this.sample_width * this.sample_height * 4);
-        }
         this.sampling_complete = oncomplete;
         
         var gl = this.context.glContext;
@@ -888,7 +888,7 @@ function TextureLayer(context) {
     this.material = function(params) {
         if (!this.uniforms) {
             this.uniforms = {
-                scale: {type: 'f', value: this.context.scale_px},
+                scale: {type: 'f', value: 0.},
                 bias: {type: 'f', value: 0.},
                 pole: {type: 'v2', value: null},
                 pole_t: {type: 'v2', value: null},
@@ -897,7 +897,7 @@ function TextureLayer(context) {
                 tx_ix: {type: 't', value: this.tex_index.tx},
                 tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
                 tx_z0: {type: 't', value: this.tex_z0.tx},
-                zoom_blend: {type: 'f', value: ZOOM_BLEND},
+                zoom_blend: {type: 'f', value: 0.},
 
                 hp_pole_tile: {type: 'v2', value: null},
                 hp_pole_offset: {type: 'v2', value: null},
@@ -929,15 +929,6 @@ function TextureLayer(context) {
     
 
 function MercatorRenderer($container, getViewportDims, extentN, extentS) {
-    //initViewport();
-    var dim = getViewportDims(window);
-    this.width_px = dim[0];
-    this.height_px = dim[1];
-    this.aspect = this.width_px / this.height_px;
-    var extent = extentN + extentS;
-    var vextent = extent / this.aspect;
-    this.scale_px = this.width_px / extent;
-
     this.renderer = new THREE.WebGLRenderer();
     this.glContext = this.renderer.getContext();
 
@@ -973,35 +964,52 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             texture.incrementalUpdate(updatefunc);
         }
     }
+
+    this.initViewport = function(dim, merc_min, merc_max, lon_offset) {
+        this.width_px = dim[0];
+        this.height_px = dim[1];
+        var aspect = this.width_px / this.height_px;
+        console.log('width', this.width_px, 'height', this.height_px, 'aspect', aspect);
+
+        var extent = merc_max - merc_min;
+        var vextent = extent / aspect;
+        this.scale_px = this.width_px / extent;
+
+        this.renderer.setSize(this.width_px, this.height_px);
+        this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
+        this.layer.onViewportSet();
+
+        this.M = null;
+        this.group.matrix = new THREE.Matrix4();
+	    var M = new THREE.Matrix4();
+	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
+	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
+	    M.multiply(new THREE.Matrix4().makeTranslation(-vextent, -merc_min, 0));
+        this.setWorldMatrix(M);
+    }
     
     this.init = function() {
-        console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect);
         console.log('max tex size', this.glContext.getParameter(this.glContext.MAX_TEXTURE_SIZE));
         console.log('max # texs', this.glContext.getParameter(this.glContext.MAX_TEXTURE_IMAGE_UNITS));
         console.log('prec (med)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.MEDIUM_FLOAT).precision);
         console.log('prec (high)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.HIGH_FLOAT).precision);
         console.log(this.glContext.getSupportedExtensions());
 
-        this.renderer.setSize(this.width_px, this.height_px);
-        // TODO handle window/viewport resizing
-        $container.append(this.renderer.domElement);
-        
-        this.init_interactivity();
-        
-        this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
-
         this.scene = new THREE.Scene();
         this.group = new THREE.Object3D();
         this.scene.add(this.group);
-        this.layer = new TextureLayer(this);
         this.currentObjs = [];
+        this.layer = new TextureLayer(this);
 
-	    var M = new THREE.Matrix4();
-	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
-	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-	    M.multiply(new THREE.Matrix4().makeTranslation(-vextent, extentS, 0));
-        this.setWorldMatrix(M);
+        this.initViewport(getViewportDims(window), -extentS, extentN, 0);
+        var merc = this;
+        $(window).resize(function() {
+            merc.initViewport(getViewportDims(window), -extentS, extentN, 0);
+        });
+        $container.append(this.renderer.domElement);
 
+        this.init_interactivity();
+        
         this.curPole = COORDS.home;
         //this.curPole = COORDS.home_ct;
         //this.curPole = COORDS.home_za;
@@ -1042,7 +1050,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         M.multiply(new THREE.Matrix4().makeTranslation(-x, -y, 0));
         this.setWorldMatrix(M);
         this.scale_px *= z;
-        this.layer.uniforms.scale.value *= z;
     }
 
     this.warp = function(pos, drag_context) {
@@ -1064,12 +1071,13 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
-            return {x: e.pageX - e.target.offsetLeft, y: e.target.offsetHeight - (e.pageY - e.target.offsetTop)};
+            var ref = $('#container')[0];
+            return {x: e.pageX - ref.offsetLeft, y: ref.offsetHeight - (e.pageY - ref.offsetTop)};
         }
         
 	    var renderer = this;
         var drag_context = null;
-        $(this.renderer.domElement).bind('mousedown', function(e) {
+        $('#container').bind('mousedown', function(e) {
             drag_context = {
 		        'down_px': mouse_pos(e),
 		        'down_pole': renderer.curPole,
@@ -1223,6 +1231,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
         this.setPole(this.curPole[0], this.curPole[1]);
         this.setRefPoint();
+        this.setUniforms();
         
         var debug = {};
         if (window.POS) {
@@ -1329,6 +1338,12 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
         DEBUG.postMessage({type: 'frame'}, '*');
         DEBUG.postMessage({type: 'text', data: debug}, '*');
+    }
+
+    this.setUniforms = function() {
+        this.layer.uniforms.scale.value = this.scale_px;
+        this.layer.uniforms.bias.value = 0.;
+        this.layer.uniforms.zoom_blend.value = ZOOM_BLEND;
     }
     
     this.setPole = function(lat, lon) {
