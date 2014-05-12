@@ -1228,9 +1228,11 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
                 unit = dist < Math.sqrt(2000 * 5280) * .3048 ? ['ft', .3048] : ['mi', 1609.344];
             }
             $('#mouseinfo #dist').text(format_with_unit(dist, scale, unit[0], unit[1]));
-            $('#mouseinfo #bearing').text(bearing.toFixed(prec_digits_for_res(360. / this.scale_px)) + '\xb0');
+            var bearing_prec = prec_digits_for_res(360. / this.scale_px);
+            $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0');
             $('#orient span').css('transform', 'rotate(' + (270 - orient) + 'deg)');
-            $('#mouseinfo #scale').text(scale.toFixed(2));
+            var scalebar = snap_scale(scale, 100);
+            $('#mouseinfo #scale').text(scalebar.label + ' ' + scalebar.size);
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -1742,7 +1744,107 @@ function prec_digits_for_res(delta) {
 
 ADD_COMMAS = new RegExp('\\B(?=(?:\\d{3})+(?!\\d))', 'g');
 function format_with_unit(val, delta, unitname, unitsize) {
-    var num = (val / unitsize).toFixed(prec_digits_for_res(delta / unitsize));
-    return num.replace(ADD_COMMAS, ',') + ' ' + unitname;
+    // omg fuck javascript
+    val /= unitsize;
+    if (delta != null) {
+        delta /= unitsize;
+        var num = val.toFixed(prec_digits_for_res(delta));
+    } else {
+        var num = val.toPrecision(8);
+        for (var i = num.length - 1; num[i] == '0'; i--);
+        if (num[i] == '.') {
+            i--;
+        }
+        num = num.substring(0, i + 1);
+    }
+    if (num.indexOf('.') != -1) {
+        var fuck = num.split('.');
+        num = fuck[0].replace(ADD_COMMAS, ',') + '.' + fuck[1];
+    } else {
+        num = num.replace(ADD_COMMAS, ',');
+    }
+    return num + ' ' + unitname;
 }
 
+function niceRoundNumber(x, stops, orderOfMagnitude) {
+    var orderOfMagnitude = orderOfMagnitude || 10;
+    var stops = stops || [1, 2, 5];
+    // numbers will snap to .1, .2, .5, 1, 2, 5, 10, 20, 50, 100, 200, etc.
+
+    var xLog = Math.log(x) / Math.log(orderOfMagnitude);
+    var exponent = Math.floor(xLog);
+    var xNorm = Math.pow(orderOfMagnitude, xLog - exponent);
+
+    var getStop = function(i) {
+        return (i == stops.length ? orderOfMagnitude * stops[0] : stops[i]);
+    }
+    var cutoffs = $.map(stops, function(e, i) {
+        var multiplier = getStop(i + 1);
+        var cutoff = Math.sqrt(e * multiplier);
+        if (cutoff >= orderOfMagnitude) {
+            multiplier /= orderOfMagnitude;
+            cutoff /= orderOfMagnitude;
+        }
+        return {cutoff: cutoff, mult: multiplier};
+    });
+    cutoffs = _.sortBy(cutoffs, function(co) { return co.cutoff; });
+
+    var bucket = matchThresholds(xNorm, $.map(cutoffs, function(co) { return co.cutoff; }), true);
+    var multiplier = (bucket == -1 ? cutoffs.slice(-1)[0].mult / orderOfMagnitude : cutoffs[bucket].mult);
+    return Math.pow(orderOfMagnitude, exponent) * multiplier;
+}
+
+function matchThresholds(val, thresholds, returnIndex) {
+    var cat = (returnIndex ? -1 : '-');
+    $.each(thresholds, function(i, e) {
+        if (e <= val) {
+            cat = (returnIndex ? i : e);
+        } else {
+            return false;
+        }
+    });
+    return cat;
+}
+
+UNITS = {
+    'cm': 1e-2,
+    'm': 1,
+    'km': 1e3,
+    'in': .0254,
+    'ft': .3048,
+    'mi': 1609.344,
+};
+
+function geomean(x, xu, y, yu) {
+    return Math.sqrt(x * y * UNITS[xu] * UNITS[yu]);
+}
+
+function snap_scale(scale, target_size) {
+    var target_len = scale * target_size;
+    if (METRIC) {
+        var len = niceRoundNumber(target_len);
+        if (len < 1) {
+            var unit = 'cm';
+        } else if (len < 1000) {
+            var unit = 'm';
+        } else {
+            var unit = 'km';
+        }
+    } else {
+        if (target_len < UNITS.in) {
+            var unit = 'in';
+            var len = niceRoundNumber(target_len / UNITS[unit]);
+        } else if (target_len < geomean(6, 'in', 1, 'ft')) {
+            var unit = 'in';
+            var len = niceRoundNumber(target_len / UNITS[unit], [1, 3, 6], 12);
+        } else if (target_len < geomean(2000, 'ft', 1, 'mi')) {
+            var unit = 'ft';
+            var len = Math.min(niceRoundNumber(target_len / UNITS[unit]), 2000);
+        } else {
+            var unit = 'mi';
+            var len = Math.max(niceRoundNumber(target_len / UNITS[unit]), 1);
+        }
+        len *= UNITS[unit];
+    }
+    return {label: format_with_unit(len, null, unit, UNITS[unit]), size: len / scale};
+}
