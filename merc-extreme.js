@@ -1076,6 +1076,13 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 	        var pos = mouse_pos(e);
             POS = pos;
 
+            /*
+            $("#mouseinfo").css({
+                top: (e.pageY + 15) + "px",
+                left: (e.pageX + 15) + "px"
+            });
+            */
+
             if (drag_context == null) {
                 return;
             }
@@ -1212,8 +1219,13 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         var debug = {};
         if (window.POS) {
             var p = renderer.xyToWorld(POS.x, POS.y);
-            var merc_ll = xy_to_ll(p.x, p.y);
+            var merc_ll = xy_to_ll(mod(p.x, 1.), p.y);
             var ll = translate_pole(merc_ll, renderer.curPole);
+
+            var xy_prec = prec_digits_for_res(1. / this.scale_px);
+            debug.merc_xy = p.x.toFixed(xy_prec) + ' ' + p.y.toFixed(xy_prec);
+            var mercllfmt = fmt_pos(merc_ll, 5);
+            debug.merc_ll = mercllfmt.lat + ' ' + mercllfmt.lon;
 
             dist = EARTH_MEAN_RAD * Math.PI / 180. * (90. - merc_ll[0]);
             bearing = mod(180. - merc_ll[1], 360.);
