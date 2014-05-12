@@ -1223,16 +1223,17 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var posfmt = fmt_pos(ll, 5);
             $('#mouseinfo #pos').text(posfmt.lat + ' ' + posfmt.lon);
             if (METRIC) {
-                unit = dist < 1000 ? ['m', 1.] : ['km', 1000.];
+                unit = dist < 1000 ? 'm' : 'km';
             } else {
-                unit = dist < Math.sqrt(2000 * 5280) * .3048 ? ['ft', .3048] : ['mi', 1609.344];
+                unit = dist < geomean(2000, 'ft', 1, 'mi') ? 'ft' : 'mi';
             }
-            $('#mouseinfo #dist').text(format_with_unit(dist, scale, unit[0], unit[1]));
+            $('#mouseinfo #dist').text(format_with_unit(dist, scale, unit));
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
             $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0');
             $('#orient span').css('transform', 'rotate(' + (270 - orient) + 'deg)');
-            var scalebar = snap_scale(scale, 100);
-            $('#mouseinfo #scale').text(scalebar.label + ' ' + scalebar.size);
+            var scalebar = snap_scale(scale, 50);
+            $('#mouseinfo #scale #label').text(scalebar.label);
+            $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -1743,11 +1744,11 @@ function prec_digits_for_res(delta) {
 }
 
 ADD_COMMAS = new RegExp('\\B(?=(?:\\d{3})+(?!\\d))', 'g');
-function format_with_unit(val, delta, unitname, unitsize) {
+function format_with_unit(val, delta, unit) {
     // omg fuck javascript
-    val /= unitsize;
+    val /= UNITS[unit];
     if (delta != null) {
-        delta /= unitsize;
+        delta /= UNITS[unit];
         var num = val.toFixed(prec_digits_for_res(delta));
     } else {
         var num = val.toPrecision(8);
@@ -1763,7 +1764,7 @@ function format_with_unit(val, delta, unitname, unitsize) {
     } else {
         num = num.replace(ADD_COMMAS, ',');
     }
-    return num + ' ' + unitname;
+    return num + ' ' + unit;
 }
 
 function niceRoundNumber(x, stops, orderOfMagnitude) {
@@ -1846,5 +1847,5 @@ function snap_scale(scale, target_size) {
         }
         len *= UNITS[unit];
     }
-    return {label: format_with_unit(len, null, unit, UNITS[unit]), size: len / scale};
+    return {label: format_with_unit(len, null, unit), size: len / scale};
 }
