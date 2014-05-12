@@ -516,22 +516,21 @@ function TextureLayer(context) {
             return;
         }
 
-        type.tilefunc = compile_tile_spec(type.url);
-        this.curlayer = type;
-
         // z0 tile has a dedicated texture, so z0 for multiple layers cannot co-exist
         // ensure the tile is reloaded when the layer is switched back
-        var that = this;
-        var flag_tile = function(z, x, y) {
-            var key = that.shown_layer + ':' + z + ':' + x + ':' + y;
-            var entry = that.tile_index[key];
+        if (this.curlayer) {
+            var key = this.curlayer.id + ':' + 0 + ':' + 0 + ':' + 0;
+            var entry = this.tile_index[key];
             if (entry) {
                 entry.rebuild_z0 = true;
             }
         }
-        flag_tile(0, 0, 0);
+
+        type.tilefunc = compile_tile_spec(type.url);
+        this.curlayer = type;
 
         // trigger immediate reload
+        this.force_ix_rebuild = true;
         context.last_sampling = null;
     }
 
@@ -620,12 +619,23 @@ function TextureLayer(context) {
         });
         var tiles = _.sortBy(_.map(data, function(v, k) { return unpack_tile(k); }),
                              function(e) { return e.z + (e.anti ? .5 : 0.); });
+        var tiles = _.filter(tiles, function(e) { return e.z <= (curlayer.max_depth || MAX_ZOOM); });
 
         var layer = this;
         
         if (window.MRU_counter == null) {
             MRU_counter = 0;
         }
+
+        if (this.force_ix_rebuild) {
+            this.index_offsets = {};
+            for (var z = 0; z <= MAX_ZOOM; z++) {
+                this.set_offset(z, true, 0, 0);
+                this.set_offset(z, false, 0, 0);
+            }
+            this.force_ix_rebuild = false;
+        }
+
         var ranges = {};
         var range_basetile = {};
         $.each(tiles, function(i, tile) {
@@ -652,7 +662,7 @@ function TextureLayer(context) {
             var xoffset = offset(v.xmin, z);
             var yoffset = offset(v.ymin, z);
             var cur_offsets = layer.index_offsets[k];
-            if (layer.shown_layer != layer.curlayer.id || cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
+            if (cur_offsets == null || cur_offsets.x != xoffset || cur_offsets.y != yoffset) {
                 layer.index_offsets[k] = {x: xoffset, y: yoffset};
                 layer.set_offset(z, anti, xoffset, yoffset);
 
@@ -662,7 +672,6 @@ function TextureLayer(context) {
                 });
             }
         });
-        this.shown_layer = this.curlayer.id;
 
         // mark all tiles for LRU if exist in cache
         $.each(tiles, function(i, tile) {
@@ -687,7 +696,6 @@ function TextureLayer(context) {
             layer.active_tiles[tilekey(tile)] = true;
         });
 
-        var tiles = _.filter(tiles, function(e) { return e.z <= (curlayer.max_depth || MAX_ZOOM); });
         $.each(tiles, function(i, tile) {
             //debug to reduce bandwidth (high zoom levels move out of view too fast)
             //TODO replace with movement-based criteria
