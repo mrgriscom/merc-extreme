@@ -13,6 +13,14 @@ function init_companion() {
     var map = new L.Map('map', {
         attributionControl: false,
         zoomControl: false,
+
+        dragging: false,
+        touchZoom: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+
         //fadeAnimation: false,
         //zoomAnimation: false,
     });
@@ -70,9 +78,10 @@ function mk_geojson(data, scale_px) {
     return geojson;
 }
 
-ZOOM_TIMEOUT = 1.5;
-LAST_ZOOM_CHANGE = -99999;
+ZOOM_TIMEOUT = .5;
+LAST_ZOOM_CHANGE = null;
 function update(map, data) {
+    // map layer
     if (map.cur_layer == null || map.cur_layer.tag != data.layer.id) {
         var new_layer = mk_layer(data.layer);
         map.addLayer(new_layer, true);
@@ -82,28 +91,35 @@ function update(map, data) {
         map.cur_layer = new_layer;
     }
 
-    if (data.dist < .5 * Math.PI * EARTH_MEAN_RAD) {
+    // dimensions and viewport to determine zoom level
+    if (data.dist / EARTH_MEAN_RAD < .5 * Math.PI) {
         var center = data.pole;
         var dist = data.dist;
     } else {
-        var center = [-data.pole[0], lon_norm(data.pole[1] + 180.)];
+        var center = antipode(data.pole);
         var dist = Math.PI * EARTH_MEAN_RAD - data.dist;
     }
     var lon_extent = max_lon_extent(center[0], dist);
     var lat_extent = dist / EARTH_MEAN_RAD * DEG_RAD;
-    var bounds = new L.latLngBounds([Math.max(center[0] - lat_extent, -90), center[1] - lon_extent],
-                                [Math.min(center[0] + lat_extent, 90), center[1] + lon_extent])
-    var oldz = map.getZoom();
-    // wait a bit before switching zoom level?
-    if (window.performance.now()/1000 - LAST_ZOOM_CHANGE > ZOOM_TIMEOUT) {
-        map.fitBounds(bounds, {padding: [60, 60]});
+    var bounds = new L.latLngBounds([Math.max(center[0] - lat_extent, -85.05), center[1] - lon_extent],
+                                [Math.min(center[0] + lat_extent, 85.05), center[1] + lon_extent])
+
+    // update zoom
+    var current_zoom = map.getZoom();
+    if (clock() - (LAST_ZOOM_CHANGE || -999) > ZOOM_TIMEOUT) {
+        map.fitBounds(bounds, {
+            padding: [60, 60],
+            pan: {animate: false},
+        });
     }
-    map.setView(center, map.getZoom());
-    if (map.getZoom() != oldz) {
-        LAST_ZOOM_CHANGE = window.performance.now()/1000
+    if (map.getZoom() != current_zoom) {
+        LAST_ZOOM_CHANGE = clock();
     }
 
+    // update center
+    map.setView(center, map.getZoom(), {pan: {animate: false}});
 
+    // draw
     if (map.geodata) {
         map.removeLayer(map.geodata);
     }
