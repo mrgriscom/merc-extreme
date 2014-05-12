@@ -88,7 +88,9 @@ function init() {
     vertex_shader = loadShader('vertex');
     fragment_shader = loadShader('fragment');
     
-    var merc = new MercatorRenderer($('#container'), window.innerWidth, window.innerHeight, 2.5, 0.5);
+    var merc = new MercatorRenderer($('#container'), function(window) {
+        return [window.innerWidth, window.innerHeight - $('#titlebar').outerHeight()];
+    }, 2.5, 0.5);
     MERC = merc;
 
     $(window).keypress(function(e) {
@@ -117,6 +119,7 @@ function init() {
 
     $('#companion').click(function() {
         COMPANION = window.open('companion.html', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
+        COMPANION.onbeforeunload = function() { console.log('window was closed');};
     });
     DEBUG = {postMessage: function(){}};
     METRIC = true;
@@ -922,21 +925,18 @@ function TextureLayer(context) {
             'flat': this.material({geo_mode: 'flat', output_mode: 'tile'}),
         },
     };
-}    
+}
     
 
-function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, extentS, lonOffset, lonExtent) {
-    this.width_px = viewportWidth;
-    this.height_px = viewportHeight;
+function MercatorRenderer($container, getViewportDims, extentN, extentS) {
+    //initViewport();
+    var dim = getViewportDims(window);
+    this.width_px = dim[0];
+    this.height_px = dim[1];
     this.aspect = this.width_px / this.height_px;
-
-    this.mercExtentN = extentN;
-    this.mercExtentS = extentS;
-    this.lonOffset = lonOffset || 0.;
-
-    this.mercExtent = this.mercExtentS + this.mercExtentN;
-    this.lonExtent = (lonExtent == null ? this.mercExtent / this.aspect : lonExtent);
-    this.scale_px = this.width_px / this.mercExtent;
+    var extent = extentN + extentS;
+    var vextent = extent / this.aspect;
+    this.scale_px = this.width_px / extent;
 
     this.renderer = new THREE.WebGLRenderer();
     this.glContext = this.renderer.getContext();
@@ -999,7 +999,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
 	    var M = new THREE.Matrix4();
 	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-	    M.multiply(new THREE.Matrix4().makeTranslation(-this.lonExtent, this.mercExtentS, 0));
+	    M.multiply(new THREE.Matrix4().makeTranslation(-vextent, extentS, 0));
         this.setWorldMatrix(M);
 
         this.curPole = COORDS.home;
@@ -1007,7 +1007,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         //this.curPole = COORDS.home_za;
         //this.curPole = [43.56060, -7.41384];
         //this.curPole = [-16.159283,-180.];
-        //this.curPole = [89.9999, 0];
+        //this.curPole = [90, 0];
     }
 
     this.setLayer = function(layer) {

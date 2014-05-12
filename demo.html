@@ -27,25 +27,35 @@ body {
   font-family: sans-serif;
 }
 
-#container {
-  width: 100%;
-  height: 100%;
+#titlebar {
+  background: #222;
 }
 
 </style>
 
-<div id="container"></div>
+<div id="titlebar" style="color: white; padding: 5px;">
+  MERCATOR: EXTREME by Drew Roos
+  <div style="float: right;">
+    <div style="display: inline-block;">Layers</div>
+    <div id="companion" style="display: inline-block;">Companion Map</div>
+    <div style="display: inline-block;">Routes</div>
+    <div style="display: inline-block;">Settings</div>
+    <div style="display: inline-block;">Help</div>
+  </div>
+</div>
 
-<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 10px; top: 10px;"><button id="companion">companion map</button></div>
+<div id="container" style="position: relative;">
 
-<div id="attribution" style="position: fixed; left: 0; right: 0; bottom: 0; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0;"></span></div>
-<div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
+<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 10px; top: 10px;"></div>
+
+<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0;"></span></div>
+<div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
   POLE<br><span class="swap">&harr;</span><span class="data"></span>
 </div>
-<div id="antipoleinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 0; bottom: 0; border-radius: 0 5px 0 0;">
+<div id="antipoleinfo" style="background: rgba(255, 255, 255, .4); position: absolute; left: 0; bottom: 0; border-radius: 0 5px 0 0;">
   ANTI-POLE<br><span class="data"></span><span class="swap">&harr;</span>
 </div>
-<div id="mouseinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 10px; top: 10px;">
+<div id="mouseinfo" style="background: rgba(255, 255, 255, .4); position: absolute; left: 10px; top: 10px;">
   MOUSEPOS
   <div>
     <div id="pos"></div>
@@ -54,6 +64,8 @@ body {
     <div id="orient"><span style="display: inline-block;">&uarr;</span></div>
     <div id="scale"><span id="label"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
   </div>
+</div>
+
 </div>
 
 </body>
