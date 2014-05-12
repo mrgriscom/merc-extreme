@@ -120,6 +120,10 @@ function init() {
     });
     DEBUG = {postMessage: function(){}};
     METRIC = true;
+
+    $('.swap').click(function() {
+        merc.swapPoles();
+    });
 }
 
 function launchDebug() {
@@ -1217,9 +1221,9 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             orient = line_plotter(this.curPole, bearing)(dist, true)[1];
 
             var polefmt = fmt_pos(this.curPole, 5);
-            $('#poleinfo span').text(polefmt.lat + ' ' + polefmt.lon);
+            $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
             var antipolefmt = fmt_pos(antipode(this.curPole), 5);
-            $('#antipoleinfo span').text(antipolefmt.lat + ' ' + antipolefmt.lon);
+            $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
             var posfmt = fmt_pos(ll, 5);
             $('#mouseinfo #pos').text(posfmt.lat + ' ' + posfmt.lon);
             if (METRIC) {
@@ -1231,7 +1235,7 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
             $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0');
             $('#orient span').css('transform', 'rotate(' + (270 - orient) + 'deg)');
-            var scalebar = snap_scale(scale, 50);
+            var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
             $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
         }
@@ -1357,6 +1361,10 @@ function MercatorRenderer($container, viewportWidth, viewportHeight, extentN, ex
         }
     }
 
+    this.swapPoles = function() {
+        var pole = antipode(this.curPole);
+        this.poleAt(pole[0], pole[1]);
+    }
 
     this.init();
 }
@@ -1496,7 +1504,7 @@ var tile_specs = [
 ];
 
 function formatAttr(attr) {
-    return 'map &copy; ' + _.map(attr, function(e) {
+    return '&copy; ' + _.map(attr, function(e) {
         if (typeof e == 'string') {
             return e;
         } else {

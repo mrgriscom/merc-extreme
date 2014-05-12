@@ -24,6 +24,7 @@ $(document).ready(init);
 body {
   margin: 0;
   height: 100%;
+  font-family: sans-serif;
 }
 
 #container {
@@ -37,11 +38,12 @@ body {
 
 <div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 10px; top: 10px;"><button id="companion">companion map</button></div>
 
-<div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 10px; bottom: 10px;">
-  POLE<br><span></span>
+<div id="attribution" style="position: fixed; left: 0; right: 0; bottom: 0; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0;"></span></div>
+<div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: fixed; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
+  POLE<br><span class="swap">&harr;</span><span class="data"></span>
 </div>
-<div id="antipoleinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 10px; bottom: 10px;">
-  ANTI-POLE<br><span></span>
+<div id="antipoleinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 0; bottom: 0; border-radius: 0 5px 0 0;">
+  ANTI-POLE<br><span class="data"></span><span class="swap">&harr;</span>
 </div>
 <div id="mouseinfo" style="background: rgba(255, 255, 255, .4); position: fixed; left: 10px; top: 10px;">
   MOUSEPOS
@@ -50,10 +52,9 @@ body {
     <div id="dist"></div>
     <div id="bearing"></div>
     <div id="orient"><span style="display: inline-block;">&uarr;</span></div>
-    <div id="scale"><span id="label"></span><div id="bar" style="height: 8px; background: rgba(0, 0, 0, .6);"></div></div>
+    <div id="scale"><span id="label"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
   </div>
 </div>
-<div id="attribution" style="position: fixed; left: 0; right: 0; bottom: 10px; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block;"></span></div>
 
 </body>
 </html>
