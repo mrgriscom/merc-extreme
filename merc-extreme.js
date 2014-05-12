@@ -965,7 +965,9 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         }
     }
 
-    this.initViewport = function(dim, merc_min, merc_max, lon_offset) {
+    this.initViewport = function(dim, merc_min, merc_max, lon_center) {
+        lon_center = lon_center == null ? .5 : lon_center;
+
         this.width_px = dim[0];
         this.height_px = dim[1];
         var aspect = this.width_px / this.height_px;
@@ -984,7 +986,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 	    var M = new THREE.Matrix4();
 	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
 	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-	    M.multiply(new THREE.Matrix4().makeTranslation(-vextent, -merc_min, 0));
+	    M.multiply(new THREE.Matrix4().makeTranslation(-.5 * vextent - lon_center, -merc_min, 0));
         this.setWorldMatrix(M);
     }
     
@@ -1001,10 +1003,12 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.currentObjs = [];
         this.layer = new TextureLayer(this);
 
-        this.initViewport(getViewportDims(window), -extentS, extentN, 0);
+        this.initViewport(getViewportDims(window), -extentS, extentN);
         var merc = this;
         $(window).resize(function() {
-            merc.initViewport(getViewportDims(window), -extentS, extentN, 0);
+            var p0 = merc.xyToWorld(0, .5 * merc.height_px);
+            var p1 = merc.xyToWorld(merc.width_px, 0);
+            merc.initViewport(getViewportDims(window), p0.y, p1.y, p0.x);
         });
         $container.append(this.renderer.domElement);
 
@@ -1200,8 +1204,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     
     this.makeQuad = function(geo_mode, max) {
         var grid = new GridGeometry(max || 1);
-        grid.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1000);
         var plane = new THREE.Mesh(grid, this.layer._materials['image'][geo_mode]);
+        plane.frustumCulled = false;
         plane.geo_mode = geo_mode;
         plane.update = function(x0, x1, y0, y1, tex) {
             grid.setQuad(0, x0, x1, y0, y1, tex);
