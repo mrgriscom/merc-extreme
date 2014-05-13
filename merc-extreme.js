@@ -42,6 +42,7 @@ var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to c
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
+var MAX_MERC = 2.5;
 
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var SCREEN_WIDTH_SOFTMAX = 1920;
@@ -83,14 +84,13 @@ var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
 var MAX_TILES_AT_ONCE = tiles_per(SCREEN_WIDTH) * tiles_per(SCREEN_HEIGHT) * 4./3.;
 var NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
 
-
 function init() {
     vertex_shader = loadShader('vertex');
     fragment_shader = loadShader('fragment');
     
     var merc = new MercatorRenderer($('#container'), function(window) {
         return [window.innerWidth, window.innerHeight - $('#titlebar').outerHeight()];
-    }, 2.5, 0.5);
+    }, MAX_MERC, 0.5);
     MERC = merc;
 
     $(window).keypress(function(e) {
@@ -635,6 +635,8 @@ function TextureLayer(context) {
             for (var z = 0; z <= MAX_ZOOM; z++) {
                 this.set_offset(z, true, 0, 0);
                 this.set_offset(z, false, 0, 0);
+                this.clear_tile_ix(z, true);
+                this.clear_tile_ix(z, false);
             }
             this.force_ix_rebuild = false;
         }
@@ -1032,11 +1034,40 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.M = _.reduceRight(transformations, function(memo, e) {
             return memo.multiply(e);
         }, new THREE.Matrix4());
-
         this.toWorld = new THREE.Matrix4().getInverse(this.M);
+
         this.group.matrix = this.M;
         this.group.matrixAutoUpdate = false;
         this.group.matrixWorldNeedsUpdate = true;
+
+        // todo: set these to class vars -- i reference them everywhere
+        var p0 = this.xyToWorld(0, .5 * this.height_px);
+        var p1 = this.xyToWorld(this.width_px, 0);
+        this.scale_px = this.width_px / (p1.y - p0.y);
+
+        // constrain to limits
+        var outofbounds = function(y) {
+            var EPSILON = 1e-6;
+            return y > MAX_MERC + EPSILON;
+        }
+        var corrections = [];
+        if (outofbounds(p1.y) && outofbounds(-p0.y)) {
+            var k = (p1.y - p0.y) / (2. * MAX_MERC);
+            corrections.push(new THREE.Matrix4().makeScale(k, k, 1));
+        } else if (outofbounds(p1.y)) {
+            corrections.push(new THREE.Matrix4().makeTranslation(-this.scale_px * (MAX_MERC - p1.y), 0, 0));
+        } else if (outofbounds(-p0.y)) {
+            corrections.push(new THREE.Matrix4().makeTranslation(-this.scale_px * (-MAX_MERC - p0.y), 0, 0));
+        } else if (Math.floor(p0.x) != 0) {
+            // keep map center in the [0,1) coordinate range, both for sanity and preserving precision
+            corrections.push(new THREE.Matrix4().makeTranslation(0, -this.scale_px * Math.floor(p0.x), 0));
+        }
+        // not sure that epsilon fuzziness above is enough to prevent infinite recursion
+        _setWorldFailsafe = (window._setWorldFailsafe || 0) + 1;
+        if (corrections.length && _setWorldFailsafe < 5) {
+            this.setWorldMatrix(corrections, true);
+        }
+        _setWorldFailsafe--;
     }
 
     this.xyToWorld = function(x, y) {
@@ -1048,12 +1079,17 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
 
     this.zoom = function(x, y, z) {
+        // prevent zooming out beyond max extent -- setWorldMatrix would handle this but
+        // it leads to an unsightly pan instead
+        var p0 = this.xyToWorld(0, this.height_px);
+        var p1 = this.xyToWorld(this.width_px, 0);
+        z = Math.max(z, (p1.y - p0.y) / (2. * MAX_MERC));
+
         this.setWorldMatrix([
             new THREE.Matrix4().makeTranslation(-x, -y, 0),
             new THREE.Matrix4().makeScale(z, z, 1),
             new THREE.Matrix4().makeTranslation(x, y, 0),
         ], true);
-        this.scale_px *= z;
     }
 
     this.warp = function(pos, drag_context) {
