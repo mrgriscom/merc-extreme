@@ -37,7 +37,6 @@ var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image t
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
 var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
-var ZOOM_BLEND = .0;               // range over which to fade between adjacent zoom levels
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
@@ -114,6 +113,9 @@ function init() {
         $l.append($k);
     });
     merc.setLayer(tile_specs[0]);
+
+    $('#blend').slider({range: 'max', max: 100.*MAX_ZOOM_BLEND});
+    $('#overzoom').slider({range: 'max', max: 50});
 
     merc.start();
 
@@ -1381,8 +1383,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
     this.setUniforms = function() {
         this.layer.uniforms.scale.value = this.scale_px;
-        this.layer.uniforms.bias.value = 0.;
-        this.layer.uniforms.zoom_blend.value = ZOOM_BLEND;
+        this.layer.uniforms.bias.value = .01 * $('#overzoom').slider('value');
+        this.layer.uniforms.zoom_blend.value = .01 * $('#blend').slider('value');
 
         var p0 = this.xyToWorld(0, 0);
         var p1 = this.xyToWorld(0, this.height_px);
