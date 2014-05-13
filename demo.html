@@ -10,6 +10,7 @@
 <script src="lib/jquery-latest.min.js"></script>
 <script src="lib/jquery-ui-1.10.4.custom.min.js"></script>
 <script src="lib/underscore.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
 <script src="merc-extreme.js"></script>
 <script src="geodesy.js"></script>
 <script src="coords-db.js"></script>
@@ -55,13 +56,16 @@ body {
 <div id="container" style="position: relative;">
 
 <div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 10px; top: 10px;">
+  <div data-bind="foreach: layers">
+    <div data-bind="text: name, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></div>
+  </div>
 <div id="settings">
   <div id="blend"></div>
   <div id="overzoom"></div>
 </div>
 </div>
 
-<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0;"></span></div>
+<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0;" data-bind="html: curAttr"></span></div>
 <div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
   POLE<br><span class="swap">&harr;</span><span class="data"></span>
 </div>

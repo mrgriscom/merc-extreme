@@ -101,9 +101,9 @@ void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_i
         // note: just out-of-bounds pixels will only ever blend with the z0 texture, regardless
         // of the appropriate zoom level
         val = texture2D(tx_z0, vec2(abs_map.s, .5 * (abs_map.t + .5)));
-    } else if (atlas_oob) {
-        val = vec4(1, 0, 0, 1);
-    } else if (tex_id >= 0) {
+    //} else if (atlas_oob) {
+    //val = vec4(1, 0, 0, 1);
+    } else if (tex_id >= 0 && !atlas_oob) {
       <% for (var i = 0; i < num_atlas_pages; i++) { %>
         if (tex_id == <%= i %>) {
             val = texture2D(tx_atlas[<%= i %>], atlas_p);

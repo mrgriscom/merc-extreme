@@ -103,19 +103,12 @@ function init() {
         }
     });
     
-    var $l = $('#layers');
-    _.each(tile_specs, function(e) {
-        var $k = $('<div />');
-        $k.text(e.name);
-        $k.click(function() {
-            merc.setLayer(e);
-        });
-        $l.append($k);
-    });
-    merc.setLayer(tile_specs[0]);
-
     $('#blend').slider({range: 'max', max: 100.*MAX_ZOOM_BLEND});
     $('#overzoom').slider({range: 'max', max: 50});
+
+    var koRoot = new EMViewModel(merc);
+    koRoot.load(tile_specs);
+    ko.applyBindings(koRoot);
 
     var pole = COORDS.home;
     //var pole = COORDS.home_ct;
@@ -542,7 +535,6 @@ function TextureLayer(context) {
             }
         }
 
-        type.tilefunc = compile_tile_spec(type.url);
         this.curlayer = type;
 
         // trigger immediate reload
@@ -1027,7 +1019,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
     this.setLayer = function(layer) {
         this.layer.setLayer(layer);
-        $('#attribution span').html(formatAttr(layer.attr));
     }
 
     this.setWorldMatrix = function(transformations, update) {
@@ -1304,7 +1295,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             }
             $('#mouseinfo #dist').text(format_with_unit(dist, scale, unit));
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
-            $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0');
+            var bearing_cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][mod(Math.floor(bearing / 45. + .5), 8)];
+            $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0 (' + bearing_cardinal + ')');
             $('#orient span').css('transform', 'rotate(' + (270 - orient) + 'deg)');
             var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
@@ -1509,7 +1501,67 @@ function load_image_bing_hack(layer, onload) {
     }
 }
 
-//=== TILE SERVICES ===
+function EMViewModel(merc) {
+    this.layers = ko.observableArray();
+    this.activeLayer = ko.observable();
+
+    this.load = function(layers) {
+        this.layers(_.map(layers, function(e) { return new LayerModel(e, merc); }));
+        this.selectLayer(this.layers()[0]);
+    }
+
+    var that = this;
+    that.selectLayer = function(layer) {
+        if (that.activeLayer()) {
+            that.activeLayer().active(false);
+        };
+        layer.activate();
+        that.activeLayer(layer);
+    }
+
+    this.curAttr = ko.computed(function() {
+        return this.activeLayer() ? this.activeLayer().attribution() : '';
+    }, this);
+}
+
+function LayerModel(data, merc) {
+    this.id = Math.floor(Math.random()*Math.pow(2, 32)).toString(16);
+    this.url = data.url;
+    this.tilefunc = compile_tile_spec(data.url);
+    this.attr = data.attr;
+    this.max_depth = data.max_depth;
+    this.no_z0 = data.no_z0;
+
+    this.name = ko.observable(data.name);
+    this.custom = ko.observable(data.custom);
+    this.active = ko.observable(false);
+    this.attribution = ko.computed(function() {
+        return '&copy; ' + _.map(this.attr, function(e) {
+            if (typeof e == 'string') {
+                return e;
+            } else {
+                return '<a target="_blank" href="' + e[1] + '">' + e[0] + '</a>';
+            }
+        }).join(', ');
+    }, this);
+
+    this.activate = function() {
+        if (this.active()) {
+            return;
+        }
+        this.active(true);
+        merc.setLayer(this.to_obj());
+    }
+
+    this.to_obj = function() {
+        return {
+            id: this.id,
+            tilefunc: this.tilefunc,
+            max_depth: this.max_depth,
+            no_z0: this.no_z0,
+        };
+    }
+}
 
 var tile_specs = [
     {
@@ -1522,7 +1574,6 @@ var tile_specs = [
         id: 'gsat',
         name: 'Google Satellite',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        //url: 'https://khms{s:0-3}.google.com/kh/v=149&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     {
@@ -1591,15 +1642,7 @@ var tile_specs = [
     },
 ];
 
-function formatAttr(attr) {
-    return '&copy; ' + _.map(attr, function(e) {
-        if (typeof e == 'string') {
-            return e;
-        } else {
-            return '<a target="_blank" href="' + e[1] + '">' + e[0] + '</a>';
-        }
-    }).join(', ');
-}
+
 
 //=== UTIL ===
 
@@ -1641,7 +1684,6 @@ function configureShader(template, context) {
     return template(context);
 }
 
-// huh?
 window.requestAnimFrame = (function(callback){
     return window.requestAnimationFrame ||
            window.webkitRequestAnimationFrame ||
