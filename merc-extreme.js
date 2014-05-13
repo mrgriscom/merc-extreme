@@ -107,7 +107,7 @@ function init() {
     $('#overzoom').slider({range: 'max', max: 50});
 
     var koRoot = new EMViewModel(merc);
-    koRoot.load(tile_specs);
+    koRoot.load(tile_specs, landmarks);
     ko.applyBindings(koRoot);
 
     var pole = COORDS.home;
@@ -1508,13 +1508,17 @@ function EMViewModel(merc) {
     this.activeLayer = ko.observable();
     this.pendingLayer = ko.observable();
 
-    this.load = function(layers) {
+    this.places = ko.observableArray();
+
+    this.load = function(layers, places) {
         var custom_layers = JSON.parse(localStorage.custom_layers || '[]');
         _.each(custom_layers, function(e) { e.custom = true; });
         layers = layers.concat(custom_layers);
 
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
         this.selectLayer(this.layers()[0]);
+
+        this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
     }
 
     that.selectLayer = function(layer) {
@@ -1639,6 +1643,7 @@ function LayerModel(data, merc, root) {
     this.to_obj = function() {
         return {
             id: this.id,
+            url: this.url(),
             tilefunc: this.tilefunc(),
             max_depth: this.max_depth(),
             no_z0: this.no_z0,
@@ -1670,6 +1675,17 @@ function LayerModel(data, merc, root) {
             oncommit: 'save',
             commitCaption: 'save',
         });
+    }
+}
+
+function PlaceModel(data, merc) {
+    this.name = ko.observable(data.name);
+    this.pos = data.pos;
+    // lon_offset
+    // preferred_layer?
+
+    this.select = function() {
+        merc.poleAt(this.pos[0], this.pos[1]);
     }
 }
 
@@ -1752,7 +1768,26 @@ var tile_specs = [
     },
 ];
 
-
+landmarks = [
+    {name: 'Arc de Triomphe', pos: [48.87379, 2.29504]},
+    {name: 'St. Peter\'s Basilica', pos: [41.90224, 12.45725]},
+    {name: 'Mecca', pos: [21.42251, 39.82616]},
+    {name: 'US Capitol', pos: [38.88980, -77.00919]},
+    {name: 'Tip of Cape Cod', pos: [42.03471, -70.17058]},
+    {name: 'Vulcan Point', pos: [14.00926, 120.99610]},
+    {name: 'St. Helena', pos: [-15.93788, -5.71189]},
+    {name: 'Spain/NZ Antipode', pos: [43.56060, -7.41384]},
+    {name: 'Cape Town', pos: [-33.90768, 18.39219]},
+    {name: 'Dubai', pos: [25.11739, 55.13432]},
+    {name: 'Atlanta', pos: [33.74503, -84.39005]},
+    {name: 'Boston', pos: [42.35735, -71.05961]},
+    {name: '"View of the World from 9th Avenue"', pos: [40.76847, -73.98493]},
+    {name: 'Bondi Beach', pos: [-33.89123, 151.27748]},
+    {name: 'Great Bend of Brahmaputra', pos: [29.56799, 95.39003]},
+    {name: 'North Pole', pos: [90, 0]},
+    {name: 'South Pole', pos: [-90, 0]},
+    //{name: '', pos: [, ]},
+];
 
 //=== UTIL ===
 

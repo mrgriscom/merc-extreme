@@ -84,8 +84,15 @@ body {
   <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
   <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
   </div>
+<hr>
+  <div data-bind="foreach: places">
+    <div data-bind="text: name, click: select"></div>
+  </div>
+<hr>
 <div id="settings">
+  Zoom level blend
   <div id="blend"></div>
+  Overzoom
   <div id="overzoom"></div>
 </div>
 </div>
