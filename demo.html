@@ -55,9 +55,27 @@ body {
 
 <div id="container" style="position: relative;">
 
+<script type="text/html" id="layer-edit">
+  <div data-bind="with: layer">
+    url template <input data-bind="value: url"></input><br>
+    name (opt) <input data-bind="value: name"></input><br>
+    max depth (opt) <input data-bind="value: max_depth"></input><br>
+  </div>
+  <button data-bind="click: commit, text: commitCaption"></button>
+  <button data-bind="click: cancel">cancel</button>
+</script>
+
 <div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 10px; top: 10px;">
   <div data-bind="foreach: layers">
-    <div data-bind="text: name, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></div>
+    <div>
+      <span data-bind="text: displayName, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></span>
+      <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
+      <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
+      <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
+    </div>
+  </div>
+  <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
+  <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
   </div>
 <div id="settings">
   <div id="blend"></div>

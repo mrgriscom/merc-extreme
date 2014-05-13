@@ -1504,6 +1504,7 @@ function load_image_bing_hack(layer, onload) {
 function EMViewModel(merc) {
     this.layers = ko.observableArray();
     this.activeLayer = ko.observable();
+    this.pendingLayer = ko.observable();
 
     this.load = function(layers) {
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc); }));
@@ -1519,22 +1520,66 @@ function EMViewModel(merc) {
         that.activeLayer(layer);
     }
 
+    that.removeLayer = function(layer) {
+        that.layers.remove(layer);
+    }
+
     this.curAttr = ko.computed(function() {
         return this.activeLayer() ? this.activeLayer().attribution() : '';
     }, this);
+
+    this.newPendingLayer = function() {
+        this.pendingLayer(new LayerModel({custom: true}, merc));
+    }
+
+    this.commitPending = function(layer) {
+        if (layer.url()) {
+            this.layers.push(layer);
+            this.selectLayer(layer);
+        }
+    }
+
+    this.editContext = function() {
+        return new LayerEditContextModel(that, {
+            field: 'pendingLayer',
+            oncommit: 'commitPending',
+            commitCaption: 'add',
+        });
+    }
+}
+
+function LayerEditContextModel(base, data) {
+    var ec = this;
+    this.layer = ko.observable(base[data.field]());
+    this.commit = function() {
+        base[data.oncommit](ec.layer());
+        this.cancel();
+    }
+    this.commitCaption = ko.observable(data.commitCaption);
+    this.cancel = function() {
+        base[data.field](null);
+    }
 }
 
 function LayerModel(data, merc) {
-    this.id = Math.floor(Math.random()*Math.pow(2, 32)).toString(16);
-    this.url = data.url;
-    this.tilefunc = compile_tile_spec(data.url);
+    this.setID = function() {
+        this.id = Math.floor(Math.random()*Math.pow(2, 32)).toString(16);
+    }
+    this.setID();
     this.attr = data.attr;
-    this.max_depth = data.max_depth;
     this.no_z0 = data.no_z0;
 
+    this.url = ko.observable(data.url);
     this.name = ko.observable(data.name);
+    this.max_depth = ko.observable(data.max_depth);
     this.custom = ko.observable(data.custom);
     this.active = ko.observable(false);
+
+    this.pending = ko.observable(false);
+
+    this.tilefunc = ko.computed(function() {
+        return compile_tile_spec(this.url());
+    }, this);
     this.attribution = ko.computed(function() {
         return '&copy; ' + _.map(this.attr, function(e) {
             if (typeof e == 'string') {
@@ -1544,9 +1589,12 @@ function LayerModel(data, merc) {
             }
         }).join(', ');
     }, this);
+    this.displayName = ko.computed(function() {
+        return this.name() || 'custom layer';
+    }, this);
 
-    this.activate = function() {
-        if (this.active()) {
+    this.activate = function(force) {
+        if (this.active() && !force) {
             return;
         }
         this.active(true);
@@ -1556,10 +1604,40 @@ function LayerModel(data, merc) {
     this.to_obj = function() {
         return {
             id: this.id,
-            tilefunc: this.tilefunc,
-            max_depth: this.max_depth,
+            tilefunc: this.tilefunc(),
+            max_depth: this.max_depth(),
             no_z0: this.no_z0,
         };
+    }
+
+    var FIELDS = ['name', 'url', 'max_depth'];
+    var that = this;
+    this.edit = function() {
+        this.pending(new LayerModel({}));
+        _.each(FIELDS, function(e) {
+            that.pending()[e](that[e]());
+        });
+    }
+
+    this.save = function() {
+        _.each(FIELDS, function(e) {
+            that[e](that.pending()[e]());
+        });
+
+        this.setID(); // invalidate any tiles loaded already
+        if (this.active()) {
+            this.activate(true);
+        }
+
+        // write to storage?
+    }
+
+    this.editContext = function() {
+        return new LayerEditContextModel(that, {
+            field: 'pending',
+            oncommit: 'save',
+            commitCaption: 'save',
+        });
     }
 }
 
