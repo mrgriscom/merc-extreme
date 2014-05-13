@@ -928,7 +928,6 @@ function TextureLayer(context) {
     };
 }
     
-
 function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.renderer = new THREE.WebGLRenderer();
     this.glContext = this.renderer.getContext();
@@ -982,13 +981,11 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
         this.layer.onViewportSet();
 
-        this.M = null;
-        this.group.matrix = new THREE.Matrix4();
-	    var M = new THREE.Matrix4();
-	    M.multiply(new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1));
-	    M.multiply(new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI));
-	    M.multiply(new THREE.Matrix4().makeTranslation(-.5 * vextent - lon_center, -merc_min, 0));
-        this.setWorldMatrix(M);
+        this.setWorldMatrix([
+	        new THREE.Matrix4().makeTranslation(-.5 * vextent - lon_center, -merc_min, 0),
+	        new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI),
+	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
+        ]);
     }
     
     this.init = function() {
@@ -1028,15 +1025,18 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         $('#attribution span').html(formatAttr(layer.attr));
     }
 
-    this.setWorldMatrix = function(M) {
-        // this currently UPDATES the matrix
-        this.M = this.M || new THREE.Matrix4();
-        this.group.applyMatrix(M);
+    this.setWorldMatrix = function(transformations, update) {
+        if (update) {
+            transformations.splice(0, 0, this.M);
+        }
+        this.M = _.reduceRight(transformations, function(memo, e) {
+            return memo.multiply(e);
+        }, new THREE.Matrix4());
 
-        // this is a mess
-        M.multiply(this.M);
-        this.M = M;
-	    this.toWorld = new THREE.Matrix4().getInverse(this.M);
+        this.toWorld = new THREE.Matrix4().getInverse(this.M);
+        this.group.matrix = this.M;
+        this.group.matrixAutoUpdate = false;
+        this.group.matrixWorldNeedsUpdate = true;
     }
 
     this.xyToWorld = function(x, y) {
@@ -1048,12 +1048,11 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
 
     this.zoom = function(x, y, z) {
-        y = $(this.renderer.domElement).height() - y - 1; // ugly
-	    var M = new THREE.Matrix4();
-        M.multiply(new THREE.Matrix4().makeTranslation(x, y, 0));
-        M.multiply(new THREE.Matrix4().makeScale(z, z, 1));
-        M.multiply(new THREE.Matrix4().makeTranslation(-x, -y, 0));
-        this.setWorldMatrix(M);
+        this.setWorldMatrix([
+            new THREE.Matrix4().makeTranslation(-x, -y, 0),
+            new THREE.Matrix4().makeScale(z, z, 1),
+            new THREE.Matrix4().makeTranslation(x, y, 0),
+        ], true);
         this.scale_px *= z;
     }
 
@@ -1064,9 +1063,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
 
     this.pan = function(pos, drag_context) {
-        delta = [pos.x - drag_context.last_px.x, pos.y - drag_context.last_px.y];
-        var M = new THREE.Matrix4().makeTranslation(delta[0], delta[1], 0);
-        this.setWorldMatrix(M);
+        var delta = [pos.x - drag_context.last_px.x, pos.y - drag_context.last_px.y];
+        this.setWorldMatrix([new THREE.Matrix4().makeTranslation(delta[0], delta[1], 0)], true);
     }
 
     this.drag_mode = this.warp;
@@ -1077,7 +1075,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
             var ref = $('#container')[0];
-            return {x: e.pageX - ref.offsetLeft, y: ref.offsetHeight - (e.pageY - ref.offsetTop)};
+            return {x: e.pageX - ref.offsetLeft, y: ref.offsetHeight - 1 - (e.pageY - ref.offsetTop)};
         }
         
 	    var renderer = this;
@@ -1120,11 +1118,11 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         
         $(this.renderer.domElement).bind('mousewheel', function(e) {
             e = e.originalEvent;
-            var pos = [e.offsetX, e.offsetY];
+            var pos = mouse_pos(e);
             var delta = e.wheelDelta;
             
             var ZOOM_QUANTUM = Math.pow(1.05, 1/120.);
-            renderer.zoom(pos[0], pos[1], Math.pow(ZOOM_QUANTUM, delta));
+            renderer.zoom(pos.x, pos.y, Math.pow(ZOOM_QUANTUM, delta));
             return false;
         });
     }
