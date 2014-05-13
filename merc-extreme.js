@@ -117,6 +117,14 @@ function init() {
     $('#blend').slider({range: 'max', max: 100.*MAX_ZOOM_BLEND});
     $('#overzoom').slider({range: 'max', max: 50});
 
+    var pole = COORDS.home;
+    //var pole = COORDS.home_ct;
+    //var pole = COORDS.home_za;
+    //var pole = [43.56060, -7.41384];
+    //var pole = [-16.15928, 180];
+    //var pole = [90, 0];
+    merc.poleAt(pole[0], pole[1]);
+
     merc.start();
 
     $('#companion').click(function() {
@@ -1015,13 +1023,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         $container.append(this.renderer.domElement);
 
         this.init_interactivity();
-        
-        this.curPole = COORDS.home;
-        //this.curPole = COORDS.home_ct;
-        //this.curPole = COORDS.home_za;
-        //this.curPole = [43.56060, -7.41384];
-        this.curPole = [-16.15928, 180];
-        //this.curPole = [90, 0];
     }
 
     this.setLayer = function(layer) {
@@ -1406,17 +1407,18 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     
     this.setRefPoint = function() {
         var renderer = this;
+        var snapToSinglePrecision = function(k) {
+            return Math.round(k * Math.pow(2, 23)) * Math.pow(2, -23);
+        }
         var refPoint = function(lo) {
             var merc = renderer.xyToWorld(lo ? 0 : renderer.width_px, 0.5 * renderer.height_px);
             var merc_ll = xy_to_ll(merc.x, merc.y);
             var ll = translate_pole(merc_ll, renderer.pole);
             var xy = ll_to_xy(ll[0], ll[1]);
-            // fix nasty bug on IDL where due to difference of precision in js and glsl,
-            // they end up using different ref tiles
-            if (xy.x > 1 - Math.pow(2, -23)) {
-                xy.x = 0;
-            }
-            return xy;
+            // the shader only has single precision -- ensure we use the exact same value there
+            // and in coverage worker, or else we get off-by-one errors in the tile index when
+            // pole lon exactly on a tile boundary
+            return {x: snapToSinglePrecision(xy.x), y: snapToSinglePrecision(xy.y)};
         }
 
         this.ref_t = refPoint(false);

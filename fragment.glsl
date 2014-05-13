@@ -235,7 +235,7 @@ void main() {
     float yfringe_enc;
 
     if (out_of_bounds) {
-        z_enc = 31.;
+        z_enc = 31.; // 2^(# zoom bits) - 1
     } else {
       <% if (geo_mode == 'sphere') { %>
         tile = floor(abs_map * exp2(z));

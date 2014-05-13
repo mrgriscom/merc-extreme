@@ -15,11 +15,12 @@ self.addEventListener('message', function(e) {
 
 function update_pole(poles) {
     self.pole_tiles = {};
-    for (var z = 0; z <= MAX_ZOOM; z++) {
-        self.pole_tiles[zenc(false, z)] = {x: Math.floor(Math.pow(2., z) * poles.ref.x), y: Math.floor(Math.pow(2., z) * poles.ref.y)};
-    }
-    for (var z = 0; z <= MAX_ZOOM; z++) {
-        self.pole_tiles[zenc(true, z)] = {x: Math.floor(Math.pow(2., z) * poles.antiref.x), y: Math.floor(Math.pow(2., z) * poles.antiref.y)};
+    for (var i = 0; i < 2; i++) {
+        var anti = (i > 0);
+        var ref = (anti ? poles.antiref : poles.ref);
+        for (var z = 0; z <= MAX_ZOOM; z++) {
+            self.pole_tiles[zenc(anti, z)] = {x: Math.floor(Math.pow(2., z) * ref.x), y: Math.floor(Math.pow(2., z) * ref.y)};
+        }
     }
 }
 
