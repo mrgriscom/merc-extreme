@@ -16,6 +16,7 @@ uniform vec2 anti_ref_t;
 uniform float scale;  // pixels per earth circumference (undistorted)
 uniform float bias;   // overzoom is capped at 2^bias
 uniform float zoom_blend;
+uniform float blinder_start;
 
 uniform vec2 hp_pole_tile;
 uniform vec2 hp_pole_offset;
@@ -327,7 +328,7 @@ void main() {
       result = mix(result, tint, .1);
     }
 
-    if (merc.x < 0. || merc.x > 1.) {
+    if (floor(merc.x - blinder_start) != 0.) {
       result = mix(result, vec4(0, 0, 0, 1), .3);
     }
 

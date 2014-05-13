@@ -898,6 +898,7 @@ function TextureLayer(context) {
                 tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
                 tx_z0: {type: 't', value: this.tex_z0.tx},
                 zoom_blend: {type: 'f', value: 0.},
+                blinder_start: {type: 'f', value: 0.},
 
                 hp_pole_tile: {type: 'v2', value: null},
                 hp_pole_offset: {type: 'v2', value: null},
@@ -1348,6 +1349,10 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.layer.uniforms.scale.value = this.scale_px;
         this.layer.uniforms.bias.value = 0.;
         this.layer.uniforms.zoom_blend.value = ZOOM_BLEND;
+
+        var p0 = this.xyToWorld(0, 0);
+        var p1 = this.xyToWorld(0, this.height_px);
+        this.layer.uniforms.blinder_start.value = .5 * (p0.x + p1.x - 1);
     }
     
     this.setPole = function(lat, lon) {
