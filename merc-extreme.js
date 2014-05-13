@@ -1020,7 +1020,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         //this.curPole = COORDS.home_ct;
         //this.curPole = COORDS.home_za;
         //this.curPole = [43.56060, -7.41384];
-        //this.curPole = [-16.159283,-180.];
+        this.curPole = [-16.15928, 180];
         //this.curPole = [90, 0];
     }
 
@@ -1410,9 +1410,15 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var merc = renderer.xyToWorld(lo ? 0 : renderer.width_px, 0.5 * renderer.height_px);
             var merc_ll = xy_to_ll(merc.x, merc.y);
             var ll = translate_pole(merc_ll, renderer.pole);
-            return ll_to_xy(ll[0], ll[1]);
+            var xy = ll_to_xy(ll[0], ll[1]);
+            // fix nasty bug on IDL where due to difference of precision in js and glsl,
+            // they end up using different ref tiles
+            if (xy.x > 1 - Math.pow(2, -23)) {
+                xy.x = 0;
+            }
+            return xy;
         }
-        
+
         this.ref_t = refPoint(false);
         this.layer.uniforms.ref_t.value = new THREE.Vector2(this.ref_t.x, this.ref_t.y);
         this.anti_ref_t = refPoint(true);
