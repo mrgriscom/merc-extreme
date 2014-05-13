@@ -60,6 +60,13 @@ body {
     url template <input data-bind="value: url"></input><br>
     name (opt) <input data-bind="value: name"></input><br>
     max depth (opt) <input data-bind="value: max_depth"></input><br>
+    <div id="tile_preview">
+      <div data-bind="if: preview_status() == 'loading'">loading...</div>
+      <div data-bind="if: preview_status() == 'error'">could not load tile</div>
+      <div data-bind="if: preview_status() == 'success'">
+        <img data-bind="attr: {src: preview_url}" />
+      </div>
+    </div>
   </div>
   <button data-bind="click: commit, text: commitCaption"></button>
   <button data-bind="click: cancel">cancel</button>

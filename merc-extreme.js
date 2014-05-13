@@ -1502,16 +1502,21 @@ function load_image_bing_hack(layer, onload) {
 }
 
 function EMViewModel(merc) {
+    var that = this;
+
     this.layers = ko.observableArray();
     this.activeLayer = ko.observable();
     this.pendingLayer = ko.observable();
 
     this.load = function(layers) {
-        this.layers(_.map(layers, function(e) { return new LayerModel(e, merc); }));
+        var custom_layers = JSON.parse(localStorage.custom_layers || '[]');
+        _.each(custom_layers, function(e) { e.custom = true; });
+        layers = layers.concat(custom_layers);
+
+        this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
         this.selectLayer(this.layers()[0]);
     }
 
-    var that = this;
     that.selectLayer = function(layer) {
         if (that.activeLayer()) {
             that.activeLayer().active(false);
@@ -1522,6 +1527,7 @@ function EMViewModel(merc) {
 
     that.removeLayer = function(layer) {
         that.layers.remove(layer);
+        that.saveAll();
     }
 
     this.curAttr = ko.computed(function() {
@@ -1529,7 +1535,7 @@ function EMViewModel(merc) {
     }, this);
 
     this.newPendingLayer = function() {
-        this.pendingLayer(new LayerModel({custom: true}, merc));
+        this.pendingLayer(new LayerModel({custom: true}, merc, this));
     }
 
     this.commitPending = function(layer) {
@@ -1540,20 +1546,32 @@ function EMViewModel(merc) {
     }
 
     this.editContext = function() {
-        return new LayerEditContextModel(that, {
+        return new LayerEditContextModel(that, that, {
             field: 'pendingLayer',
             oncommit: 'commitPending',
             commitCaption: 'add',
         });
     }
+
+    this.saveAll = function() {
+        var layersToSave = _.map(_.filter(this.layers(), function(e) { return e.custom(); }), function(e) {
+            var o = {};
+            _.each(e.CUSTOM_FIELDS, function(f) {
+                o[f] = e[f]();
+            });
+            return o;
+        });
+        localStorage.custom_layers = JSON.stringify(layersToSave);
+    }
 }
 
-function LayerEditContextModel(base, data) {
+function LayerEditContextModel(root, base, data) {
     var ec = this;
     this.layer = ko.observable(base[data.field]());
     this.commit = function() {
         base[data.oncommit](ec.layer());
         this.cancel();
+        root.saveAll();
     }
     this.commitCaption = ko.observable(data.commitCaption);
     this.cancel = function() {
@@ -1561,7 +1579,9 @@ function LayerEditContextModel(base, data) {
     }
 }
 
-function LayerModel(data, merc) {
+function LayerModel(data, merc, root) {
+    var that = this;
+
     this.setID = function() {
         this.id = Math.floor(Math.random()*Math.pow(2, 32)).toString(16);
     }
@@ -1593,6 +1613,21 @@ function LayerModel(data, merc) {
         return this.name() || 'custom layer';
     }, this);
 
+    this.preview_url = ko.observable();
+    this.preview_status = ko.observable();
+    this.tilefunc.subscribe(function(val) {
+        that.preview_status('loading');
+        that.preview_url(val(0, 0, 0));
+        var img = new Image();
+        img.onload = function() {
+            that.preview_status('success');
+        };
+        img.onerror = function() {
+            that.preview_status('error');
+        };
+        img.src = that.preview_url();
+    });
+
     this.activate = function(force) {
         if (this.active() && !force) {
             return;
@@ -1610,30 +1645,27 @@ function LayerModel(data, merc) {
         };
     }
 
-    var FIELDS = ['name', 'url', 'max_depth'];
-    var that = this;
+    this.CUSTOM_FIELDS = ['name', 'url', 'max_depth'];
     this.edit = function() {
         this.pending(new LayerModel({}));
-        _.each(FIELDS, function(e) {
+        _.each(this.CUSTOM_FIELDS, function(e) {
             that.pending()[e](that[e]());
         });
     }
 
-    this.save = function() {
-        _.each(FIELDS, function(e) {
-            that[e](that.pending()[e]());
+    this.save = function(layer) {
+        _.each(this.CUSTOM_FIELDS, function(e) {
+            that[e](layer[e]());
         });
 
         this.setID(); // invalidate any tiles loaded already
         if (this.active()) {
             this.activate(true);
         }
-
-        // write to storage?
     }
 
     this.editContext = function() {
-        return new LayerEditContextModel(that, {
+        return new LayerEditContextModel(root, that, {
             field: 'pending',
             oncommit: 'save',
             commitCaption: 'save',
