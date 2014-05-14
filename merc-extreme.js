@@ -131,27 +131,38 @@ function init() {
         merc.swapPoles();
     });
 
-    geocoder = new GEOCODERS.google({
-        onresult: function(lat, lon) {
-            merc.poleAt(lat, lon);
-        },
-        onnoresult: function() {
-            alert('no results');
-        },
-    });
+    geocoder = new GEOCODERS.google();
     $('#search').click(function() {
-        var query = $('#locsearch').val();
-        geocoder.geocode(query);
+        var callbacks = {
+            onresult: function(lat, lon) {
+                merc.poleAt(lat, lon);
+            },
+            onnoresult: function() {
+                alert('no results');
+            },
+        };
+
+        var query = $('#locsearch').val().trim();
+        
+        var FLOAT_PATTERN = '[+-]?(?:\\d*\\.\\d+|\\d+\\.?)';
+        var LL_PATTERN = '(' + FLOAT_PATTERN + ')(?: |,|, )(' + FLOAT_PATTERN + ')';
+        var matches = query.match(new RegExp(LL_PATTERN));
+        if (matches) {
+            callbacks.onresult(+matches[1], +matches[2]);
+            return;
+        }
+
+        geocoder.geocode(query, callbacks);
     });
 }
 
-function GoogleGeocoder(callbacks) {
+function GoogleGeocoder() {
     var that = this;
     google.maps.event.addDomListener(window, 'load', function() {
         that.geocoder = new google.maps.Geocoder();
     });
 
-    this.geocode = function(query) {
+    this.geocode = function(query, callbacks) {
         // caution: geocoder is loaded async
         this.geocoder.geocode({address: query}, function(results, status) {
             if (status == google.maps.GeocoderStatus.OK) {
@@ -164,24 +175,34 @@ function GoogleGeocoder(callbacks) {
     }
 }
 
-function BingGeocoder(callbacks) {
-    window.bingRecv = function(data) {
-        // todo handle no results
-        var pos = data.resourceSets[0].resources[0].point.coordinates;
-        callbacks.onresult(pos[0], pos[1]);
-    };
+function BingGeocoder() {
+    this.geocode = function(query, callbacks) {
+        window.bingRecv = function(data) {
+            // todo handle no results
+            var entry = data.resourceSets[0].resources[0];
+            if (entry == null) {
+                callbacks.onnoresult();
+            } else {
+                var pos = entry.point.coordinates;
+                callbacks.onresult(pos[0], pos[1]);
+            }
+        };
 
-    this.geocode = function(query) {
         $.getJSON('http://dev.virtualearth.net/REST/v1/Locations/' + encodeURIComponent(query) + '?callback=?&jsonp=bingRecv&key=' + API_KEYS.bing);
     }
 }
 
-function MapquestGeocoder(callbacks) {
-    this.geocode = function(query) {
+function MapquestGeocoder() {
+    this.geocode = function(query, callbacks) {
         $.getJSON('http://www.mapquestapi.com/geocoding/v1/address?key=' + API_KEYS.mapquest + '&location=' + encodeURIComponent(query), {}, function(results) {
             // todo handle no results
-            var pos = results.results[0].locations[0].latLng;
-            callbacks.onresult(pos.lat, pos.lng);
+            var entry = results.results[0].locations[0];
+            if (entry.geocodeQualityCode.substring(0, 2) == 'A1') {
+                callbacks.onnoresult();
+            } else {
+                var pos = entry.latLng;
+                callbacks.onresult(pos.lat, pos.lng);
+            }
         });
     }
 }
@@ -1837,6 +1858,7 @@ landmarks = [
     {name: '"View of the World from 9th Avenue"', pos: [40.76847, -73.98493]},
     {name: 'Bondi Beach', pos: [-33.89123, 151.27748]},
     {name: 'Ft. Jefferson', pos: [24.63025, -82.87126]},
+    {name: 'UTA Flight 772 Memorial', pos: [16.86491, 11.95374]},
     {name: 'Great Bend of Brahmaputra', pos: [29.56799, 95.39003]},
     {name: 'North Pole', pos: [90, 0]},
     {name: 'South Pole', pos: [-90, 0]},
