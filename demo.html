@@ -96,6 +96,7 @@ body {
   <div id="blend"></div>
   Overzoom
   <div id="overzoom"></div>
+  Units: <span data-bind="foreach: units"> <span data-bind="text: $data, click: $parent.setUnit, style: { color: $parent.active_unit() == $data ? '#400' : 'black' }"></span></span>
 </div>
 </div>
 

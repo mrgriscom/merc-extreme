@@ -96,10 +96,6 @@ function init() {
         if (e.keyCode == 32) {
             merc.toggle_drag_mode();
             return false;
-        } else if (e.keyCode == 113) {
-            launchDebug();
-        } else if (e.keyCode == 117) {
-            METRIC = !METRIC;
         }
     });
     
@@ -1591,6 +1587,12 @@ function EMViewModel(merc) {
 
     this.places = ko.observableArray();
 
+    this.units = ko.observableArray(['metric', 'imperial']);
+    this.active_unit = ko.observable();
+    this.active_unit.subscribe(function(val) {
+        METRIC = (val == 'metric');
+    });
+
     this.load = function(layers, places) {
         var custom_layers = JSON.parse(localStorage.custom_layers || '[]');
         _.each(custom_layers, function(e) { e.custom = true; });
@@ -1612,6 +1614,8 @@ function EMViewModel(merc) {
             });
         };
         this.places.splice(0, 0, current);
+
+        this.active_unit(this.units()[0]);
     }
 
     that.selectLayer = function(layer) {
@@ -1659,6 +1663,10 @@ function EMViewModel(merc) {
             return o;
         });
         localStorage.custom_layers = JSON.stringify(layersToSave);
+    }
+
+    this.setUnit = function(val) {
+        that.active_unit(val);
     }
 }
 
@@ -1854,28 +1862,77 @@ var tile_specs = [
     },
 ];
 
-landmarks = [
-    {name: 'Arc de Triomphe', pos: [48.87379, 2.29504]},
-    {name: 'St. Peter\'s Basilica', pos: [41.90224, 12.45725]},
-    {name: 'Mecca', pos: [21.42251, 39.82616]},
-    {name: 'US Capitol', pos: [38.88980, -77.00919]},
-    {name: 'Tip of Cape Cod', pos: [42.03471, -70.17058]},
-    {name: 'Vulcan Point', pos: [14.00926, 120.99610]},
-    {name: 'St. Helena', pos: [-15.93788, -5.71189]},
-    {name: 'Spain/New Zealand Antipode', pos: [43.56060, -7.41384]},
-    {name: 'Cape Town', pos: [-33.90768, 18.39219]},
-    {name: 'Dubai', pos: [25.11739, 55.13432]},
-    {name: 'Atlanta', pos: [33.74503, -84.39005]},
-    {name: 'Boston', pos: [42.35735, -71.05961]},
-    {name: '"View of the World from 9th Avenue"', pos: [40.76847, -73.98493]},
-    {name: 'Bondi Beach', pos: [-33.89123, 151.27748]},
-    {name: 'Ft. Jefferson', pos: [24.63025, -82.87126]},
-    {name: 'UTA Flight 772 Memorial', pos: [16.86491, 11.95374]},
-    {name: 'Great Bend of Brahmaputra', pos: [29.56799, 95.39003]},
-    {name: 'North Pole', pos: [90, 0]},
-    {name: 'South Pole', pos: [-90, 0]},
-    //{name: '', pos: [, ]},
-];
+landmarks = [{
+    name: 'Arc de Triomphe',
+    pos: [48.87379, 2.29504],
+    desc: 'the \'spokes\' of this central plaza become parallel lines'
+}, {
+    name: 'St. Peter\'s Basilica',
+    pos: [41.90224, 12.45725]
+}, {
+    name: 'Mecca',
+    pos: [21.42251, 39.82616]
+}, {
+    name: 'US Capitol',
+    pos: [38.88980, -77.00919]
+}, {
+    name: 'Tip of Cape Cod',
+    pos: [42.03471, -70.17058],
+    desc: '\'unrolling\' of a natural spiral formation'
+}, {
+    name: 'Vulcan Point',
+    pos: [14.00926, 120.99610],
+    desc: 'island inside a lake inside an island inside a lake inside an island'
+}, {
+    name: 'St. Helena',
+    pos: [-15.93788, -5.71189],
+    lon_center: '180diff',
+    desc: 'a remote island'
+}, {
+    name: 'Spain/New Zealand Antipode',
+    pos: [43.56060, -7.41384],
+    lon_center: '*chicago',
+    extent: 'max',
+    desc: 'two buildings exactly opposite the planet from each other'
+}, {
+    name: 'Cape Town',
+    pos: [-33.90768, 18.39219],
+    lon_center: null
+}, {
+    name: 'Dubai',
+    pos: [25.11739, 55.13432]
+}, {
+    name: 'Atlanta',
+    pos: [33.74503, -84.39005],
+    desc: 'a dendritic network of highways heading off to destinations near and far'
+}, {
+    name: 'Boston',
+    pos: [42.35735, -71.05961],
+    lon_center: '*airport'
+}, {
+    name: '"View of the World from 9th Avenue"',
+    pos: [40.76847, -73.98493],
+    lon_center: 'ctrwest',
+    desc: 'compare to <a href="">the original</a>'
+}, {
+    name: 'Bondi Beach',
+    pos: [-33.89123, 151.27748]
+}, {
+    name: 'Ft. Jefferson',
+    pos: [24.63025, -82.87126]
+}, {
+    name: 'UTA Flight 772 Memorial',
+    pos: [16.86491, 11.95374]
+}, {
+    name: 'Great Bend of Brahmaputra',
+    pos: [29.56799, 95.39003]
+}, {
+    name: 'North Pole',
+    pos: [90, 0]
+}, {
+    name: 'South Pole',
+    pos: [-90, 0]
+}];
 
 //=== UTIL ===
 
