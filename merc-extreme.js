@@ -1600,6 +1600,18 @@ function EMViewModel(merc) {
         this.selectLayer(this.layers()[0]);
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
+        var current = new PlaceModel({name: 'Current Location'}, merc);
+        current._select = current.select;
+        current.select = function() {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                current.pos = [position.coords.latitude,
+                               position.coords.longitude];
+                current._select();
+            }, function(err) {
+                alert('could not get location');
+            });
+        };
+        this.places.splice(0, 0, current);
     }
 
     that.selectLayer = function(layer) {
