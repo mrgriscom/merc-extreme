@@ -15,6 +15,8 @@
 <script src="geodesy.js"></script>
 <script src="coords-db.js"></script>
 
+<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+
 <script>
 
 $(document).ready(init);
@@ -41,8 +43,8 @@ body {
 <div id="titlebar" style="color: white; padding: 5px;">
   MERCATOR: EXTREME by Drew Roos
   <div style="float: right;">
-    <input></input>
-    <button>Go</button>
+    <input id="locsearch"></input>
+    <button id="search">Go</button>
     <div style="display: inline-block;">Layers</div>
     <div id="companion" style="display: inline-block;">Companion Map</div>
     <div style="display: inline-block;">Places</div>

@@ -130,7 +130,67 @@ function init() {
     $('.swap').click(function() {
         merc.swapPoles();
     });
+
+    geocoder = new GEOCODERS.google({
+        onresult: function(lat, lon) {
+            merc.poleAt(lat, lon);
+        },
+        onnoresult: function() {
+            alert('no results');
+        },
+    });
+    $('#search').click(function() {
+        var query = $('#locsearch').val();
+        geocoder.geocode(query);
+    });
 }
+
+function GoogleGeocoder(callbacks) {
+    var that = this;
+    google.maps.event.addDomListener(window, 'load', function() {
+        that.geocoder = new google.maps.Geocoder();
+    });
+
+    this.geocode = function(query) {
+        // caution: geocoder is loaded async
+        this.geocoder.geocode({address: query}, function(results, status) {
+            if (status == google.maps.GeocoderStatus.OK) {
+                var pos = results[0].geometry.location;
+                callbacks.onresult(pos.lat(), pos.lng());
+            } else {
+                callbacks.onnoresult();
+            }
+        });
+    }
+}
+
+function BingGeocoder(callbacks) {
+    window.bingRecv = function(data) {
+        // todo handle no results
+        var pos = data.resourceSets[0].resources[0].point.coordinates;
+        callbacks.onresult(pos[0], pos[1]);
+    };
+
+    this.geocode = function(query) {
+        $.getJSON('http://dev.virtualearth.net/REST/v1/Locations/' + encodeURIComponent(query) + '?callback=?&jsonp=bingRecv&key=' + API_KEYS.bing);
+    }
+}
+
+function MapquestGeocoder(callbacks) {
+    this.geocode = function(query) {
+        $.getJSON('http://www.mapquestapi.com/geocoding/v1/address?key=' + API_KEYS.mapquest + '&location=' + encodeURIComponent(query), {}, function(results) {
+            // todo handle no results
+            var pos = results.results[0].locations[0].latLng;
+            callbacks.onresult(pos.lat, pos.lng);
+        });
+    }
+}
+
+GEOCODERS = {
+    google: GoogleGeocoder,
+    bing: BingGeocoder,
+    mapquest: MapquestGeocoder,
+};
 
 function launchDebug() {
     DEBUG = window.open('debug.html', 'debug', 'width=800,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
@@ -1689,79 +1749,72 @@ function PlaceModel(data, merc) {
     }
 }
 
+API_KEYS = {
+    bing: 'AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+    mapquest: 'Fmjtd%7Cluur2dubll%2C20%3Do5-9arlqa', // caution: url-encoded
+}
+
 var tile_specs = [
     {
-        id: 'gmap',
         name: 'Google Map',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     {
-        id: 'gsat',
         name: 'Google Satellite',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     {
-        id: 'gterr',
         name: 'Google Terrain',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         max_depth: 15,
         attr: ['Google'],
     },
     {
-        id: 'gtrans',
         name: 'Google Transit',
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     {
-        id: 'mb',
         name: 'Mapbox Terrain',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        id: 'space',
         name: '"Space Station" by Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        id: 'zomb',
         name: '"Zombie World" by Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.fb8f9523/{z}/{x}/{y}.jpg',
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        id: 'pint',
         name: 'Pinterest theme by Stamen/Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
         attr: [['Pinterest'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        id: 'bingmap',
         name: 'Bing Map',
-        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=' + API_KEYS.bing,
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
     {
-        id: 'bingsat',
         name: 'Bing Satellite',
-        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/a{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/a{qt}?g=2432&n=z&key=' + API_KEYS.bing,
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
     {
-        id: 'bingsatl',
         name: 'Bing Hybrid',
-        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
+        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
     {
-        id: 'osm',
         name: 'OSM Mapnik',
         url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
@@ -1776,13 +1829,14 @@ landmarks = [
     {name: 'Tip of Cape Cod', pos: [42.03471, -70.17058]},
     {name: 'Vulcan Point', pos: [14.00926, 120.99610]},
     {name: 'St. Helena', pos: [-15.93788, -5.71189]},
-    {name: 'Spain/NZ Antipode', pos: [43.56060, -7.41384]},
+    {name: 'Spain/New Zealand Antipode', pos: [43.56060, -7.41384]},
     {name: 'Cape Town', pos: [-33.90768, 18.39219]},
     {name: 'Dubai', pos: [25.11739, 55.13432]},
     {name: 'Atlanta', pos: [33.74503, -84.39005]},
     {name: 'Boston', pos: [42.35735, -71.05961]},
     {name: '"View of the World from 9th Avenue"', pos: [40.76847, -73.98493]},
     {name: 'Bondi Beach', pos: [-33.89123, 151.27748]},
+    {name: 'Ft. Jefferson', pos: [24.63025, -82.87126]},
     {name: 'Great Bend of Brahmaputra', pos: [29.56799, 95.39003]},
     {name: 'North Pole', pos: [90, 0]},
     {name: 'South Pole', pos: [-90, 0]},
