@@ -1223,13 +1223,23 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         });
         
         
-        $(this.renderer.domElement).bind('mousewheel', function(e) {
+        $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
             e = e.originalEvent;
             var pos = mouse_pos(e);
-            var delta = e.wheelDelta;
+            // TODO think i need to normalize this more (mac uses a different scale?)
+            var delta = (e.wheelDelta ? e.wheelDelta / 120.
+                                      : e.deltaY / -3.);
             
-            var ZOOM_QUANTUM = Math.pow(1.05, 1/120.);
-            renderer.zoom(pos.x, pos.y, Math.pow(ZOOM_QUANTUM, delta));
+            renderer._numScrollEvents++;
+
+            // for now, don't provide any scroll momentum -- assume any momentum
+            // is already provided at the hardware level
+
+            // NOTE: firefox seems to fire off many more interim scroll events--
+            // would be less expensive to accumulate total scroll then apply one
+            // transform per frame rather than per event. but firefox already runs
+            // this like a dog anyway, so not going to worry
+            renderer.zoom(pos.x, pos.y, Math.pow(1.05, delta));
             return false;
         });
     }
@@ -1449,6 +1459,12 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
         DEBUG.postMessage({type: 'frame'}, '*');
         DEBUG.postMessage({type: 'text', data: debug}, '*');
+
+        // just out of curiosity
+        if (this._numScrollEvents > 3) {
+            console.log(this._numScrollEvents + ' since last frame');
+        }
+        this._numScrollEvents = 0;
     }
 
     this.setUniforms = function() {
