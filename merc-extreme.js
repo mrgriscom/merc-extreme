@@ -238,40 +238,23 @@ function xy_to_ll(x, y) {
 use versions in geodesy.js instead
 
 // g -> v
-function ll_to_xyz(lat, lon) {
-    var rlat = lat * Math.PI / 180.;
-    var rlon = lon * Math.PI / 180.;
-    return [Math.cos(rlon) * Math.cos(rlat), Math.sin(rlon) * Math.cos(rlat), Math.sin(rlat)];
-}
+function ll_to_xyz(lat, lon)
 
 // v -> g
-function xyz_to_ll(x, y, z) {
-    var rlon = Math.atan2(y, x);
-    var rlat = Math.atan2(z, Math.sqrt(x*x + y*y));
-    return [rlat * 180. / Math.PI, rlon * 180. / Math.PI];
-}
+function xyz_to_ll(x, y, z)
+
 */
 
 // gp -> gw
 function translate_pole(pos, pole) {
-    var xyz = ll_to_xyz(pos);
-    var pole_rlat = pole[0] * Math.PI / 180.;
-    
-    var latrot = pole_rlat - .5 * Math.PI;
-    var xyz_trans = new THREE.Vector3(xyz[0], xyz[1], xyz[2]).applyMatrix4(new THREE.Matrix4().makeRotationY(-latrot));
-    var pos_trans = xyz_to_ll([xyz_trans.x, xyz_trans.y, xyz_trans.z]);
-    pos_trans[1] = lon_norm(pos_trans[1] + pole[1]);
-    return pos_trans;
+    return line_plotter(pole, 180 - pos[1])((90 - pos[0]) / DEG_RAD * EARTH_MEAN_RAD);
 }
 
+// gw -> gp
 function inv_translate_pole(pos, pole) {
-    var pole_rlat = pole[0] * Math.PI / 180.;    
-    var latrot = pole_rlat - .5 * Math.PI;
- 
-    pos[1] -= pole[1];
-    var xyz = ll_to_xyz(pos);
-    var xyz_trans = new THREE.Vector3(xyz[0], xyz[1], xyz[2]).applyMatrix4(new THREE.Matrix4().makeRotationY(latrot));
-    return xyz_to_ll([xyz_trans.x, xyz_trans.y, xyz_trans.z]);
+    var dist = distance(pole, pos, true);
+    var heading = bearing(pole, pos);
+    return [90 - dist * DEG_RAD, 180 - heading];
 }
 
 // estimate the error from using a flat earth approximation (ie, plotting
@@ -1166,7 +1149,15 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.warp = function(pos, drag_context) {
         var merc = this.xyToWorld(pos.x, pos.y);
 	    var merc_ll = xy_to_ll(merc.x, merc.y);
-	    this.curPole = translate_pole([merc_ll[0], merc_ll[1] + 180.], drag_context.down_ll);
+
+        var orig_bearing = bearing(drag_context.down_ll, drag_context.down_pole);
+        var lon_diff = merc_ll[1] - drag_context.down_mll[1];
+        var new_bearing = orig_bearing - lon_diff;
+        this.curPole = line_plotter(drag_context.down_ll, new_bearing)((90 - merc_ll[0]) / DEG_RAD * EARTH_MEAN_RAD);
+
+        var residual = lon_norm((180 - bearing(this.curPole, drag_context.down_ll)) - merc_ll[1])
+        drag_context.down_mll[1] += residual;
+        this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, residual / 360 * this.scale_px, 0)], true);
     }
 
     this.pan = function(pos, drag_context) {
@@ -1200,6 +1191,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
             var merc = renderer.xyToWorld(drag_context.down_px.x, drag_context.down_px.y);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
+            drag_context.down_mll = merc_ll;
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
         });
         $(document).bind('mousemove', function(e) {
