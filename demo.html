@@ -74,7 +74,7 @@ body {
   <button data-bind="click: cancel">cancel</button>
 </script>
 
-<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 10px; top: 10px;">
+<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 20px; top: 10px;">
   <div data-bind="foreach: layers">
     <div>
       <span data-bind="text: displayName, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></span>
@@ -100,7 +100,7 @@ body {
 </div>
 </div>
 
-<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0;" data-bind="html: curAttr"></span></div>
+<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto;" data-bind="html: curAttr"></span></div>
 <div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
   POLE<br><span class="swap">&harr;</span><span class="data"></span>
 </div>

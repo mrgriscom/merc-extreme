@@ -1184,23 +1184,28 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var ref = $('#container')[0];
             return {x: e.pageX - ref.offsetLeft, y: ref.offsetHeight - 1 - (e.pageY - ref.offsetTop)};
         }
-        
+        this.inertia_context = new MouseTracker(.1);
+
 	    var renderer = this;
         var drag_context = null;
-        $('#container').bind('mousedown', function(e) {
+        $(this.renderer.domElement).bind('mousedown', function(e) {
+            //console.log('mousedown');
             drag_context = {
 		        'down_px': mouse_pos(e),
 		        'down_pole': renderer.curPole,
 	        };
-            
+            renderer.inertia_context.addSample([drag_context.down_px.x, drag_context.down_px.y]);
+            renderer.setAnimationContext(null);
+
             var merc = renderer.xyToWorld(drag_context.down_px.x, drag_context.down_px.y);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
         });
         $(document).bind('mousemove', function(e) {
-            // debug
 	        var pos = mouse_pos(e);
+            //console.log('mousemove', pos.x, pos.y);
             POS = pos;
+            renderer.inertia_context.addSample([pos.x, pos.y]);
 
             /*
             $("#mouseinfo").css({
@@ -1214,14 +1219,32 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             }
             drag_context.last_px = drag_context.last_px || drag_context.down_px;
             
-	        var pos = mouse_pos(e);
             renderer.drag_mode(pos, drag_context);
             drag_context.last_px = pos;
         });
         $(document).bind('mouseup', function(e) {
+            //console.log('mouseup');
+            if (drag_context == null) {
+                return;
+            }
+
+	        var pos = mouse_pos(e);
+            var pos = [pos.x, pos.y];
+            var velocity = renderer.inertia_context.getSpeed();
+            if (vlen(velocity) > 0) {
+                renderer.setAnimationContext(new InertialAnimationContext(pos, velocity, 3, drag_context, function(pos, drag_context) {
+                    renderer.drag_mode(pos, drag_context);
+                }));
+            }
             drag_context = null;
         });
-        
+        $(document).bind('dblclick', function(e) {
+            var pos = mouse_pos(e);
+            renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
+                renderer.zoom(x, y, z);
+            }));
+            console.log('dblclick');
+        });
         
         $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
             e = e.originalEvent;
@@ -1242,6 +1265,18 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             renderer.zoom(pos.x, pos.y, Math.pow(1.05, delta));
             return false;
         });
+    }
+
+    this.setAnimationContext = function(animctx) {
+        // if existing, apply up until current time
+        this.animation_context = animctx;
+    }
+
+    this.applyAnimationContext = function() {
+        if (this.animation_context) {
+            this.animation_context.apply();
+            // todo: remove completed animations
+        }
     }
     
     var _interp = function(a, b, k) {
@@ -1340,6 +1375,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
     this.render = function(timestamp) {
         var renderer = this;
+        
+        this.applyAnimationContext();
 
         if (!this.currentObjs.length) {
             this.qPolar = this.makeQuad('flat');
@@ -1699,6 +1736,83 @@ function LayerEditContextModel(root, base, data) {
         base[data.field](null);
     }
 }
+
+function MouseTracker(window) {
+    this.samples = [];
+    
+    this.purgeSamples = function(t) {
+        // remove all samples older than the first one outside the window
+        for (var i = 0; i < this.samples.length; i++) {
+            if (this.samples[i].t < t - window) {
+                break;
+            }
+        }
+        this.samples.splice(i + 1, this.samples.length - (i + 1));
+    }
+
+    this.addSample = function(p) {
+        var t = clock();
+        this.purgeSamples(t);
+        this.samples.splice(0, 0, {p: p, t: t});
+    }
+
+    this.getSpeed = function() {
+        var t = clock();
+        this.purgeSamples(t);
+        var earliest = this.samples[0];
+        var latest = this.samples.slice(-1)[0];
+        if (earliest == null || t - earliest.t >= window || earliest.t == latest.t) {
+            return 0;
+        } else if (t - latest.t < window) {
+            var start = latest.p;
+            var delta_t = t - latest.t;
+        } else {
+            var latest_in_window = this.samples.slice(-2, -1)[0];
+            var k = (window - (t - latest_in_window.t)) / (latest_in_window.t - latest.t);
+            var start = vadd(vscale(latest_in_window.p, 1 - k), vscale(latest.p, k));
+            var delta_t = window;
+        }
+        return [(earliest.p[0] - start[0]) / delta_t,
+                (earliest.p[1] - start[1]) / delta_t];
+    }
+}
+
+function InertialAnimationContext(p0, v0, friction, drag_context, transform) {
+    this.t0 = clock();
+
+    this.cur_pos = function() {
+        var t = clock() - this.t0;
+        var k = (1. - Math.exp(-friction * t)) / friction;
+        return [p0[0] + k * v0[0],
+                p0[1] + k * v0[1]];
+    }
+
+    this.apply = function() {
+        var pos = this.cur_pos();
+        var pos = {x: pos[0], y: pos[1]};
+        transform(pos, drag_context);
+        drag_context.last_px = pos;
+    }
+}
+
+function ZoomAnimationContext(p, zdelta, period, transform) {
+    this.t0 = clock();
+
+    this.cur_k = function() {
+        var t = clock() - this.t0;
+        var k = zdelta * 1 / (1 + Math.exp(-8*(t / period - .5)));
+        //var k = zdelta * .5 * (1 - Math.cos(Math.min(t / period, 1.) * Math.PI));
+        return k;
+    }
+
+    this.apply = function() {
+        var k = this.cur_k();
+        var dk = k - (this.last_k || 0);
+        transform(p.x, p.y, Math.pow(2, dk));
+        this.last_k = k;
+    }
+}
+
 
 function LayerModel(data, merc, root) {
     var that = this;
