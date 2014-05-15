@@ -112,7 +112,7 @@ function init() {
     //var pole = [43.56060, -7.41384];
     //var pole = [-16.15928, 180];
     //var pole = [90, 0];
-    merc.poleAt(pole[0], pole[1]);
+    merc.poleAt(pole[0], pole[1], true);
 
     merc.start();
 
@@ -1177,6 +1177,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.drag_mode = this.warp;
     this.toggle_drag_mode = function() {
         this.drag_mode = (this.drag_mode == this.warp ? this.pan : this.warp);
+        this.setAnimationContext(null);
     }
 
     this.init_interactivity = function() {
@@ -1401,10 +1402,10 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var mercllfmt = fmt_pos(merc_ll, 5);
             debug.merc_ll = mercllfmt.lat + ' ' + mercllfmt.lon;
 
-            dist = EARTH_MEAN_RAD * Math.PI / 180. * (90. - merc_ll[0]);
-            bearing = mod(180. - merc_ll[1], 360.);
-            scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * EARTH_MEAN_RAD;
-            orient = line_plotter(this.curPole, bearing)(dist, true)[1];
+            var dist = EARTH_MEAN_RAD * Math.PI / 180. * (90. - merc_ll[0]);
+            var bearing = mod(180. - merc_ll[1], 360.);
+            var scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * EARTH_MEAN_RAD;
+            var orient = line_plotter(this.curPole, bearing)(dist, true)[1];
 
             var polefmt = fmt_pos(this.curPole, 5);
             $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
@@ -1425,6 +1426,18 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
             $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
+
+            if (window.COMPANION) {
+                var tf = this.layer.curlayer.tilefunc;
+                delete this.layer.curlayer.tilefunc;
+                COMPANION.postMessage({
+                    pole: this.pole,
+                    layer: this.layer.curlayer,
+                    dist: dist,
+                    bearing: bearing,
+                }, '*');
+                this.layer.curlayer.tilefunc = tf;
+            }
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -1465,18 +1478,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
         this.layer.handlePending();
         this.renderer.render(this.scene, this.camera);
-
-        if (window.COMPANION) {
-            var tf = this.layer.curlayer.tilefunc;
-            delete this.layer.curlayer.tilefunc;
-            COMPANION.postMessage({
-                pole: this.pole,
-                layer: this.layer.curlayer,
-                dist: dist,
-                bearing: bearing,
-            }, '*');
-            this.layer.curlayer.tilefunc = tf;
-        }
 
         var setMaterials = function(output_mode) {
             $.each(renderer.currentObjs, function(i, e) {
@@ -1564,16 +1565,22 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
     
 
-    this.poleAt = function(lat, lon, soft) {
-        this.curPole = [lat, lon];
-        if (!soft) {
+    this.poleAt = function(lat, lon, hard) {
+        if (hard) {
+            this.setAnimationContext(null);
+            this.curPole = [lat, lon];
             this.last_sampling = null;
+        } else {
+            var that = this;
+            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], 3., function(p) {
+                that.curPole = p;
+            }));
         }
     }
 
     this.swapPoles = function() {
         var pole = antipode(this.curPole);
-        this.poleAt(pole[0], pole[1]);
+        this.poleAt(pole[0], pole[1], true);
     }
 
     this.init();
@@ -1813,6 +1820,23 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
     }
 }
 
+function GoToAnimationContext(start, end, period, transform) {
+    this.t0 = clock();
+
+    var plotter = line_plotter(start, bearing(start, end));
+    var dist = distance(start, end);
+
+    this.cur_k = function() {
+        var t = clock() - this.t0;
+        var k = Math.min(t / period, 1.);
+        return k;
+    }
+
+    this.apply = function() {
+        // TODO needs a lon_offset transform too
+        transform(plotter(this.cur_k() * dist));
+    }
+}
 
 function LayerModel(data, merc, root) {
     var that = this;
