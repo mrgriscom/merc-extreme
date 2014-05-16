@@ -42,6 +42,7 @@ var PREC_BUFFER = 2;               // number of zoom levels early to switch to '
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
 var MAX_MERC = 2.5;
+var DEFAULT_EXTENT_S = .5;
 
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var SCREEN_WIDTH_SOFTMAX = 1920;
@@ -89,7 +90,7 @@ function init() {
     
     var merc = new MercatorRenderer($('#container'), function(window) {
         return [window.innerWidth, window.innerHeight - $('#titlebar').outerHeight()];
-    }, MAX_MERC, 0.5);
+    }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
 
     $(window).keypress(function(e) {
@@ -1034,11 +1035,11 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
         this.width_px = dim[0];
         this.height_px = dim[1];
-        var aspect = this.width_px / this.height_px;
-        console.log('width', this.width_px, 'height', this.height_px, 'aspect', aspect);
+        this.aspect = this.width_px / this.height_px;
+        console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect);
 
         var extent = merc_max - merc_min;
-        var vextent = extent / aspect;
+        var vextent = extent / this.aspect;
         this.scale_px = this.width_px / extent;
 
         this.renderer.setSize(this.width_px, this.height_px);
@@ -1569,10 +1570,32 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             this.curPole = [lat, lon];
             this.last_sampling = null;
         } else {
+            var curHeight = this.xyToWorld(0, 0).x - this.xyToWorld(0, this.height_px).x;
+            var curRight = this.xyToWorld(this.width_px, 0).y;
+            var targetHeight = (MAX_MERC + (args.extentS || DEFAULT_EXTENT_S)) / this.aspect;
+            var finalHeight = Math.max(curHeight, targetHeight);
+            var zoom = finalHeight / curHeight;
+            var dhoriz = MAX_MERC - curRight;
+            var _ratio = dhoriz / (finalHeight / curHeight - 1);
+            var x0 = this.width_px - _ratio * this.scale_px;
+            var y0 = this.height_px * .5;
+
             var that = this;
-            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], function(p, dh) {
+            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], function(p, dh, dt_viewport) {
                 that.curPole = p;
-                that.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, -dh / 360 * that.scale_px, 0)], true);
+                transforms = [];
+                transforms.push(new THREE.Matrix4().makeTranslation(0, -dh / 360 * that.scale_px, 0));
+
+                if (Math.abs(zoom - 1) > 1e-9) {
+                    var z = Math.pow(zoom, -dt_viewport);
+                    transforms.push(new THREE.Matrix4().makeTranslation(-x0, -y0, 0));
+                    transforms.push(new THREE.Matrix4().makeScale(z, z, 1));
+                    transforms.push(new THREE.Matrix4().makeTranslation(x0, y0, 0));
+                } else {
+                    transforms.push(new THREE.Matrix4().makeTranslation(dt_viewport * -dhoriz * that.scale_px, 0, 0));
+                }
+
+                that.setWorldMatrix(transforms, true);
             }, args));
         }
     }
@@ -1855,21 +1878,26 @@ function GoToAnimationContext(start, end, transform, args) {
 
     var params = goto_parameters(dist, this.v0);
     var period = this.duration * params.xmax / goto_parameters(Math.PI * EARTH_MEAN_RAD, this.v0).xmax;
+    var zoomoutperiod = .5;
 
     this.last_heading = init_heading;
-    this.last_k = 0;
+    this.last_k = {pole: 0, viewport: 0};
 
     this.cur_k = function() {
         var t = Math.min(clock() - this.t0, period);
         var x = 2 * params.xmax * (t / period - .5);
-        return logistic(x, params.yscale) - params.y0;
+
+        var pole_k = logistic(x, params.yscale) - params.y0;
+        var viewport_k = logistic(8*(t / zoomoutperiod - .5));
+
+        return {pole: pole_k, viewport: viewport_k};
     }
 
     this.apply = function() {
         var k = this.cur_k();
-        var p = plotter(k, true);
-        var dh = (p.heading - this.last_heading) + (k - this.last_k) / params.yscale * this.heading_change;
-        transform(p.p, dh);
+        var p = plotter(k.pole, true);
+        var dh = (p.heading - this.last_heading) + (k.pole - this.last_k.pole) / params.yscale * this.heading_change;
+        transform(p.p, dh, k.viewport - this.last_k.viewport);
         this.last_k = k;
         this.last_heading = p.heading;
     }
@@ -1974,7 +2002,7 @@ function PlaceModel(data, merc) {
     this.name = ko.observable(data.name);
     this.pos = data.pos;
     this.lon_center = data.lon_center;
-    // preferred_extent?
+    this.antipode = data.antipode;
 
     this.select = function() {
         var args = {};
@@ -1982,6 +2010,9 @@ function PlaceModel(data, merc) {
             var p = merc.xyToWorld(0, .5 * merc.height_px);
             args.start_heading = 180 - xy_to_ll(p.x, 0)[1];
             args.target_heading = this.lon_center;
+        }
+        if (this.antipode) {
+            args.extentS = MAX_MERC;
         }
         merc.poleAt(this.pos[0], this.pos[1], args);
     }
@@ -2089,7 +2120,7 @@ landmarks = [{
     name: 'Spain/New Zealand Antipode',
     pos: [43.56060, -7.41384],
     lon_center: 120,
-    extent: 'max',
+    antipode: true,
     desc: 'two buildings exactly opposite the planet from each other'
 }, {
     name: 'Cape Town',
