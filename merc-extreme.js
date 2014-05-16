@@ -93,7 +93,7 @@ function init() {
     MERC = merc;
 
     $(window).keypress(function(e) {
-        if (e.keyCode == 32) {
+        if (e.keyCode == 91) {
             merc.toggle_drag_mode();
             return false;
         }
@@ -1155,7 +1155,12 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         var new_bearing = orig_bearing - lon_diff;
         this.curPole = line_plotter(drag_context.down_ll, new_bearing)((90 - merc_ll[0]) / DEG_RAD * EARTH_MEAN_RAD);
 
-        var residual = lon_norm((180 - bearing(this.curPole, drag_context.down_ll)) - merc_ll[1])
+        var reverse_bearing = bearing(this.curPole, drag_context.down_ll);
+        if (reverse_bearing == null) {
+            // drag point is now effectively the pole
+            return;
+        }
+        var residual = lon_norm((180 - reverse_bearing) - merc_ll[1])
         drag_context.down_mll[1] += residual;
         this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, residual / 360 * this.scale_px, 0)], true);
     }
@@ -1231,7 +1236,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             }
             drag_context = null;
         });
-        $(document).bind('dblclick', function(e) {
+        $(this.renderer.domElement).bind('dblclick', function(e) {
             var pos = mouse_pos(e);
             renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
                 renderer.zoom(x, y, z);
@@ -1564,7 +1569,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             this.last_sampling = null;
         } else {
             var that = this;
-            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], 3., function(p) {
+            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], function(p) {
                 that.curPole = p;
             }));
         }
@@ -1799,8 +1804,7 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
 
     this.cur_k = function() {
         var t = clock() - this.t0;
-        var k = zdelta * 1 / (1 + Math.exp(-8*(t / period - .5)));
-        //var k = zdelta * .5 * (1 - Math.cos(Math.min(t / period, 1.) * Math.PI));
+        var k = logistic(8*(t / period - .5), zdelta);
         return k;
     }
 
@@ -1812,21 +1816,44 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
     }
 }
 
-function GoToAnimationContext(start, end, period, transform) {
+function logistic(x, k) {
+    k = k || 1.;
+    return k / (1 + Math.exp(-x));
+}
+
+function goto_parameters(dist, v0) {
+    // find the necessary scaling for the logistic function such that the distance
+    // covered between the two points where v=v0 is our required distance
+    var yscale = solve_eq(Math.max(dist, 4*v0), dist + 4*v0, .01, function(k) {
+        var _d = k - 4*k*v0 / (k + Math.sqrt(k*k - 4*k*v0));
+        return _d > dist;
+    });
+    // find the coordinate where v=v0
+    var xmax = Math.log((yscale + Math.sqrt(yscale*yscale - 4*yscale*v0)) / (2*v0) - 1);
+    var y0 = logistic(-xmax, yscale);
+    return {yscale: yscale, xmax: xmax, y0: y0};
+}
+
+function GoToAnimationContext(start, end, transform, speed, v0) {
     this.t0 = clock();
 
-    var plotter = line_plotter(start, bearing(start, end));
+    this.speed = this.speed || 5.;
+    this.v0 = this.v0 || 2.;
+
     var dist = distance(start, end);
+    var params = goto_parameters(dist, this.v0);
+    var period = this.speed * params.xmax / goto_parameters(Math.PI * EARTH_MEAN_RAD, this.v0).xmax;
+    var plotter = line_plotter(start, bearing(start, end));
 
     this.cur_k = function() {
-        var t = clock() - this.t0;
-        var k = Math.min(t / period, 1.);
-        return k;
+        var t = Math.min(clock() - this.t0, period);
+        var x = 2 * params.xmax * (t / period - .5);
+        return logistic(x, params.yscale) - params.y0;
     }
 
     this.apply = function() {
         // TODO needs a lon_offset transform too
-        transform(plotter(this.cur_k() * dist));
+        transform(plotter(this.cur_k()));
     }
 }
 
@@ -1965,7 +1992,7 @@ var tile_specs = [
     },
     {
         name: 'Mapbox Terrain',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-9ijuk24y/{z}/{x}/{y}.png',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mrgriscom.i8gjfm3i/{z}/{x}/{y}.png',
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
