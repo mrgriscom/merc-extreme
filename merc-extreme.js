@@ -112,7 +112,7 @@ function init() {
     //var pole = [43.56060, -7.41384];
     //var pole = [-16.15928, 180];
     //var pole = [90, 0];
-    merc.poleAt(pole[0], pole[1], 0);
+    merc.poleAt(pole[0], pole[1], {duration: 0});
 
     merc.start();
 
@@ -1562,8 +1562,9 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
     
 
-    this.poleAt = function(lat, lon, duration) {
-        if (duration === 0) {
+    this.poleAt = function(lat, lon, args) {
+        args = args || {};
+        if (args.duration === 0) {
             this.setAnimationContext(null);
             this.curPole = [lat, lon];
             this.last_sampling = null;
@@ -1572,13 +1573,13 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], function(p, dh) {
                 that.curPole = p;
                 that.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, -dh / 360 * that.scale_px, 0)], true);
-            }, duration));
+            }, args));
         }
     }
 
     this.swapPoles = function() {
         var pole = antipode(this.curPole);
-        this.poleAt(pole[0], pole[1], 2);
+        this.poleAt(pole[0], pole[1], {duration: 2});
     }
 
     this.init();
@@ -1835,15 +1836,15 @@ function goto_parameters(dist, v0) {
     return {yscale: yscale, xmax: xmax, y0: y0};
 }
 
-function GoToAnimationContext(start, end, transform, speed, v0) {
+function GoToAnimationContext(start, end, transform, args) {
     this.t0 = clock();
 
-    this.speed = speed || 5.;
-    this.v0 = v0 || 2.;
+    this.duration = args.duration || 5.;
+    this.v0 = args.v0 || 2.;
 
     var dist = distance(start, end);
     var params = goto_parameters(dist, this.v0);
-    var period = this.speed * params.xmax / goto_parameters(Math.PI * EARTH_MEAN_RAD, this.v0).xmax;
+    var period = this.duration * params.xmax / goto_parameters(Math.PI * EARTH_MEAN_RAD, this.v0).xmax;
     var plotter = line_plotter(start, bearing(start, end));
 
     this.last_heading = null;
