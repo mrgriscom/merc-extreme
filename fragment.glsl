@@ -329,7 +329,7 @@ void main() {
     }
 
     if (floor(merc.x - blinder_start) != 0.) {
-      result = mix(result, vec4(0, 0, 0, 1), .3);
+      result = mix(result, vec4(0, 0, 0, 1), .6);
     }
 
     gl_FragColor = result;

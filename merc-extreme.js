@@ -93,13 +93,6 @@ function init() {
     }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
 
-    $(window).keypress(function(e) {
-        if (e.keyCode == 91) {
-            merc.toggle_drag_mode();
-            return false;
-        }
-    });
-    
     $('#blend').slider({range: 'max', max: 100.*MAX_ZOOM_BLEND});
     $('#overzoom').slider({range: 'max', max: 50});
 
@@ -1171,12 +1164,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.setWorldMatrix([new THREE.Matrix4().makeTranslation(delta[0], delta[1], 0)], true);
     }
 
-    this.drag_mode = this.warp;
-    this.toggle_drag_mode = function() {
-        this.drag_mode = (this.drag_mode == this.warp ? this.pan : this.warp);
-        this.setAnimationContext(null);
-    }
-
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
             var ref = $('#container')[0];
@@ -1186,8 +1173,15 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
 	    var renderer = this;
         var drag_context = null;
+        $(this.renderer.domElement).bind('contextmenu', function(e) {
+            return false;
+        });
         $(this.renderer.domElement).bind('mousedown', function(e) {
-            //console.log('mousedown');
+            //console.log('mousedown', e.which);
+            if (drag_context != null) {
+                return;
+            }
+
             drag_context = {
 		        'down_px': mouse_pos(e),
 		        'down_pole': renderer.curPole,
@@ -1199,6 +1193,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
             drag_context.down_mll = merc_ll;
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
+
+            drag_context.mode = {1: 'pan', 3: 'warp'}[e.which];
         });
         $(document).bind('mousemove', function(e) {
 	        var pos = mouse_pos(e);
@@ -1218,11 +1214,11 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             }
             drag_context.last_px = drag_context.last_px || drag_context.down_px;
             
-            renderer.drag_mode(pos, drag_context);
+            renderer[drag_context.mode](pos, drag_context);
             drag_context.last_px = pos;
         });
         $(document).bind('mouseup', function(e) {
-            //console.log('mouseup');
+            //console.log('mouseup', e.which);
             if (drag_context == null) {
                 return;
             }
@@ -1232,7 +1228,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var velocity = renderer.inertia_context.getSpeed();
             if (vlen(velocity) > 0) {
                 renderer.setAnimationContext(new InertialAnimationContext(pos, velocity, 3, drag_context, function(pos, drag_context) {
-                    renderer.drag_mode(pos, drag_context);
+                    renderer[drag_context.mode](pos, drag_context);
                 }));
             }
             drag_context = null;
@@ -1267,14 +1263,16 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
 
     this.setAnimationContext = function(animctx) {
-        // if existing, apply up until current time
+        this.applyAnimationContext();
         this.animation_context = animctx;
     }
 
     this.applyAnimationContext = function() {
         if (this.animation_context) {
             this.animation_context.apply();
-            // todo: remove completed animations
+            if (this.animation_context.finished()) {
+                this.animation_context = null;
+            }
         }
     }
     
@@ -1822,6 +1820,10 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform) {
         transform(pos, drag_context);
         drag_context.last_px = pos;
     }
+
+    this.finished = function() {
+        return false;
+    }
 }
 
 function ZoomAnimationContext(p, zdelta, period, transform) {
@@ -1838,6 +1840,10 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
         var dk = k - (this.last_k || 0);
         transform(p.x, p.y, Math.pow(2, dk));
         this.last_k = k;
+    }
+
+    this.finished = function() {
+        return false;
     }
 }
 
@@ -1900,6 +1906,10 @@ function GoToAnimationContext(start, end, transform, args) {
         transform(p.p, dh, k.viewport - this.last_k.viewport);
         this.last_k = k;
         this.last_heading = p.heading;
+    }
+
+    this.finished = function() {
+        return false;
     }
 }
 
