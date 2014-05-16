@@ -1843,11 +1843,21 @@ function GoToAnimationContext(start, end, transform, args) {
     this.v0 = args.v0 || 2.;
 
     var dist = distance(start, end);
+    var init_heading = bearing(start, end);
+    var plotter = line_plotter(start, init_heading);
+    var end_heading = plotter(dist, true).heading;
+
+    if (args.target_heading != null && args.start_heading != null) {
+        this.heading_change = lon_norm((args.target_heading - end_heading) - (args.start_heading - init_heading));
+    } else {
+        this.heading_change = 0;
+    }
+
     var params = goto_parameters(dist, this.v0);
     var period = this.duration * params.xmax / goto_parameters(Math.PI * EARTH_MEAN_RAD, this.v0).xmax;
-    var plotter = line_plotter(start, bearing(start, end));
 
-    this.last_heading = null;
+    this.last_heading = init_heading;
+    this.last_k = 0;
 
     this.cur_k = function() {
         var t = Math.min(clock() - this.t0, period);
@@ -1856,9 +1866,11 @@ function GoToAnimationContext(start, end, transform, args) {
     }
 
     this.apply = function() {
-        var p = plotter(this.cur_k(), true);
-        var dh = (this.last_heading == null ? 0 : p.heading - this.last_heading);
+        var k = this.cur_k();
+        var p = plotter(k, true);
+        var dh = (p.heading - this.last_heading) + (k - this.last_k) / params.yscale * this.heading_change;
         transform(p.p, dh);
+        this.last_k = k;
         this.last_heading = p.heading;
     }
 }
@@ -1961,11 +1973,17 @@ function LayerModel(data, merc, root) {
 function PlaceModel(data, merc) {
     this.name = ko.observable(data.name);
     this.pos = data.pos;
-    // lon_offset
-    // preferred_layer?
+    this.lon_center = data.lon_center;
+    // preferred_extent?
 
     this.select = function() {
-        merc.poleAt(this.pos[0], this.pos[1]);
+        var args = {};
+        if (this.lon_center != null) {
+            var p = merc.xyToWorld(0, .5 * merc.height_px);
+            args.start_heading = 180 - xy_to_ll(p.x, 0)[1];
+            args.target_heading = this.lon_center;
+        }
+        merc.poleAt(this.pos[0], this.pos[1], args);
     }
 }
 
@@ -2065,18 +2083,18 @@ landmarks = [{
 }, {
     name: 'St. Helena',
     pos: [-15.93788, -5.71189],
-    lon_center: '180diff',
+    lon_center: 0,
     desc: 'a remote island'
 }, {
     name: 'Spain/New Zealand Antipode',
     pos: [43.56060, -7.41384],
-    lon_center: '*chicago',
+    lon_center: 120,
     extent: 'max',
     desc: 'two buildings exactly opposite the planet from each other'
 }, {
     name: 'Cape Town',
     pos: [-33.90768, 18.39219],
-    lon_center: null
+    lon_center: 120
 }, {
     name: 'Dubai',
     pos: [25.11739, 55.13432]
@@ -2087,11 +2105,11 @@ landmarks = [{
 }, {
     name: 'Boston',
     pos: [42.35735, -71.05961],
-    lon_center: '*airport'
+    lon_center: 280
 }, {
     name: '"View of the World from 9th Avenue"',
     pos: [40.76847, -73.98493],
-    lon_center: 'ctrwest',
+    lon_center: -90,
     desc: 'compare to <a href="">the original</a>'
 }, {
     name: 'Bondi Beach',
