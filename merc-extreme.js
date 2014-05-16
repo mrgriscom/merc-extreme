@@ -1402,7 +1402,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var dist = EARTH_MEAN_RAD * Math.PI / 180. * (90. - merc_ll[0]);
             var bearing = mod(180. - merc_ll[1], 360.);
             var scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * EARTH_MEAN_RAD;
-            var orient = line_plotter(this.curPole, bearing)(dist, true)[1];
+            var orient = line_plotter(this.curPole, bearing)(dist, true).heading;
 
             var polefmt = fmt_pos(this.curPole, 5);
             $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
@@ -1569,8 +1569,9 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             this.last_sampling = null;
         } else {
             var that = this;
-            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], function(p) {
+            this.setAnimationContext(new GoToAnimationContext(this.curPole, [lat, lon], function(p, dh) {
                 that.curPole = p;
+                that.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, -dh / 360 * that.scale_px, 0)], true);
             }));
         }
     }
@@ -1722,8 +1723,8 @@ function EMViewModel(merc) {
         localStorage.custom_layers = JSON.stringify(layersToSave);
     }
 
-    this.setUnit = function(val) {
-        that.active_unit(val);
+    this.toggleUnit = function(val) {
+        that.active_unit(that.units()[(that.units().indexOf(that.active_unit()) + 1) % that.units().length]);
     }
 }
 
@@ -1845,6 +1846,8 @@ function GoToAnimationContext(start, end, transform, speed, v0) {
     var period = this.speed * params.xmax / goto_parameters(Math.PI * EARTH_MEAN_RAD, this.v0).xmax;
     var plotter = line_plotter(start, bearing(start, end));
 
+    this.last_heading = null;
+
     this.cur_k = function() {
         var t = Math.min(clock() - this.t0, period);
         var x = 2 * params.xmax * (t / period - .5);
@@ -1852,8 +1855,10 @@ function GoToAnimationContext(start, end, transform, speed, v0) {
     }
 
     this.apply = function() {
-        // TODO needs a lon_offset transform too
-        transform(plotter(this.cur_k()));
+        var p = plotter(this.cur_k(), true);
+        var dh = (this.last_heading == null ? 0 : p.heading - this.last_heading);
+        transform(p.p, dh);
+        this.last_heading = p.heading;
     }
 }
 

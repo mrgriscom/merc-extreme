@@ -163,7 +163,7 @@ function plotv(vp, vdir, theta, incl_new_heading) {
     if (incl_new_heading) {
         var vdir2 = vangle(vdir, vscale(vp, -1.), theta);
         var heading = headv(vp2, vdir2);
-        return [p, heading];
+        return {p: p, heading: heading};
     }
     return p;
 }
