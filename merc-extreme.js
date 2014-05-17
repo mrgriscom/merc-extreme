@@ -95,6 +95,7 @@ function init() {
 
     $('#blend').slider({range: 'max', max: 100.*MAX_ZOOM_BLEND});
     $('#overzoom').slider({range: 'max', max: 50});
+    $('#blinders').slider({range: 'max', max: 100, value: 70});
 
     var koRoot = new EMViewModel(merc);
     koRoot.load(tile_specs, landmarks);
@@ -206,6 +207,7 @@ GEOCODERS = {
 function launchDebug() {
     DEBUG = window.open('debug.html', 'debug', 'width=800,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
 }
+
 
 
 /* xy is google style upper left=(0, 0), lower right=(1, 1) */
@@ -957,6 +959,7 @@ function TextureLayer(context) {
                 tx_z0: {type: 't', value: this.tex_z0.tx},
                 zoom_blend: {type: 'f', value: 0.},
                 blinder_start: {type: 'f', value: 0.},
+                blinder_opacity: {type: 'f', value: 0.},
 
                 hp_pole_tile: {type: 'v2', value: null},
                 hp_pole_offset: {type: 'v2', value: null},
@@ -1527,6 +1530,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.layer.uniforms.scale.value = this.scale_px;
         this.layer.uniforms.bias.value = .01 * $('#overzoom').slider('value');
         this.layer.uniforms.zoom_blend.value = .01 * $('#blend').slider('value');
+        this.layer.uniforms.blinder_opacity.value = .01 * $('#blinders').slider('value');
 
         var p0 = this.xyToWorld(0, 0);
         var p1 = this.xyToWorld(0, this.height_px);

@@ -93,11 +93,13 @@ body {
   </div>
 <hr>
 <div id="settings">
-  Zoom level blend
+  Units: <span style="color: #400;" data-bind="text: active_unit, click: toggleUnit"></span><br>
+  Blending between zoom levels
   <div id="blend"></div>
   Overzoom
   <div id="overzoom"></div>
-  Units: <span style="color: #400;" data-bind="text: active_unit, click: toggleUnit"></span>
+  Opacity of blinders
+  <div id="blinders"></div>
 </div>
 </div>
 
