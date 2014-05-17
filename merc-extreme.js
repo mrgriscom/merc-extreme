@@ -1969,7 +1969,7 @@ function LayerModel(data, merc, root) {
     this.pending = ko.observable(false);
 
     this.tilefunc = ko.computed(function() {
-        return compile_tile_spec(this.url());
+        return this.url() ? compile_tile_spec(this.url()) : null;
     }, this);
     this.attribution = ko.computed(function() {
         return '&copy; ' + _.map(this.attr, function(e) {
