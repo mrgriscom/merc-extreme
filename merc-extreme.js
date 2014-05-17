@@ -2185,6 +2185,9 @@ landmarks = [{
     name: 'Ft. Jefferson',
     pos: [24.63025, -82.87126]
 }, {
+    name: 'Christ the Redeemer',
+    pos: [-22.95192, -43.21049]
+}, {
     name: 'UTA Flight 772 Memorial',
     pos: [16.86491, 11.95374]
 }, {
