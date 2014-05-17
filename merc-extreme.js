@@ -1176,7 +1176,21 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         $(this.renderer.domElement).bind('contextmenu', function(e) {
             return false;
         });
+        var onRightDoubleClick = function(e) {
+            //console.log('dblrightclick');
+            var pos = mouse_pos(e);
+            var merc = renderer.xyToWorld(pos.x, pos.y);
+	        var merc_ll = xy_to_ll(merc.x, merc.y);
+	        var coords = translate_pole(merc_ll, renderer.curPole);
+            renderer.poleAt(coords[0], coords[1]);
+        }
         $(this.renderer.domElement).bind('mousedown', function(e) {
+            if (e.which == 3) {
+                if (clock() - window.LAST_RIGHT_CLICK < .4) {
+                    DBL_RIGHT_CLICK = true;
+                }
+                LAST_RIGHT_CLICK = clock();
+            }
             //console.log('mousedown', e.which);
             if (drag_context != null) {
                 return;
@@ -1193,6 +1207,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
             drag_context.down_mll = merc_ll;
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
+            drag_context.last_px = drag_context.down_px;
 
             drag_context.mode = {1: 'pan', 3: 'warp'}[e.which];
         });
@@ -1212,33 +1227,35 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             if (drag_context == null) {
                 return;
             }
-            drag_context.last_px = drag_context.last_px || drag_context.down_px;
             
             renderer[drag_context.mode](pos, drag_context);
             drag_context.last_px = pos;
         });
         $(document).bind('mouseup', function(e) {
             //console.log('mouseup', e.which);
-            if (drag_context == null) {
-                return;
+            if (drag_context != null) {
+	            var pos = mouse_pos(e);
+                var pos = [pos.x, pos.y];
+                var velocity = renderer.inertia_context.getSpeed();
+                if (vlen(velocity) > 0) {
+                    renderer.setAnimationContext(new InertialAnimationContext(pos, velocity, 3, drag_context, function(pos, drag_context) {
+                        renderer[drag_context.mode](pos, drag_context);
+                    }));
+                }
+                drag_context = null;
             }
 
-	        var pos = mouse_pos(e);
-            var pos = [pos.x, pos.y];
-            var velocity = renderer.inertia_context.getSpeed();
-            if (vlen(velocity) > 0) {
-                renderer.setAnimationContext(new InertialAnimationContext(pos, velocity, 3, drag_context, function(pos, drag_context) {
-                    renderer[drag_context.mode](pos, drag_context);
-                }));
+            if (e.which == 3 && window.DBL_RIGHT_CLICK) {
+                onRightDoubleClick(e);
+                DBL_RIGHT_CLICK = false;
             }
-            drag_context = null;
         });
         $(this.renderer.domElement).bind('dblclick', function(e) {
+            //console.log('dblclick');
             var pos = mouse_pos(e);
             renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
                 renderer.zoom(x, y, z);
             }));
-            console.log('dblclick');
         });
         
         $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
