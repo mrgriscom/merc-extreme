@@ -133,13 +133,24 @@ function init() {
             },
         };
 
+        var match_ll = function(q) {
+            var FLOAT_PATTERN = '[+-]?(?:\\d*\\.\\d+|\\d+\\.?)';
+            var LL_PATTERN = '^(' + FLOAT_PATTERN + ')(?: |,|, )(' + FLOAT_PATTERN + ')$';
+            var matches = q.match(new RegExp(LL_PATTERN));
+            if (matches) {
+                var lat = +matches[1];
+                var lon = +matches[2];
+                if (lat <= 90 && lat >= -90 && lon <= 360 && lon >= -180) {
+                    return [lat, lon];
+                }
+            }
+            return null;
+        }
+
         var query = $('#locsearch').val().trim();
-        
-        var FLOAT_PATTERN = '[+-]?(?:\\d*\\.\\d+|\\d+\\.?)';
-        var LL_PATTERN = '(' + FLOAT_PATTERN + ')(?: |,|, )(' + FLOAT_PATTERN + ')';
-        var matches = query.match(new RegExp(LL_PATTERN));
-        if (matches) {
-            callbacks.onresult(+matches[1], +matches[2]);
+        var literal_ll = match_ll(query);
+        if (literal_ll) {
+            callbacks.onresult(literal_ll[0], literal_ll[1]);        
         } else {
             geocoder.geocode(query, callbacks);
         }
@@ -2268,7 +2279,7 @@ function clock() {
 
 
 
-function compile_tile_spec(spec) {
+function compile_tile_spec(spec, no_guess) {
     var converters = {
         z: function(zoom, x, y) { return zoom; },
         x: function(zoom, x, y) { return x; },
@@ -2276,13 +2287,10 @@ function compile_tile_spec(spec) {
         '-y': function(zoom, x, y) { return Math.pow(2, zoom) - 1 - y; },
         s: function(zoom, x, y, arg) {
             var k = x + y;
-            if (arg.indexOf('-') == -1) {
-                return arg.split('')[k % arg.length];
+            if (arg.alphabet) {
+                return arg.alphabet[k % arg.alphabet.length];
             } else {
-                var bounds = arg.split('-');
-                var min = +bounds[0];
-                var max = +bounds[1];
-                return min + k % (max - min + 1);
+                return arg.min + k % (arg.max - arg.min + 1);
             }
         },
         qt: function(zoom, x, y, arg) {
@@ -2298,22 +2306,90 @@ function compile_tile_spec(spec) {
             return qt;
         },
     };
+    var parse_args = {
+        s: function(arg) {
+            if (arg.indexOf('-') == -1) {
+                return {alphabet: arg.split('')};
+            } else {
+                var bounds = arg.split('-');
+                return {min: +bounds[0], max: +bounds[1]};
+            }
+        }
+    }
 
     regex = new RegExp('{(.+?)(:.+?)?}', 'g');
-    return function(zoom, x, y) {
-        return spec.replace(regex, function(full_match, key, key_args) {
-            if (!key_args) {
-                key_args = null;
-            } else {
-                key_args = key_args.substring(1);
-            }
+    var _converters = {};
+    var found = {};
+    spec.replace(regex, function(full_match, key, args) {
+        if (!args) {
+            args = null;
+        } else {
+            args = args.substring(1);
+        }
 
-            return converters[key](zoom, x, y, key_args);
+        var converter = converters[key.toLowerCase()];
+        if (converter) {
+            found[key.toLowerCase()] = true;
+            var arg_preprocessor = parse_args[key.toLowerCase()];
+            if (arg_preprocessor) {
+                args = arg_preprocessor(args);
+            }
+            _converters[key] = function(z, x, y) {
+                return converter(z, x, y, args);
+            }
+        }
+    });
+
+    var valid_spec = (found.z && found.x && (found.y || found['-y'])) || found.qt;
+    if (!valid_spec && !no_guess) {
+        var LONDON_CENTER = [.5, .333];
+        return guess_spec(spec, LONDON_CENTER);
+    }
+
+    return function(zoom, x, y) {
+        return spec.replace(regex, function(full_match, key, args) {
+            var converter = _converters[key];
+            return (converter ? converter(zoom, x, y) : full_match);
         });
     }
 }
 
-
+function guess_spec(spec, known_point) {
+    // try to deduce from sample tile of known location
+    var numbers = [];
+    spec.replace(/[^A-Za-z]\d+(?![A-Za-z])/g, function(match) {
+        numbers.push(+match.substring(1));
+    });
+    numbers = _.sortBy(numbers, function(e) { return e; });
+    var mapping = {};
+    _.each(numbers, function(e) {
+        if (e >= 6 && e <= 22) {
+            mapping.z = e;
+            return;
+        }
+        if (mapping.z) {
+            for (var i = 0; i < 2; i++) {
+                var ref = Math.floor(known_point[i] * Math.pow(2, mapping.z));
+                var diff = Math.abs(ref - e);
+                if (diff <= 3 * Math.pow(2, Math.max(mapping.z - 6, 0))) {
+                    mapping[i == 0 ? 'x' : 'y'] = e;
+                }
+            }
+        }
+    });
+    var rev_mapping = {};
+    _.each(mapping, function(v, k) {
+        rev_mapping[v] = k;
+    });
+    var new_spec = spec.replace(/[^A-Za-z]\d+(?![A-Za-z])/g, function(match) {
+        if (rev_mapping[match.substring(1)]) {
+            return match[0] + '{' + rev_mapping[match.substring(1)] + '}';
+        } else {
+            return match;
+        }
+    });
+    return compile_tile_spec(new_spec, true);
+}
 
 
 
