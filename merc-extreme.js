@@ -122,7 +122,7 @@ function init() {
     });
 
     geocoder = new GEOCODERS.google();
-    $('#search').click(function() {
+    $('#search').submit(function() {
         var callbacks = {
             onresult: function(lat, lon) {
                 merc.poleAt(lat, lon);
@@ -139,10 +139,10 @@ function init() {
         var matches = query.match(new RegExp(LL_PATTERN));
         if (matches) {
             callbacks.onresult(+matches[1], +matches[2]);
-            return;
+        } else {
+            geocoder.geocode(query, callbacks);
         }
-
-        geocoder.geocode(query, callbacks);
+        return false;
     });
 }
 
@@ -1176,7 +1176,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         $(this.renderer.domElement).bind('contextmenu', function(e) {
             return false;
         });
-        var onRightDoubleClick = function(e) {
+        var onDoubleRightClick = function(e) {
             //console.log('dblrightclick');
             var pos = mouse_pos(e);
             var merc = renderer.xyToWorld(pos.x, pos.y);
@@ -1208,8 +1208,8 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             drag_context.down_mll = merc_ll;
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
             drag_context.last_px = drag_context.down_px;
-
-            drag_context.mode = {1: 'pan', 3: 'warp'}[e.which];
+            
+            drag_context.mode = (e.which == 3 || e.shiftKey ? 'warp' : 'pan');
         });
         $(document).bind('mousemove', function(e) {
 	        var pos = mouse_pos(e);
@@ -1246,12 +1246,17 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             }
 
             if (e.which == 3 && window.DBL_RIGHT_CLICK) {
-                onRightDoubleClick(e);
+                onDoubleRightClick(e);
                 DBL_RIGHT_CLICK = false;
             }
         });
         $(this.renderer.domElement).bind('dblclick', function(e) {
             //console.log('dblclick');
+            if (e.shiftKey) {
+                onDoubleRightClick(e);
+                return;
+            }
+
             var pos = mouse_pos(e);
             renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
                 renderer.zoom(x, y, z);
