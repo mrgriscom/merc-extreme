@@ -1844,11 +1844,12 @@ function MouseTracker(window) {
 function InertialAnimationContext(p0, v0, friction, drag_context, transform) {
     this.t0 = clock();
 
+    var end_pos = vadd(p0, vscale(v0, 1. / friction));
+
     this.cur_pos = function() {
         var t = clock() - this.t0;
         var k = (1. - Math.exp(-friction * t)) / friction;
-        return [p0[0] + k * v0[0],
-                p0[1] + k * v0[1]];
+        return vadd(p0, vscale(v0, k));
     }
 
     this.apply = function() {
@@ -1859,7 +1860,7 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform) {
     }
 
     this.finished = function() {
-        return false;
+        return vlen(vdiff(end_pos, this.cur_pos())) < .25;
     }
 }
 
@@ -1880,7 +1881,7 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
     }
 
     this.finished = function() {
-        return false;
+        return (clock() - this.t0) > period;
     }
 }
 
@@ -1946,7 +1947,8 @@ function GoToAnimationContext(start, end, transform, args) {
     }
 
     this.finished = function() {
-        return false;
+        var t = clock() - this.t0;
+        return (t > period && t > zoomoutperiod);
     }
 }
 
@@ -2130,6 +2132,13 @@ var tile_specs = [
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
+    /*
+    {
+        name: 'Mapquest Open',
+        url: 'http://otile{s:1-4}.mqcdn.com/tiles/1.0.0/map/{z}/{x}/{y}.png',
+        attr: ['Mapquest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    */
     {
         name: 'OSM Mapnik',
         url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
