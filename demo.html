@@ -39,19 +39,62 @@ body {
   background: #222;
 }
 
+.dropdown {
+  color: black;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: rgba(255, 255, 255, .4);
+  z-index: 500;
+  display: none;
+  width: 15em;
+}
+
+.dropdown-anchor:hover > .dropdown {
+  display: block;
+}
+
 </style>
 
 <div id="titlebar" style="color: white; padding: 5px;">
   MERCATOR: EXTREME by Drew Roos
   <div style="float: right;">
-    <form id="search" style="display: inline-block;">
+    <form id="search" style="display: inline-block; margin: 0;">
       <input id="locsearch" placeholder="change origin to&hellip;"></input>
       <input type="submit" value="Go"></input>
     </form>
-    <div style="display: inline-block;">Layers</div>
+    <div class="dropdown-anchor" style="display: inline-block; position: relative;">Layers
+      <div id="layers" class="dropdown">
+        <div data-bind="foreach: layers">
+          <div>
+            <span data-bind="text: displayName, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></span>
+            <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
+            <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
+            <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
+          </div>
+        </div>
+        <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
+        <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
+        </div>
+      </div>
+    </div>
     <div id="companion" style="display: inline-block;">Companion Map</div>
-    <div style="display: inline-block;">Landmarks</div>
-    <div style="display: inline-block;">Settings</div>
+    <div class="dropdown-anchor" style="display: inline-block; position: relative;">Landmarks
+      <div class="dropdown" data-bind="foreach: places">
+        <div data-bind="text: name, click: select"></div>
+      </div>
+    </div>
+    <div class="dropdown-anchor" style="display: inline-block; position: relative;">Settings
+      <div class="dropdown" id="settings">
+        Units: <span style="color: #400;" data-bind="text: active_unit, click: toggleUnit"></span><br>
+        Blending between zoom levels
+        <div id="blend"></div>
+        Overzoom
+        <div id="overzoom"></div>
+        Opacity of blinders
+        <div id="blinders"></div>
+      </div>
+    </div>
     <div style="display: inline-block;">Help</div>
   </div>
   <div style="clear: both;"></div>
@@ -101,34 +144,6 @@ body {
   <button data-bind="click: commit, text: commitCaption"></button>
   <button data-bind="click: cancel">cancel</button>
 </script>
-
-<div id="layers" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 20px; top: 10px;">
-  <div data-bind="foreach: layers">
-    <div>
-      <span data-bind="text: displayName, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></span>
-      <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
-      <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
-      <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
-    </div>
-  </div>
-  <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
-  <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
-  </div>
-<hr>
-  <div data-bind="foreach: places">
-    <div data-bind="text: name, click: select"></div>
-  </div>
-<hr>
-<div id="settings">
-  Units: <span style="color: #400;" data-bind="text: active_unit, click: toggleUnit"></span><br>
-  Blending between zoom levels
-  <div id="blend"></div>
-  Overzoom
-  <div id="overzoom"></div>
-  Opacity of blinders
-  <div id="blinders"></div>
-</div>
-</div>
 
 <div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto;" data-bind="html: curAttr"></span></div>
 <div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
