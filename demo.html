@@ -37,21 +37,28 @@ body {
 
 #titlebar {
   background: #222;
+  border-bottom: 1px solid black;
 }
 
 .dropdown {
-  color: black;
+  color: white;
   position: absolute;
   top: 100%;
   right: 0;
-  background: rgba(255, 255, 255, .4);
+  background: rgba(0, 0, 0, .4);
   z-index: 500;
   display: none;
   width: 15em;
+  padding: 15px;
+  border-radius: 0 0 10px 10px;
 }
 
 .dropdown-anchor:hover > .dropdown {
   display: block;
+}
+
+input {
+  margin: 0;
 }
 
 </style>
@@ -59,15 +66,15 @@ body {
 <div id="titlebar" style="color: white; padding: 5px;">
   MERCATOR: EXTREME by Drew Roos
   <div style="float: right;">
-    <form id="search" style="display: inline-block; margin: 0;">
+    <form id="search" style="display: inline-block; margin: 0; margin-right: 60px;">
       <input id="locsearch" placeholder="change origin to&hellip;"></input>
       <input type="submit" value="Go"></input>
     </form>
     <div class="dropdown-anchor" style="display: inline-block; position: relative;">Layers
       <div id="layers" class="dropdown">
         <div data-bind="foreach: layers">
-          <div>
-            <span data-bind="text: displayName, click: $parent.selectLayer, style: { color: active() ? '#400' : 'black' }"></span>
+          <div data-bind="click: $parent.selectLayer">
+            <span data-bind="text: displayName, style: { color: active() ? '#faa' : '' }"></span>
             <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
             <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
             <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
@@ -81,12 +88,15 @@ body {
     <div id="companion" style="display: inline-block;">Companion Map</div>
     <div class="dropdown-anchor" style="display: inline-block; position: relative;">Landmarks
       <div class="dropdown" data-bind="foreach: places">
-        <div data-bind="text: name, click: select"></div>
+        <div data-bind="click: select">
+          <div data-bind="text: name"></div>
+          <div data-bind="html: byline" style="font-size: 70%; margin-left: 1em;"></div>
+        </div>
       </div>
     </div>
     <div class="dropdown-anchor" style="display: inline-block; position: relative;">Settings
       <div class="dropdown" id="settings">
-        Units: <span style="color: #400;" data-bind="text: active_unit, click: toggleUnit"></span><br>
+        Units: <span style="color: #faa;" data-bind="text: active_unit, click: toggleUnit"></span><br>
         Blending between zoom levels
         <div id="blend"></div>
         Overzoom

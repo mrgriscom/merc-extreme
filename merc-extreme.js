@@ -2240,6 +2240,7 @@ function PlaceModel(data, merc) {
     this.pos = data.pos;
     this.lon_center = data.lon_center;
     this.antipode = data.antipode;
+    this.byline = ko.observable(data.desc);
 
     this.select = function() {
         var args = {};
@@ -2385,7 +2386,7 @@ landmarks = [{
     name: '"View of the World from 9th Avenue"',
     pos: [40.76847, -73.98493],
     lon_center: -90,
-    desc: 'compare to <a href="">the original</a>'
+    desc: 'compare to <a target="_blank" href="http://www.mappery.com/maps/A-View-of-World-from-9th-Avenue-Map.jpg">the original</a>'
 }, {
     name: 'Bondi Beach',
     pos: [-33.89123, 151.27748]
