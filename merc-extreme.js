@@ -1487,9 +1487,22 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         return plane;
     }
 
+    this.makeLine = function(color) {
+        line = new THREE.Geometry();
+        line.vertices.push(new THREE.Vector3(0, 0, -1));
+        line.vertices.push(new THREE.Vector3(0, 0, -1));
+        this.group.add(new THREE.Line(line, new THREE.LineBasicMaterial({
+            color: color,
+            opacity: .6,
+            linewidth: 2,
+            transparent: true
+        })));
+        return line;
+    }
+
     this.render = function(timestamp) {
         var renderer = this;
-        
+
         this.applyAnimationContext();
         
         if (!this.currentObjs.length) {
@@ -1498,6 +1511,9 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             this.qLinear = this.makeQuad('linear', 1024);
             this.qLinearAnti = this.makeQuad('linear', 1024);
             this.qGooeyMiddle = this.makeQuad('sphere');
+
+            this.vline = this.makeLine(0x00aaff);
+            this.hline = this.makeLine(0xff0000);
         }
 
         this.setPole(this.curPole[0], this.curPole[1]);
@@ -1550,6 +1566,13 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
                     bearing: bearing,
                 }, '*');
                 this.layer.curlayer.tilefunc = tf;
+
+                this.vline.vertices[0] = new THREE.Vector3(-10, p.y, .1);
+                this.vline.vertices[1] = new THREE.Vector3(10, p.y, .1);
+                this.vline.verticesNeedUpdate = true;
+                this.hline.vertices[0] = new THREE.Vector3(p.x, p.y, .1);
+                this.hline.vertices[1] = new THREE.Vector3(p.x, MAX_MERC, .1);
+                this.hline.verticesNeedUpdate = true;
             }
         }
 
