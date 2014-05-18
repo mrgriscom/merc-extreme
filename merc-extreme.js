@@ -85,6 +85,8 @@ var MAX_TILES_AT_ONCE = tiles_per(SCREEN_WIDTH) * tiles_per(SCREEN_HEIGHT) * 4./
 var NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
 
 function init() {
+    console.log(checkEnvironment());
+
     vertex_shader = loadShader('vertex');
     fragment_shader = loadShader('fragment');
     
@@ -156,6 +158,45 @@ function init() {
         }
         return false;
     });
+}
+
+function checkEnvironment() {
+    var errors = {};
+
+    // webgl enabled
+    var webgl = (function() {
+	    try {
+            var canvas = document.createElement('canvas');
+            return !!window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+        } catch(e) {
+            return false;
+        }
+    })();
+    if (!webgl) {
+        errors.webgl = true;
+    }
+
+    // shader precision
+    var context = new THREE.WebGLRenderer();
+    var _gl = context.context;
+    var prec_type = context.getPrecision();
+    var prec_bits = _gl.getShaderPrecisionFormat(_gl.FRAGMENT_SHADER, {highp: _gl.HIGH_FLOAT, mediump: _gl.MEDIUM_FLOAT}[prec_type]).precision;
+    console.log('fragment shader: ' + prec_type + ', ' + prec_bits + ' bits');
+    if (prec_bits < 23) {
+        errors.precision = true;
+    }
+
+    // screen size
+    if (screen.width > SCREEN_WIDTH_SOFTMAX || screen.height > SCREEN_HEIGHT_SOFTMAX) {
+        errors.screensize = true;
+    }
+
+    // chrome
+    if (!$.browser.chrome) {
+        errors.chrome = true;
+    }
+
+    return errors;
 }
 
 function GoogleGeocoder() {
@@ -1069,8 +1110,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.init = function() {
         console.log('max tex size', this.glContext.getParameter(this.glContext.MAX_TEXTURE_SIZE));
         console.log('max # texs', this.glContext.getParameter(this.glContext.MAX_TEXTURE_IMAGE_UNITS));
-        console.log('prec (med)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.MEDIUM_FLOAT).precision);
-        console.log('prec (high)', this.glContext.getShaderPrecisionFormat(this.glContext.FRAGMENT_SHADER, this.glContext.HIGH_FLOAT).precision);
         console.log(this.glContext.getSupportedExtensions());
 
         this.scene = new THREE.Scene();
