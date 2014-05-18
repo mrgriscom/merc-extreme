@@ -838,7 +838,8 @@ function TextureLayer(context) {
                 ix_entry.pending = true;
                 delete layer.free_slots[slot.tex + ':' + slot.x + ':' + slot.y];
                 layer.pending.push({layer: curlayer, tile: tile, img: img, slot: slot});
-                
+                //console.log('loading', tilekey(tile));
+
                 layer.tile_index_add(curlayer.id, tile, slot);
                 ix_entry.mru = MRU_counter;
             });
@@ -904,7 +905,6 @@ function TextureLayer(context) {
         }
 
         _.each(this.pending, function(e) {
-            //console.log('loading', tilekey(tile));
             writeImgData(e.slot, 0, 0, function() { return e.img; });
 
             for (var dx = -1; dx < 2; dx++) {
@@ -1697,10 +1697,16 @@ function hp_split(val) {
 // return max z-level for which tiles may still be in view after
 // moving 'distance' away
 // positive zoom_bias moves a zoom level's range of view towards the pole
-function max_z_overlap(pole_lat, distance, scale, zoom_bias) {
-    var bias = Math.log(scale / 256) / Math.LN2 - zoom_bias;
-    var base_z = 999; // TODO calculate from pole_lat+distance
-    return base_z + Math.max(bias, 0);
+function max_z_overlap(pole_lat, dist, scale, zoom_bias) {
+    var bias = log2(scale / 256) - zoom_bias;
+    var lg2dist = log2(dist);
+
+    if (Math.abs(pole_lat) > 85) {
+        base_z = MAX_ZOOM;
+    } else {
+        base_z = Math.max(24.8 - lg2dist + log2(Math.cos(pole_lat / DEG_RAD)), 3);
+    }
+    return Math.ceil(base_z + Math.max(bias, 0));
 }
 
 function load_image(layer, tile, onload) {
@@ -2640,6 +2646,10 @@ function fmt_pos(ll, prec) {
 
 function antipode(ll) {
     return [-ll[0], lon_norm(ll[1] + 180.)];
+}
+
+function log2(x) {
+    return Math.log(x) / Math.LN2;
 }
 
 function prec_digits_for_res(delta) {
