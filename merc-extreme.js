@@ -1161,22 +1161,29 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
 
     this.warp = function(pos, drag_context) {
+        var result = this._warp(pos, drag_context);
+        this.curPole = result.pole;
+        drag_context.down_mll[1] += result.residual;
+        this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, result.residual / 360 * this.scale_px, 0)], true);
+    }
+
+    this._warp = function(pos, drag_context) {
         var merc = this.xyToWorld(pos.x, pos.y);
 	    var merc_ll = xy_to_ll(merc.x, merc.y);
 
         var orig_bearing = bearing(drag_context.down_ll, drag_context.down_pole);
         var lon_diff = merc_ll[1] - drag_context.down_mll[1];
         var new_bearing = orig_bearing - lon_diff;
-        this.curPole = line_plotter(drag_context.down_ll, new_bearing)((90 - merc_ll[0]) / DEG_RAD * EARTH_MEAN_RAD);
+        var pole = line_plotter(drag_context.down_ll, new_bearing)((90 - merc_ll[0]) / DEG_RAD * EARTH_MEAN_RAD);
 
-        var reverse_bearing = bearing(this.curPole, drag_context.down_ll);
+        var reverse_bearing = bearing(pole, drag_context.down_ll);
         if (reverse_bearing == null) {
             // drag point is now effectively the pole
-            return;
+            var residual = 0;
+        } else {
+            var residual = lon_norm((180 - reverse_bearing) - merc_ll[1])
         }
-        var residual = lon_norm((180 - reverse_bearing) - merc_ll[1])
-        drag_context.down_mll[1] += residual;
-        this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, residual / 360 * this.scale_px, 0)], true);
+        return {pole: pole, residual: residual};
     }
 
     this.pan = function(pos, drag_context) {
@@ -1197,6 +1204,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
 	    var renderer = this;
         var drag_context = null;
+        DRAGCTX = drag_context; // HACK
         $(this.renderer.domElement).bind('contextmenu', function(e) {
             return false;
         });
@@ -1224,6 +1232,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 		        'down_px': mouse_pos(e),
 		        'down_pole': renderer.curPole,
 	        };
+            DRAGCTX = drag_context; // HACK
             renderer.inertia_context.addSample([drag_context.down_px.x, drag_context.down_px.y]);
             renderer.setAnimationContext(null);
 
@@ -1267,6 +1276,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
                     }, renderer));
                 }
                 drag_context = null;
+                DRAGCTX = drag_context; // HACK
             }
 
             if (e.which == 3 && window.DBL_RIGHT_CLICK) {
@@ -1316,8 +1326,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.applyAnimationContext = function() {
         if (this.animation_context) {
             this.animation_context.apply();
-            console.log(this.animation_context.getSpeed());
-            //console.log(this.animation_context.poleAtT(clock() + .15));
             if (this.animation_context.finished()) {
                 this.animation_context = null;
             }
@@ -1333,16 +1341,17 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
 
     this.poleInFuture = function(interval) {
-        /*
-          if animation context, use it
-          otherwise track mouse movement and apply same logic as warp inertia
-         */
+        var futurepole = null;
         if (this.animation_context) {
-            this.animation_context.poleAtT(interval) || this.curPole;
-        }
-
-        // TODO
-        return this.curPole
+            futurepole = this.animation_context.poleAtT(clock() + interval);
+        } else if (DRAGCTX && DRAGCTX.mode == 'warp') {
+            var pos = DRAGCTX.last_px;
+            pos = [pos.x, pos.y];
+            var vel = this.inertia_context.getSpeed();
+            var futurepos = vadd(pos, vscale(vel, interval));
+            futurepole = this._warp({x: futurepos[0], y: futurepos[1]}, DRAGCTX).pole;
+        } 
+        return futurepole || this.curPole
     }
 
     var _interp = function(a, b, k) {
@@ -1694,7 +1703,6 @@ function max_z_overlap(pole_lat, distance, scale, zoom_bias) {
     return base_z + Math.max(bias, 0);
 }
 
-
 function load_image(layer, tile, onload) {
     if (tile.z == 0 && layer.no_z0) {
         load_image_bing_hack(layer, onload);
@@ -1869,7 +1877,7 @@ function MouseTracker(window) {
         var earliest = this.samples[0];
         var latest = this.samples.slice(-1)[0];
         if (earliest == null || t - earliest.t >= window || earliest.t == latest.t) {
-            return 0;
+            return [0, 0];
         } else if (t - latest.t < window) {
             var start = latest.p;
             var delta_t = t - latest.t;
@@ -1889,14 +1897,14 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform, ren
 
     var end_pos = vadd(p0, vscale(v0, 1. / friction));
 
-    this.cur_pos = function() {
-        var t = clock() - this.t0;
+    this.pos = function(clock_t) {
+        var t = clock_t - this.t0;
         var k = (1. - Math.exp(-friction * t)) / friction;
         return vadd(p0, vscale(v0, k));
     }
 
     this.apply = function() {
-        var pos = this.cur_pos();
+        var pos = this.pos(clock());
         var pos = {x: pos[0], y: pos[1]};
         transform(pos, drag_context);
         drag_context.last_px = pos;
@@ -1905,7 +1913,7 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform, ren
     this.getSpeed = function() {
         var t = clock() - this.t0;
         var mouse_speed = vlen(v0) * Math.exp(-friction * t);
-        var pos = this.cur_pos();
+        var pos = this.pos(clock());
 
         if (drag_context.mode == 'pan') {
             return 0;
@@ -1916,12 +1924,17 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform, ren
             return mouse_speed * res * EARTH_MEAN_RAD;
         }
     }
-    this.poleAtT = function(t) {
-        // todo
+    this.poleAtT = function(clock_t) {
+        if (drag_context.mode == 'pan') {
+            return null;
+        } else if (drag_context.mode == 'warp') {
+            var pos = this.pos(clock_t);
+            return renderer._warp({x: pos[0], y: pos[1]}, drag_context).pole;
+        }
     }
 
     this.finished = function() {
-        return vlen(vdiff(end_pos, this.cur_pos())) < .25;
+        return vlen(vdiff(end_pos, this.pos(clock()))) < .25;
     }
 }
 
@@ -1944,7 +1957,7 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
     this.getSpeed = function() {
         return 0;
     }
-    this.poleAtT = function(t) {
+    this.poleAtT = function(clock_t) {
         return null;
     }
 
@@ -2000,8 +2013,8 @@ function GoToAnimationContext(start, end, transform, args) {
     this.last_heading = init_heading;
     this.last_k = {pole: 0, viewport: 0};
 
-    this.cur_k = function() {
-        var t = Math.min(clock() - this.t0, period);
+    this.k = function(clock_t) {
+        var t = Math.min(clock_t - this.t0, period);
         var x = 2 * params.xmax * (t / period - .5);
 
         var pole_k = logistic(x, params.yscale) - params.y0;
@@ -2011,7 +2024,7 @@ function GoToAnimationContext(start, end, transform, args) {
     }
 
     this.apply = function() {
-        var k = this.cur_k();
+        var k = this.k(clock());
         var p = plotter(k.pole, true);
         var dh = (p.heading - this.last_heading) + (k.pole - this.last_k.pole) / params.yscale * this.heading_change;
         transform(p.p, dh, k.viewport - this.last_k.viewport);
@@ -2025,8 +2038,8 @@ function GoToAnimationContext(start, end, transform, args) {
         return dlogistic(x, params.yscale);
     }
 
-    this.poleAtT = function(t) {
-        return null;
+    this.poleAtT = function(clock_t) {
+        return plotter(this.k(clock_t).pole);
     }
 
     this.finished = function() {
@@ -2049,8 +2062,9 @@ function DrivingAnimationContext(start, speed, heading, merc) {
         return speed;
     }
 
-    this.poleAtT = function(t) {
-        return null;
+    this.poleAtT = function(clock_t) {
+        var t = clock_t - this.t0;
+        return plotter(speed * t);
     }
 
     this.finished = function() {
