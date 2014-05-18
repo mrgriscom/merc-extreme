@@ -31,6 +31,7 @@ $(document).ready(init);
 body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   font-family: sans-serif;
 }
 
@@ -61,11 +62,37 @@ body {
 <script type="text/html" id="layer-edit">
   <div data-bind="with: layer">
     url template <input data-bind="value: url"></input><br>
+    <div style="display: none;">
+      Enter the url template to load tiles from for this map layer. Use the
+      following template variables:
+      {z} - zoom level
+      {x} - x coordinate
+      {y} - y coordinate
+      {s:...} - server shard (optional):
+        {s:1-4} - use shards 1, 2, 3, 4
+        {s:abc} - use shards a, b, c
+
+      Example: http://tileserver{s:0-3}.maps-r-us.com/blah/blah/{z}/{x}/{y}.jpg
+
+      The tile server must support cross-origin requests in order to be
+      usable in extreme mercator. (This means the server must include the
+      header "Access-Control-Allow-Origin: *" in its response).
+    </div>
     name (opt) <input data-bind="value: name"></input><br>
     max depth (opt) <input data-bind="value: max_depth"></input><br>
     <div id="tile_preview">
       <div data-bind="if: preview_status() == 'loading'">loading...</div>
-      <div data-bind="if: preview_status() == 'error'">could not load tile</div>
+      <div data-bind="if: preview_status() == 'error'">could not load tile
+        <div style="display: none;">
+          This could be because:
+          1) the url template is incorrect
+          2) the tile server does not support cross-origin requests
+          3) everything is in fact correct, but the map layer does not publish
+             a tile at zoom level 0. (such map layers will probably not look good
+             in an extreme mercator anyway -- layers that provide global coverage
+             are best
+        </div>
+      </div>
       <div data-bind="if: preview_status() == 'success'">
         <img data-bind="attr: {src: preview_url}" />
       </div>

@@ -689,9 +689,15 @@ function TextureLayer(context) {
                 }
             }
         });
+
+        // we want a tile to remain in view for at least this long to make
+        // loading it worth our while (even assuming immediate dl from cache)
+        var MIN_VISIBLE_TIME = .15;
+        var max_zoom = Math.min(this.context.max_zoom_for_time_horizon(MIN_VISIBLE_TIME),
+                                curlayer.max_depth || MAX_ZOOM);
         var tiles = _.sortBy(_.map(data, function(v, k) { return unpack_tile(k); }),
                              function(e) { return e.z + (e.anti ? .5 : 0.); });
-        var tiles = _.filter(tiles, function(e) { return e.z <= (curlayer.max_depth || MAX_ZOOM); });
+        var tiles = _.filter(tiles, function(e) { return e.z <= max_zoom; });
 
         var layer = this;
         
@@ -1178,6 +1184,10 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         this.setWorldMatrix([new THREE.Matrix4().makeTranslation(delta[0], delta[1], 0)], true);
     }
 
+    this._drive = function(speed, heading) {
+        this.setAnimationContext(new DrivingAnimationContext(this.curPole, speed, heading, this));
+    }
+
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
             var ref = $('#container')[0];
@@ -1254,7 +1264,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
                 if (vlen(velocity) > 0) {
                     renderer.setAnimationContext(new InertialAnimationContext(pos, velocity, 3, drag_context, function(pos, drag_context) {
                         renderer[drag_context.mode](pos, drag_context);
-                    }));
+                    }, renderer));
                 }
                 drag_context = null;
             }
@@ -1306,12 +1316,35 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     this.applyAnimationContext = function() {
         if (this.animation_context) {
             this.animation_context.apply();
+            console.log(this.animation_context.getSpeed());
+            //console.log(this.animation_context.poleAtT(clock() + .15));
             if (this.animation_context.finished()) {
                 this.animation_context = null;
             }
         }
     }
-    
+
+    this.max_zoom_for_time_horizon = function(interval) {
+        // ensure pole is up to date, accounting for delay of tile sampling
+        this.applyAnimationContext();
+        var futurePole = this.poleInFuture(interval);
+        return max_z_overlap(this.curPole[0], distance(this.curPole, futurePole),
+                             this.scale_px, this.overzoom - .5 * this.zoom_blend);
+    }
+
+    this.poleInFuture = function(interval) {
+        /*
+          if animation context, use it
+          otherwise track mouse movement and apply same logic as warp inertia
+         */
+        if (this.animation_context) {
+            this.animation_context.poleAtT(interval) || this.curPole;
+        }
+
+        // TODO
+        return this.curPole
+    }
+
     var _interp = function(a, b, k) {
         return (1. - k) * a + k * b;
     }
@@ -1410,7 +1443,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
         var renderer = this;
         
         this.applyAnimationContext();
-
+        
         if (!this.currentObjs.length) {
             this.qPolar = this.makeQuad('flat');
             this.qPolarAnti = this.makeQuad('flat');
@@ -1539,8 +1572,10 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
 
     this.setUniforms = function() {
         this.layer.uniforms.scale.value = this.scale_px;
-        this.layer.uniforms.bias.value = .01 * $('#overzoom').slider('value');
-        this.layer.uniforms.zoom_blend.value = .01 * $('#blend').slider('value');
+        this.overzoom = .01 * $('#overzoom').slider('value');
+        this.layer.uniforms.bias.value = this.overzoom;
+        this.zoom_blend = .01 * $('#blend').slider('value');
+        this.layer.uniforms.zoom_blend.value = this.zoom_blend;
         this.layer.uniforms.blinder_opacity.value = .01 * $('#blinders').slider('value');
 
         var p0 = this.xyToWorld(0, 0);
@@ -1650,6 +1685,14 @@ function hp_split(val) {
     return {coarse: primary, fine: remainder};
 }
 
+// return max z-level for which tiles may still be in view after
+// moving 'distance' away
+// positive zoom_bias moves a zoom level's range of view towards the pole
+function max_z_overlap(pole_lat, distance, scale, zoom_bias) {
+    var bias = Math.log(scale / 256) / Math.LN2 - zoom_bias;
+    var base_z = 999; // TODO calculate from pole_lat+distance
+    return base_z + Math.max(bias, 0);
+}
 
 
 function load_image(layer, tile, onload) {
@@ -1841,7 +1884,7 @@ function MouseTracker(window) {
     }
 }
 
-function InertialAnimationContext(p0, v0, friction, drag_context, transform) {
+function InertialAnimationContext(p0, v0, friction, drag_context, transform, renderer) {
     this.t0 = clock();
 
     var end_pos = vadd(p0, vscale(v0, 1. / friction));
@@ -1857,6 +1900,24 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform) {
         var pos = {x: pos[0], y: pos[1]};
         transform(pos, drag_context);
         drag_context.last_px = pos;
+    }
+
+    this.getSpeed = function() {
+        var t = clock() - this.t0;
+        var mouse_speed = vlen(v0) * Math.exp(-friction * t);
+        var pos = this.cur_pos();
+
+        if (drag_context.mode == 'pan') {
+            return 0;
+        } else if (drag_context.mode == 'warp') {
+            var merc = renderer.xyToWorld(pos[0], pos[1]);
+	        var merc_ll = xy_to_ll(merc.x, merc.y);
+            var res = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] / DEG_RAD);
+            return mouse_speed * res * EARTH_MEAN_RAD;
+        }
+    }
+    this.poleAtT = function(t) {
+        // todo
     }
 
     this.finished = function() {
@@ -1880,6 +1941,13 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
         this.last_k = k;
     }
 
+    this.getSpeed = function() {
+        return 0;
+    }
+    this.poleAtT = function(t) {
+        return null;
+    }
+
     this.finished = function() {
         return (clock() - this.t0) > period;
     }
@@ -1888,6 +1956,11 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
 function logistic(x, k) {
     k = k || 1.;
     return k / (1 + Math.exp(-x));
+}
+
+function dlogistic(x, k) {
+    k = k || 1.;
+    return k * Math.exp(-x) / Math.pow(1 + Math.exp(-x), 2);
 }
 
 function goto_parameters(dist, v0) {
@@ -1946,9 +2019,42 @@ function GoToAnimationContext(start, end, transform, args) {
         this.last_heading = p.heading;
     }
 
+    this.getSpeed = function() {
+        var t = Math.min(clock() - this.t0, period);
+        var x = 2 * params.xmax * (t / period - .5);
+        return dlogistic(x, params.yscale);
+    }
+
+    this.poleAtT = function(t) {
+        return null;
+    }
+
     this.finished = function() {
         var t = clock() - this.t0;
         return (t > period && t > zoomoutperiod);
+    }
+}
+
+function DrivingAnimationContext(start, speed, heading, merc) {
+    this.t0 = clock();
+
+    var plotter = line_plotter(start, heading);
+
+    this.apply = function() {
+        var t = clock() - this.t0;
+        merc.curPole = plotter(speed * t);
+    }
+
+    this.getSpeed = function() {
+        return speed;
+    }
+
+    this.poleAtT = function(t) {
+        return null;
+    }
+
+    this.finished = function() {
+        return false;
     }
 }
 
@@ -2213,6 +2319,9 @@ landmarks = [{
 }, {
     name: 'Great Bend of Brahmaputra',
     pos: [29.56799, 95.39003]
+}, {
+    name: 'Mississippi River Delta',
+    pos: [29.14828, -89.25165],
 }, {
     name: 'North Pole',
     pos: [90, 0]
