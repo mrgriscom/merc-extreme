@@ -41,7 +41,7 @@ body {
 }
 
 .icon {
-  padding: 2px;
+  padding: 3px;
 }
 
 .dropdown {
@@ -68,8 +68,17 @@ input {
 </style>
 
 <div id="titlebar" style="color: white;">
-  <div style="float: right;">
+  <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="help.png" title="Help" />
+    <div class="dropdown" id="help">
+      <ul>
+        <li>move map - click&amp;drag
+        <li>zoom in - double-click
+        <li>zoom in/out - scrollwheel
+        <li>move pole point - shift+click&amp;drag or right-click&amp;drag
+        <li>go to point - shift+double-click or double-right-click
+      </ul>
+    </div>
   </div>
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="settings.png" title="Settings" />
@@ -111,11 +120,11 @@ input {
       </div>
     </div>
   </div>
-  <form id="search" style="float: right; margin: 6px 60px 0 30px; vertical-align: middle;">
-    <input id="locsearch" placeholder="change origin to&hellip;" style="width: 20em;"></input>
+  <form id="search" style="float: right; margin: 4px 40px 0 20px; vertical-align: middle;">
+    <input id="locsearch" placeholder="search for place&hellip;" style="width: 20em;"></input>
     <input type="submit" value="Go"></input>
   </form>
-  <div>MERCATOR: EXTREME by Drew Roos</div>
+  <div><span style="font-weight: bold; font-size: 150%; color: #aaa;">MERCATOR: EXTREME</span> by Drew Roos</div>
   <div style="clear: both;"></div>
 </div>
 
@@ -181,17 +190,6 @@ input {
     <div id="scale"><span id="label"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
   </div>
 </div>
-
-</div>
-
-<div id="help" style="display: none;">
-
-move map - click&amp;drag
-zoom in - double-click
-zoom in/out - scrollwheel
-
-move pole point - shift+click&amp;drag or right-click&amp;drag
-go to point - shift+double-click or double-right-click
 
 </div>
 
