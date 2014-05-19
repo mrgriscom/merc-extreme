@@ -1,9 +1,17 @@
+// stub out stuff so we can load main script
+// this is hacky-- all we want is the constants
+window = {};
+screen = {width: 9999, height: 9999};
+THREE = {BufferGeometry: String};
+importScripts('merc-extreme.js');
+// explicitly list which constants we use
+MAX_ZOOM = MAX_ZOOM;
+TILE_FRINGE_WIDTH = TILE_FRINGE_WIDTH;
+////
+
+
 
 TILE_OFFSET = 32;
-
-// todo need to link these to main file
-MAX_ZOOM = 22;
-TILE_FRINGE_WIDTH = .1;
 
 self.addEventListener('message', function(e) {
     if (e.data instanceof Uint8Array) {

@@ -1,4 +1,4 @@
-/* guide to hungarian notation (TODO)
+/* guide to hungarian notation (TODO - this isn't actually used yet)
  * 
  * units prefix:
  * - mr: mercator-projected radians
@@ -1709,6 +1709,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             if (dlon != 0) {
                 this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, -dlon / 360 * this.scale_px, 0)], true);
             }
+            // TODO support extentS
         } else {
             var curHeight = this.xyToWorld(0, 0).x - this.xyToWorld(0, this.height_px).x;
             var curRight = this.xyToWorld(this.width_px, 0).y;
@@ -1758,6 +1759,7 @@ function hp_split(val) {
 // return max z-level for which tiles may still be in view after
 // moving 'distance' away
 // positive zoom_bias moves a zoom level's range of view towards the pole
+// this is mostly black magic
 function max_z_overlap(pole_lat, dist, scale, zoom_bias) {
     var bias = log2(scale / 256) - zoom_bias;
     var lg2dist = log2(dist);
