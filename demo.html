@@ -67,6 +67,7 @@ input {
 
 .swap {
   cursor: pointer;
+  margin-top: -5px;
 }
 
 a {
@@ -107,6 +108,21 @@ a:hover {
   border-radius: 0 5px 0 0;
   border-right: 2px solid #544;
 }
+
+.pointerinfo {
+  background: rgba(255, 255, 255, .4);
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-bottom: 2px solid #544;
+  border-right: 2px solid #544;
+  border-radius: 0 0 5px 0;
+  font-weight: bold;
+  font-size: 14px;
+  color: #222;
+  padding: 3px;
+}
+
 
 </style>
 
@@ -226,15 +242,16 @@ a:hover {
 <div id="antipoleinfo" class="poleinfo antipole">
   <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="swap.png" style="margin-left: 3px;" />
 </div>
-<div id="mouseinfo" style="background: rgba(255, 255, 255, .4); position: absolute; left: 10px; top: 10px;">
-  MOUSEPOS
-  <div>
-    <div id="pos"></div>
-    <div id="dist"></div>
-    <div id="bearing"></div>
-    <div id="orient"><img src="north.png" /></div>
-    <div id="scale"><span id="label"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
+<div id="mouseinfo" class="pointerinfo">
+  <span class="polehdr">POINTER</span><br>
+  <div id="pos"></div>
+  <span class="polehdr">FROM POLE</span><br>
+  <div style="white-space: nowrap;">
+    <span id="dist" style="display: inline-block; min-width: 5em; padding-right: 1em;"></span><span id="bearing"></span>
   </div>
+  <hr style="background-color: #444; border: 0; height: 1px;"/>
+  <div id="orient" style="float: left;"><img src="north.png" /></div>
+  <div id="scale" style="display: inline-block; padding-left: 30px; padding-top: 6px;"><span id="label" style="font-size: 11px;"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
 </div>
 
 </div>
