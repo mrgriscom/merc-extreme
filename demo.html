@@ -40,6 +40,10 @@ body {
   border-bottom: 1px solid black;
 }
 
+.icon {
+  padding: 2px;
+}
+
 .dropdown {
   color: white;
   position: absolute;
@@ -63,50 +67,55 @@ input {
 
 </style>
 
-<div id="titlebar" style="color: white; padding: 5px;">
-  MERCATOR: EXTREME by Drew Roos
+<div id="titlebar" style="color: white;">
   <div style="float: right;">
-    <form id="search" style="display: inline-block; margin: 0; margin-right: 60px;">
-      <input id="locsearch" placeholder="change origin to&hellip;"></input>
-      <input type="submit" value="Go"></input>
-    </form>
-    <div class="dropdown-anchor" style="display: inline-block; position: relative;">Layers
-      <div id="layers" class="dropdown">
-        <div data-bind="foreach: layers">
-          <div data-bind="click: $parent.selectLayer">
-            <span data-bind="text: displayName, style: { color: active() ? '#faa' : '' }"></span>
-            <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
-            <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
-            <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
-          </div>
-        </div>
-        <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
-        <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
-        </div>
-      </div>
-    </div>
-    <div id="companion" style="display: inline-block;">Companion Map</div>
-    <div class="dropdown-anchor" style="display: inline-block; position: relative;">Landmarks
-      <div class="dropdown" data-bind="foreach: places">
-        <div data-bind="click: select">
-          <div data-bind="text: name"></div>
-          <div data-bind="html: byline" style="font-size: 70%; margin-left: 1em;"></div>
-        </div>
-      </div>
-    </div>
-    <div class="dropdown-anchor" style="display: inline-block; position: relative;">Settings
-      <div class="dropdown" id="settings">
-        Units: <span style="color: #faa;" data-bind="text: active_unit, click: toggleUnit"></span><br>
-        Blending between zoom levels
-        <div id="blend"></div>
-        Overzoom
-        <div id="overzoom"></div>
-        Opacity of blinders
-        <div id="blinders"></div>
-      </div>
-    </div>
-    <div style="display: inline-block;">Help</div>
+    <img class="icon" src="help.png" title="Help" />
   </div>
+  <div class="dropdown-anchor" style="float: right; position: relative;">
+    <img class="icon" src="settings.png" title="Settings" />
+    <div class="dropdown" id="settings">
+      Units: <span style="color: #faa;" data-bind="text: active_unit, click: toggleUnit"></span><br>
+      Blending between zoom levels
+      <div id="blend"></div>
+      Overzoom
+      <div id="overzoom"></div>
+      Opacity of blinders
+      <div id="blinders"></div>
+      </div>
+  </div>
+  <div class="dropdown-anchor" style="float: right; position: relative;">
+    <img class="icon" src="placemark.png" title="Places" />
+    <div class="dropdown" data-bind="foreach: places">
+      <div data-bind="click: select">
+        <div data-bind="text: name"></div>
+        <div data-bind="html: byline" style="font-size: 70%; margin-left: 1em;"></div>
+      </div>
+    </div>
+  </div> 
+  <div id="companion" style="float: right;">
+    <img class="icon" src="map.png" title="View on a normal map" />
+  </div> 
+  <div class="dropdown-anchor" style="float: right; position: relative;">
+    <img class="icon" src="layers.png" title="Layers" />
+    <div id="layers" class="dropdown">
+      <div data-bind="foreach: layers">
+        <div data-bind="click: $parent.selectLayer">
+          <span data-bind="text: displayName, style: { color: active() ? '#faa' : '' }"></span>
+          <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
+          <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
+          <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
+        </div>
+      </div>
+      <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
+      <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
+      </div>
+    </div>
+  </div>
+  <form id="search" style="float: right; margin: 6px 60px 0 30px; vertical-align: middle;">
+    <input id="locsearch" placeholder="change origin to&hellip;" style="width: 20em;"></input>
+    <input type="submit" value="Go"></input>
+  </form>
+  <div>MERCATOR: EXTREME by Drew Roos</div>
   <div style="clear: both;"></div>
 </div>
 
