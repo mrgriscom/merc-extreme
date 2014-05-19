@@ -123,7 +123,7 @@ function init() {
 
     $('#companion').click(function() {
         COMPANION = window.open('companion/', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
-        COMPANION.onbeforeunload = function() { console.log('window was closed');};
+        COMPANION.onbeforeunload = function() { COMPANION = null; };
     });
     DEBUG = {postMessage: function(){}};
     METRIC = true;
@@ -1340,6 +1340,14 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 DBL_RIGHT_CLICK = false;
             }
         });
+        $(document).bind('mouseout', function(e) {
+            if (e.relatedTarget != null) {
+                // not a 'window leave' event
+                return;
+            }
+
+            POS = null;
+        });
         $(this.renderer.domElement).bind('dblclick', function(e) {
             //console.log('dblclick');
             if (e.shiftKey) {
@@ -1517,6 +1525,15 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         return line;
     }
 
+    this.hideLines = function() {
+        this.vline.vertices[0] = new THREE.Vector3(0, 0, -1);
+        this.vline.vertices[1] = new THREE.Vector3(0, 0, -1);
+        this.vline.verticesNeedUpdate = true;
+        this.hline.vertices[0] = new THREE.Vector3(0, 0, -1);
+        this.hline.vertices[1] = new THREE.Vector3(0, 0, -1);
+        this.hline.verticesNeedUpdate = true;
+    }
+
     this.render = function(timestamp) {
         var renderer = this;
 
@@ -1538,7 +1555,13 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.setUniforms();
         
         var debug = {};
+        var polefmt = fmt_pos(this.curPole, 5);
+        $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
+        var antipolefmt = fmt_pos(antipode(this.curPole), 5);
+        $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
         if (window.POS) {
+            $('#mouseinfo').css('top', 0);
+
             var p = renderer.xyToWorld(POS.x, POS.y);
             var merc_ll = xy_to_ll(mod(p.x, 1.), p.y);
             var ll = translate_pole(merc_ll, renderer.curPole);
@@ -1553,10 +1576,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             var scale = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] * Math.PI / 180.) * EARTH_MEAN_RAD;
             var orient = line_plotter(this.curPole, bearing)(dist, true).heading;
 
-            var polefmt = fmt_pos(this.curPole, 5);
-            $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
-            var antipolefmt = fmt_pos(antipode(this.curPole), 5);
-            $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
             var posfmt = fmt_pos(ll, 5);
             $('#mouseinfo #pos').text(posfmt.lat + ' ' + posfmt.lon);
             if (METRIC) {
@@ -1590,6 +1609,23 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 this.hline.vertices[0] = new THREE.Vector3(p.x, p.y, .1);
                 this.hline.vertices[1] = new THREE.Vector3(p.x, MAX_MERC, .1);
                 this.hline.verticesNeedUpdate = true;
+            } else {
+                this.hideLines();
+            }
+        } else {
+            $('#mouseinfo').css('top', -1000);
+            this.hideLines();
+
+            if (window.COMPANION) {
+                var tf = this.layer.curlayer.tilefunc;
+                delete this.layer.curlayer.tilefunc;
+                COMPANION.postMessage({
+                    pole: this.pole,
+                    layer: this.layer.curlayer,
+                    dist: null,
+                    bearing: null,
+                }, '*');
+                this.layer.curlayer.tilefunc = tf;
             }
         }
 

@@ -91,6 +91,15 @@ function update(map, data) {
         map.cur_layer = new_layer;
     }
 
+    if (data.dist == null) {
+        map.setView(data.pole, map.getZoom(), {pan: {animate: false}});
+        map.fitWorld({pan: {animate: false}});
+        if (map.geodata) {
+            map.removeLayer(map.geodata);
+        }
+        return;
+    }
+
     // dimensions and viewport to determine zoom level
     if (data.dist / EARTH_MEAN_RAD < .5 * Math.PI) {
         var center = data.pole;
