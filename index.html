@@ -143,7 +143,7 @@ a:hover {
 
 <div id="titlebar" style="color: white;">
   <div class="dropdown-anchor" style="float: right; position: relative;">
-    <img class="icon" src="help.png" title="Help" />
+    <img class="icon" src="img/help.png" title="Help" />
     <div class="dropdown" id="help">
       <ul>
         <li>move map - click&amp;drag
@@ -155,7 +155,7 @@ a:hover {
     </div>
   </div>
   <div class="dropdown-anchor" style="float: right; position: relative;">
-    <img class="icon" src="settings.png" title="Settings" />
+    <img class="icon" src="img/settings.png" title="Settings" />
     <div class="dropdown" id="settings">
       Units: <span style="color: #faa;" data-bind="text: active_unit, click: toggleUnit"></span><br>
       Blending between zoom levels
@@ -167,14 +167,14 @@ a:hover {
       </div>
   </div>
   <div id="companion" style="float: right;">
-    <img class="icon" src="map.png" style="cursor: pointer;" title="View on a normal map" />
+    <img class="icon" src="img/map.png" style="cursor: pointer;" title="View on a normal map" />
   </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
-    <img class="icon" src="placemark.png" title="Places" />
+    <img class="icon" src="img/placemark.png" title="Places" />
     <div class="dropdown" data-bind="foreach: places">
       <div data-bind="click: select">
         <div>
-          <img data-bind="visible: geoloc" src="crosshair.png" />
+          <img data-bind="visible: geoloc" src="img/crosshair.png" />
           <span data-bind="text: name, style: {fontStyle: geoloc() ? 'italic' : ''}"></span>
         </div>
         <div data-bind="html: byline" style="font-size: 70%; margin-left: 1em;"></div>
@@ -182,7 +182,7 @@ a:hover {
     </div>
   </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
-    <img class="icon" src="layers.png" title="Layers" />
+    <img class="icon" src="img/layers.png" title="Layers" />
     <div id="layers" class="dropdown" style="text-align: right;">
       <div data-bind="foreach: layers">
         <div data-bind="click: $parent.selectLayer">
@@ -255,10 +255,10 @@ a:hover {
 
 <div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
 <div id="poleinfo" class="poleinfo pole">
-  <span class="polehdr">POLE</span><br><img class="swap" src="swap.png" style="margin-right: 3px;" /><span class="data"></span>
+  <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" style="margin-right: 3px;" /><span class="data"></span>
 </div>
 <div id="antipoleinfo" class="poleinfo antipole">
-  <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="swap.png" style="margin-left: 3px;" />
+  <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="img/swap.png" style="margin-left: 3px;" />
 </div>
 <div id="mouseinfo" class="pointerinfo">
   <span class="polehdr">POINTER</span><br>
@@ -268,7 +268,7 @@ a:hover {
     <span id="dist" style="display: inline-block; min-width: 5em; padding-right: 1em;"></span><span id="bearing"></span>
   </div>
   <hr style="background-color: #444; border: 0; height: 1px;"/>
-  <div id="orient" style="float: left;"><img src="north.png" /></div>
+  <div id="orient" style="float: left;"><img src="img/north.png" /></div>
   <div id="scale" style="display: inline-block; padding-left: 30px; padding-top: 6px;"><span id="label" style="font-size: 11px;"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
 </div>
 

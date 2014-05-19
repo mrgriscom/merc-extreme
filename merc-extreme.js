@@ -114,7 +114,7 @@ function init() {
     merc.start();
 
     $('#companion').click(function() {
-        COMPANION = window.open('companion.html', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
+        COMPANION = window.open('companion/', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
         COMPANION.onbeforeunload = function() { console.log('window was closed');};
     });
     DEBUG = {postMessage: function(){}};
