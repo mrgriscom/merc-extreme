@@ -327,22 +327,24 @@ label {
     </td>
     <td style="vertical-align: top;">
     <div style="width: 20em; float: right;">
-      <div data-bind="with: layer;">
-        <div><label>url template<span style="color: #c22;">*</span></label></div>
-        <div><input style="width: 100%;" data-bind="value: url"></input></div>
-        <div style="float: left; margin-right: 1em;">
-          <div><label>name</label></div>
-          <div><input style="width: 12em;" data-bind="value: name"></input></div>
-        </div>
-        <div style="float: left;">
-          <div><label>max depth</label></div>
-          <div><input style="width: 4em;" data-bind="value: max_depth"></input></div>
-        </div>
+      <form data-bind="submit: commit" style="margin: 0;">
+        <div data-bind="with: layer;">
+          <div><label>url template<span style="color: #c22;">*</span></label></div>
+          <div><input style="width: 100%;" data-bind="value: url"></input></div>
+          <div style="float: left; margin-right: 1em;">
+            <div><label>name</label></div>
+            <div><input style="width: 12em;" data-bind="value: name"></input></div>
+          </div>
+          <div style="float: left;">
+            <div><label>max depth</label></div>
+            <div><input style="width: 4em;" data-bind="value: max_depth"></input></div>
+          </div>
       </div>
-      <div style="clear: both;">
-        <button data-bind="click: commit, text: commitCaption"></button>
-        <button data-bind="click: cancel">cancel</button>
-      </div>
+        <div style="clear: both;">
+          <input type="submit" data-bind="value: commitCaption"></input>
+          <button data-bind="click: cancel">cancel</button>
+        </div>
+      </form>
       <div class="help" style="font-size: 75%;">
         <p>
           Use the following template variables in the url:
