@@ -65,6 +65,49 @@ input {
   margin: 0;
 }
 
+.swap {
+  cursor: pointer;
+}
+
+a {
+  color: #058;
+}
+a:visited {
+  color: #058;
+}
+a:hover {
+  color: #07a;
+}
+
+.poleinfo {
+  background: rgba(255, 255, 255, .4);
+  position: absolute;
+  bottom: 0;
+  border-top: 2px solid #544;
+  font-weight: bold;
+  font-size: 14px;
+  color: #222;
+  padding: 3px;
+}
+
+.polehdr {
+  font-size: 11px;
+  color: #333;
+}
+
+.pole {
+  text-align: right;
+  right: 0;
+  border-radius: 5px 0 0 0;
+  border-left: 2px solid #544;
+}
+
+.antipole {
+  left: 0;
+  border-radius: 0 5px 0 0;
+  border-right: 2px solid #544;
+}
+
 </style>
 
 <div id="titlebar" style="color: white;">
@@ -92,24 +135,27 @@ input {
       <div id="blinders"></div>
       </div>
   </div>
+  <div id="companion" style="float: right;">
+    <img class="icon" src="map.png" style="cursor: pointer;" title="View on a normal map" />
+  </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="placemark.png" title="Places" />
     <div class="dropdown" data-bind="foreach: places">
       <div data-bind="click: select">
-        <div data-bind="text: name"></div>
+        <div>
+          <img data-bind="visible: geoloc" src="crosshair.png" />
+          <span data-bind="text: name, style: {fontStyle: geoloc() ? 'italic' : ''}"></span>
+        </div>
         <div data-bind="html: byline" style="font-size: 70%; margin-left: 1em;"></div>
       </div>
     </div>
   </div> 
-  <div id="companion" style="float: right;">
-    <img class="icon" src="map.png" title="View on a normal map" />
-  </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="layers.png" title="Layers" />
-    <div id="layers" class="dropdown">
+    <div id="layers" class="dropdown" style="text-align: right;">
       <div data-bind="foreach: layers">
         <div data-bind="click: $parent.selectLayer">
-          <span data-bind="text: displayName, style: { color: active() ? '#faa' : '' }"></span>
+          <span data-bind="text: displayName, style: { fontWeight: active() ? 'bold' : '' }"></span>
           <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
           <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
           <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
@@ -173,12 +219,12 @@ input {
   <button data-bind="click: cancel">cancel</button>
 </script>
 
-<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto;" data-bind="html: curAttr"></span></div>
-<div id="poleinfo" style="text-align: right; background: rgba(255, 255, 255, .4); position: absolute; right: 0; bottom: 0; border-radius: 5px 0 0 0;">
-  POLE<br><span class="swap">&harr;</span><span class="data"></span>
+<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
+<div id="poleinfo" class="poleinfo pole">
+  <span class="polehdr">POLE</span><br><img class="swap" src="swap.png" style="margin-right: 3px;" /><span class="data"></span>
 </div>
-<div id="antipoleinfo" style="background: rgba(255, 255, 255, .4); position: absolute; left: 0; bottom: 0; border-radius: 0 5px 0 0;">
-  ANTI-POLE<br><span class="data"></span><span class="swap">&harr;</span>
+<div id="antipoleinfo" class="poleinfo antipole">
+  <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="swap.png" style="margin-left: 3px;" />
 </div>
 <div id="mouseinfo" style="background: rgba(255, 255, 255, .4); position: absolute; left: 10px; top: 10px;">
   MOUSEPOS
@@ -186,7 +232,7 @@ input {
     <div id="pos"></div>
     <div id="dist"></div>
     <div id="bearing"></div>
-    <div id="orient"><span style="display: inline-block;">&uarr;</span></div>
+    <div id="orient"><img src="north.png" /></div>
     <div id="scale"><span id="label"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
   </div>
 </div>

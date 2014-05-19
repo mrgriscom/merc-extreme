@@ -1551,7 +1551,7 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
             var bearing_cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][mod(Math.floor(bearing / 45. + .5), 8)];
             $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0 (' + bearing_cardinal + ')');
-            $('#orient span').css('transform', 'rotate(' + (270 - orient) + 'deg)');
+            $('#orient img').css('transform', 'rotate(' + (270 - orient) + 'deg)');
             var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
             $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
@@ -1838,7 +1838,7 @@ function EMViewModel(merc) {
         this.selectLayer(this.layers()[0]);
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
-        var current = new PlaceModel({name: 'Current Location'}, merc);
+        var current = new PlaceModel({name: 'Current Location', geoloc: true}, merc);
         current._select = current.select;
         current.select = function() {
             navigator.geolocation.getCurrentPosition(function(position) {
@@ -2241,6 +2241,7 @@ function PlaceModel(data, merc) {
     this.lon_center = data.lon_center;
     this.antipode = data.antipode;
     this.byline = ko.observable(data.desc);
+    this.geoloc = ko.observable(data.geoloc);
 
     this.select = function() {
         var args = {};
@@ -2405,6 +2406,13 @@ landmarks = [{
 }, {
     name: 'Mississippi River Delta',
     pos: [29.14828, -89.25165],
+}, {
+    name: 'Lake Victoria',
+    pos: [-1.79620, 33.39377],
+}, {
+    name: '\xc5land',
+    pos: [60.03177, 20.89280],
+    lon_center: 0,
 }, {
     name: 'North Pole',
     pos: [90, 0]
