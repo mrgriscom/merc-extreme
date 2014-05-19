@@ -108,9 +108,23 @@ function init() {
     }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
 
-    $('#blend').slider({range: 'max', max: 100.*MAX_ZOOM_BLEND});
-    $('#overzoom').slider({range: 'max', max: 50});
-    $('#blinders').slider({range: 'max', max: 100, value: 70});
+    var initSlider = function($container, max, field, init) {
+        var set = function(val) {
+            $container.find('.slider-val').text(val + '%');
+            merc[field] = .01 * val;
+        }
+        $container.find('.slider').slider({
+            range: 'max',
+            max: 100 * max,
+            value: 100 * (init || 0),
+            slide: function(ev, ui) { set(ui.value); }
+        });
+        set($container.find('.slider').slider('value'));
+    };
+    initSlider($('#blend'), MAX_ZOOM_BLEND, 'zoom_blend');
+    initSlider($('#overzoom'), .5, 'overzoom');
+    initSlider($('#blinders'), 1, 'blinder_opacity', .7);
+
 
     var koRoot = new EMViewModel(merc);
     koRoot.load(tile_specs, landmarks);
@@ -1692,11 +1706,9 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
     this.setUniforms = function() {
         this.layer.uniforms.scale.value = this.scale_px;
-        this.overzoom = .01 * $('#overzoom').slider('value');
         this.layer.uniforms.bias.value = this.overzoom;
-        this.zoom_blend = .01 * $('#blend').slider('value');
         this.layer.uniforms.zoom_blend.value = this.zoom_blend;
-        this.layer.uniforms.blinder_opacity.value = .01 * $('#blinders').slider('value');
+        this.layer.uniforms.blinder_opacity.value = this.blinder_opacity;
 
         var p0 = this.xyToWorld(0, 0);
         var p1 = this.xyToWorld(0, this.height_px);
@@ -1707,7 +1719,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         lon = lon_norm(lon);
 
         if (!this.pole || lat != this.pole[0] || lon != this.pole[1]) {
-            console.log(this.pole, lat, lon);
             var polefmt = fmt_pos(this.curPole, 5);
             $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
             var antipolefmt = fmt_pos(antipode(this.curPole), 5);
@@ -2235,7 +2246,7 @@ function LayerModel(data, merc, root) {
         }).join(', ');
     }, this);
     this.displayName = ko.computed(function() {
-        return this.name() || 'custom layer';
+        return this.name() || '\u2014custom layer\u2014';
     }, this);
 
     this.preview_url = ko.observable();

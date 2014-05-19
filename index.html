@@ -12,7 +12,6 @@
 <script src="geodesy.js"></script>
 
 <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Open+Sans+Condensed:300,700|Open+Sans:400" />
-<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css" />
 
 <script src="coords-db.js"></script>
 
@@ -48,8 +47,8 @@ body {
   color: white;
   position: absolute;
   top: 100%;
-  right: 0;
-  background: rgba(0, 0, 0, .4);
+  right: -30px;
+  background: rgba(0, 0, 0, .7);
   z-index: 500;
   display: none;
   min-width: 8em;
@@ -100,10 +99,10 @@ a:hover {
 }
 
 .poleinfo {
-  background: rgba(255, 255, 255, .4);
+  background: rgba(200, 200, 200, .7);
   position: absolute;
   bottom: 0;
-  border-top: 2px solid #544;
+  border-top: 2px solid rgba(100, 100, 100, .4);
   font-weight: bold;
   font-size: 14px;
   color: #222;
@@ -119,22 +118,22 @@ a:hover {
   text-align: right;
   right: 0;
   border-radius: 5px 0 0 0;
-  border-left: 2px solid #544;
+  border-left: 2px solid rgba(100, 100, 100, .4);
 }
 
 .antipole {
   left: 0;
   border-radius: 0 5px 0 0;
-  border-right: 2px solid #544;
+  border-right: 2px solid rgba(100, 100, 100, .4);
 }
 
 .pointerinfo {
-  background: rgba(255, 255, 255, .4);
+  background: rgba(200, 200, 200, .7);
   position: absolute;
   top: 0;
   left: 0;
-  border-bottom: 2px solid #544;
-  border-right: 2px solid #544;
+  border-bottom: 2px solid rgba(100, 100, 100, .4);
+  border-right: 2px solid rgba(100, 100, 100, .4);
   border-radius: 0 0 5px 0;
   font-weight: bold;
   font-size: 14px;
@@ -143,10 +142,61 @@ a:hover {
 }
 
 
+
+.ui-slider-handle {
+    cursor: default;
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: -moz-linear-gradient(#4B4947, #32302D);
+    background: -webkit-gradient(linear, left top, left bottom, from(#4B4947), to(#32302D));
+    -moz-box-shadow: inset 0 1px 0 #5B5957, 0 -1px 0 black, 0 1px 0 black, -1px 0 0 black, 1px 0 0 black, 0 1px 1px #111;
+    -webkit-box-shadow: inset 0 1px 0 #5B5957, 0 -1px 0 black, 0 1px 0 black, -1px 0 0 black, 1px 0 0 black, 0 1px 1px #111;
+    margin: -6px;
+    border-radius: 6px;
+    -moz-border-radius: 7px;
+    -webkit-border-radius: 7px;
+}
+
+.ui-state-active {
+    background: -moz-linear-gradient(#6B6967, #42403D);
+    background: -webkit-gradient(linear, left top, left bottom, from(#6B6967), to(#42403D));
+}
+
+.ui-state-focus {
+    outline: none;
+}
+
+.ui-slider {
+    position: relative;
+    margin: 8px 0 0 0;
+    border-top: 1px solid #222;
+    border-bottom: 1px solid #555;
+}
+
+.slider-label {
+  font-size: 11px;
+  color: #aaa;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.slider-val {
+  text-align: right;
+  font-size: 14px;
+  color: white;
+  font-weight: bold;
+  width: 3em;
+}
+
+.slider-ctrl {
+  margin-top: 15px;
+}
+
 </style>
 
 <div id="titlebar" style="color: white;">
-  <div class="dropdown-anchor" style="float: right; position: relative;">
+  <div class="dropdown-anchor" style="float: right; position: relative; margin-right: 30px;">
     <img class="icon" src="img/help.png" title="Help" />
     <div class="dropdown" id="help">
       <ul>
@@ -160,15 +210,27 @@ a:hover {
   </div>
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="img/settings.png" title="Settings" />
-    <div class="dropdown" id="settings">
-      Units: <span style="color: #faa;" data-bind="text: active_unit, click: toggleUnit"></span><br>
-      Blending between zoom levels
-      <div id="blend"></div>
-      Overzoom
-      <div id="overzoom"></div>
-      Opacity of blinders
-      <div id="blinders"></div>
+    <div class="dropdown" id="settings" style="width: 10em; padding: 0 30px 30px 30px;">
+      <div style="text-align: center; font-weight: bold; margin-top: 15px; cursor: pointer;" data-bind="click: toggleUnit">
+        <span data-bind="text: active_unit"></span> units
       </div>
+      
+      <div id="blend" class="slider-ctrl">
+        <div class="slider-val" style="float: right;"></div>
+        <div class="slider-label">Blending between zoom levels</div>
+        <div class="slider" style="clear: both;"></div>
+      </div>
+      <div id="overzoom" class="slider-ctrl">
+        <div class="slider-val" style="float: right;"></div>
+        <div class="slider-label">Overzoom</div>
+        <div class="slider" style="clear: both;"></div>
+      </div>
+      <div id="blinders" class="slider-ctrl">
+        <div class="slider-val" style="float: right;"></div>
+        <div class="slider-label">Blinders</div>
+        <div class="slider" style="clear: both;"></div>
+      </div>
+    </div>
   </div>
   <div id="companion" style="float: right;">
     <img class="icon" src="img/map.png" style="cursor: pointer;" title="View on a normal map" />
@@ -198,7 +260,9 @@ a:hover {
           <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
         </div>
       </div>
-      <div class="dropdownchoice" data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
+      <div class="dropdownchoice" data-bind="if: !pendingLayer(), click: newPendingLayer" style="cursor: pointer;">
+        <img src="img/add.png" /> <i>new layer</i>
+      </div>
       <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
       </div>
     </div>
@@ -208,8 +272,8 @@ a:hover {
     <input type="submit" value="Go"></input>
   </form>
   <div>
-    <span style="font-family: &quot;Open Sans Condensed&quot;; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
-    <span style="font-family: &quot;Open Sans&quot;; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
+    <span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
+    <span style="font-family: &quot;Open Sans&quot;, sans-serif; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
   </div>
   <div style="clear: both;"></div>
 </div>
@@ -259,7 +323,7 @@ a:hover {
   <button data-bind="click: cancel">cancel</button>
 </script>
 
-<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
+<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(200, 200, 200, .7); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
 <div id="poleinfo" class="poleinfo pole">
   <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" /><span class="data"></span>
 </div>
