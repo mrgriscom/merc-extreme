@@ -193,6 +193,21 @@ a:hover {
   margin-top: 15px;
 }
 
+label {
+  font-size: 11px;
+  color: #aaa;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.layerform input {
+  margin-bottom: .5em;
+}
+
+.layerform .help {
+  font-size: 75%;
+}
+
 </style>
 
 <div id="titlebar" style="color: white;">
@@ -281,46 +296,84 @@ a:hover {
 <div id="container" style="position: relative;">
 
 <script type="text/html" id="layer-edit">
-  <div data-bind="with: layer">
-    url template <input data-bind="value: url"></input><br>
-    <div style="display: none;">
-      Enter the url template to load tiles from for this map layer. Use the
-      following template variables:
-      {z} - zoom level
-      {x} - x coordinate
-      {y} - y coordinate
-      {s:...} - server shard (optional):
-        {s:1-4} - use shards 1, 2, 3, 4
-        {s:abc} - use shards a, b, c
-
-      Example: http://tileserver{s:0-3}.maps-r-us.com/blah/blah/{z}/{x}/{y}.jpg
-
-      The tile server must support cross-origin requests in order to be
-      usable in extreme mercator. (This means the server must include the
-      header "Access-Control-Allow-Origin: *" in its response).
-    </div>
-    name (opt) <input data-bind="value: name"></input><br>
-    max depth (opt) <input data-bind="value: max_depth"></input><br>
-    <div id="tile_preview">
-      <div data-bind="if: preview_status() == 'loading'">loading...</div>
-      <div data-bind="if: preview_status() == 'error'">could not load tile
-        <div style="display: none;">
-          This could be because:
-          1) the url template is incorrect
-          2) the tile server does not support cross-origin requests
-          3) everything is in fact correct, but the map layer does not publish
-             a tile at zoom level 0. (such map layers will probably not look good
-             in an extreme mercator anyway -- layers that provide global coverage
-             are best
+  <div class="layerform" style="text-align: left; padding: .5em; white-space: normal;">
+    <table style="color: white;">
+    <tr>
+    <td style="vertical-align: top;">
+    <div id="tile_preview" class="help" data-bind="with: layer">
+      <div style="width: 256px; padding-right: 1em;" data-bind="visible: preview_status()">
+        <div style="margin-bottom: 5px;"><label>preview</label></div>
+        <div data-bind="if: preview_status() == 'loading'">loading...</div>
+        <div data-bind="if: preview_status() == 'error'">
+          <p style="font-weight: bold; color: #c22;">Could not load tile.</p>
+          
+          <p>This could be because:
+            <ol>
+              <li>the url template is incorrect
+              <li>the tile server does not support cross-origin requests
+              <li>everything is in fact correct, but the map layer does not publish
+                a tile at zoom level 0. (Such map layers will probably not look good
+                in an extreme mercator anyway &mdash; layers that provide global coverage
+                are best).
+            </ol>
+          </p>
+        </div>
+        <div data-bind="if: preview_status() == 'success'">
+          <img data-bind="attr: {src: preview_url}" />
+          <div>does this look ok?</div>
         </div>
       </div>
-      <div data-bind="if: preview_status() == 'success'">
-        <img data-bind="attr: {src: preview_url}" />
+    </div>
+    </td>
+    <td style="vertical-align: top;">
+    <div style="width: 20em; float: right;">
+      <div data-bind="with: layer;">
+        <div><label>url template<span style="color: #c22;">*</span></label></div>
+        <div><input style="width: 100%;" data-bind="value: url"></input></div>
+        <div style="float: left; margin-right: 1em;">
+          <div><label>name</label></div>
+          <div><input style="width: 12em;" data-bind="value: name"></input></div>
+        </div>
+        <div style="float: left;">
+          <div><label>max depth</label></div>
+          <div><input style="width: 4em;" data-bind="value: max_depth"></input></div>
+        </div>
+      </div>
+      <div style="clear: both;">
+        <button data-bind="click: commit, text: commitCaption"></button>
+        <button data-bind="click: cancel">cancel</button>
+      </div>
+      <div class="help" style="font-size: 75%;">
+        <p>
+          Use the following template variables in the url:
+        </p>
+        
+        <ul style="list-style: none;">
+          <li><b>{z}</b> &mdash; zoom level
+          <li><b>{x}</b> &mdash; x coordinate
+          <li><b>{y}</b> &mdash; y coordinate
+          <li><b>{s:...}</b> &mdash; server shard (optional), e.g.:
+            <ul style="list-style: none;">
+              <li>{s:1-4} &mdash; use shards 1, 2, 3, 4
+              <li>{s:abc} &mdash; use shards a, b, c
+            </ul>
+        </ul>      
+        
+        <p>
+          Example: <span style="white-space: nowrap;">http://tiles{s:0-3}.maps-r-us.com/blah/{z}/{x}/{y}.jpg</span>
+        </p>
+        
+        <p>
+          The tile server must support cross-origin requests in order to be
+          used. (This means the server must include the <code>Access-Control-Allow-Origin: *</code>
+          header in its response).
+        </p>
       </div>
     </div>
+    </td>
+    </tr>
+    </table>
   </div>
-  <button data-bind="click: commit, text: commitCaption"></button>
-  <button data-bind="click: cancel">cancel</button>
 </script>
 
 <div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(200, 200, 200, .7); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
