@@ -103,13 +103,8 @@ function init() {
     koRoot.load(tile_specs, landmarks);
     ko.applyBindings(koRoot);
 
-    var pole = COORDS.home;
-    //var pole = COORDS.home_ct;
-    //var pole = COORDS.home_za;
-    //var pole = [43.56060, -7.41384];
-    //var pole = [-16.15928, 180];
-    //var pole = [90, 0];
-    merc.poleAt(pole[0], pole[1], {duration: 0});
+    var initPole = _.find(koRoot.places(), function(e) { return e.default; });
+    initPole._select(true);
 
     merc.start();
 
@@ -1710,6 +1705,10 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
             this.setAnimationContext(null);
             this.curPole = [lat, lon];
             this.last_sampling = null;
+            var dlon = (args.target_heading - args.start_heading) || 0;
+            if (dlon != 0) {
+                this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, -dlon / 360 * this.scale_px, 0)], true);
+            }
         } else {
             var curHeight = this.xyToWorld(0, 0).x - this.xyToWorld(0, this.height_px).x;
             var curRight = this.xyToWorld(this.width_px, 0).y;
@@ -2242,9 +2241,17 @@ function PlaceModel(data, merc) {
     this.antipode = data.antipode;
     this.byline = ko.observable(data.desc);
     this.geoloc = ko.observable(data.geoloc);
+    this.default = data.default;
 
     this.select = function() {
+        this._select();
+    }
+
+    this._select = function(hard) {
         var args = {};
+        if (hard) {
+            args.duration = 0;
+        }
         if (this.lon_center != null) {
             var p = merc.xyToWorld(0, .5 * merc.height_px);
             args.start_heading = 180 - xy_to_ll(p.x, 0)[1];
@@ -2382,7 +2389,8 @@ landmarks = [{
 }, {
     name: 'Boston',
     pos: [42.35735, -71.05961],
-    lon_center: 280
+    lon_center: 280,
+    default: true,
 }, {
     name: '"View of the World from 9th Avenue"',
     pos: [40.76847, -73.98493],
