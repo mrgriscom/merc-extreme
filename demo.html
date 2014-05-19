@@ -1,21 +1,20 @@
 <html>
 <head>
-<title>merc extreme</title>
+<title>Mercator: Extreme</title>
 
 <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r66/three.min.js"></script>
-
-<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css" />
-
-<!--<script src="lib/three.js"></script>-->
-<script src="lib/jquery-latest.min.js"></script>
-<script src="lib/jquery-ui-1.10.4.custom.min.js"></script>
-<script src="lib/underscore.min.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+<script src="lib/jquery-ui-1.10.4.custom.min.js"></script>
 <script src="merc-extreme.js"></script>
 <script src="geodesy.js"></script>
-<script src="coords-db.js"></script>
 
-<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+<link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Open+Sans+Condensed:300,700|Open+Sans:400" />
+<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css" />
+
+<script src="coords-db.js"></script>
 
 <script>
 
@@ -38,6 +37,7 @@ body {
 #titlebar {
   background: #222;
   border-bottom: 1px solid black;
+  height: 30px;
 }
 
 .icon {
@@ -78,6 +78,21 @@ a:visited {
 }
 a:hover {
   color: #07a;
+}
+
+#titlebar a {
+  color: white;
+  text-decoration: none;
+}
+#titlebar a:visited {
+  color: white;
+}
+#titlebar a:hover {
+  color: #def;
+  text-decoration: underline;
+}
+#titlebar .dropdown a {
+  text-decoration: underline;
 }
 
 .poleinfo {
@@ -186,7 +201,10 @@ a:hover {
     <input id="locsearch" placeholder="search for place&hellip;" style="width: 20em;"></input>
     <input type="submit" value="Go"></input>
   </form>
-  <div><span style="font-weight: bold; font-size: 150%; color: #aaa;">MERCATOR: EXTREME</span> by Drew Roos</div>
+  <div>
+    <span style="font-family: &quot;Open Sans Condensed&quot;; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
+    <span style="font-family: &quot;Open Sans&quot;; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
+  </div>
   <div style="clear: both;"></div>
 </div>
 
