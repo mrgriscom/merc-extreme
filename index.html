@@ -52,13 +52,17 @@ body {
   background: rgba(0, 0, 0, .4);
   z-index: 500;
   display: none;
-  width: 15em;
+  min-width: 8em;
   padding: 15px;
   border-radius: 0 0 10px 10px;
 }
 
 .dropdown-anchor:hover > .dropdown {
   display: block;
+}
+
+.dropdownchoice:hover {
+  background: rgba(255, 255, 255, .1);
 }
 
 input {
@@ -171,9 +175,9 @@ a:hover {
   </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="img/placemark.png" title="Places" />
-    <div class="dropdown" data-bind="foreach: places">
-      <div data-bind="click: select">
-        <div>
+    <div class="dropdown" data-bind="foreach: places" style="width: 15em;">
+      <div class="dropdownchoice">
+        <div style="cursor: pointer;" data-bind="click: select">
           <img data-bind="visible: geoloc" src="img/crosshair.png" />
           <span data-bind="text: name, style: {fontStyle: geoloc() ? 'italic' : ''}"></span>
         </div>
@@ -185,14 +189,16 @@ a:hover {
     <img class="icon" src="img/layers.png" title="Layers" />
     <div id="layers" class="dropdown" style="text-align: right;">
       <div data-bind="foreach: layers">
-        <div data-bind="click: $parent.selectLayer">
-          <span data-bind="text: displayName, style: { fontWeight: active() ? 'bold' : '' }"></span>
-          <span data-bind="if: custom() && !pending(), click: edit">(edit)</span>
-          <span data-bind="if: custom, click: $parent.removeLayer">(remove)</span>
+        <div class="dropdownchoice" style="white-space: nowrap;">
+          <div data-bind="click: $parent.selectLayer" style="cursor: pointer;">
+            <span data-bind="text: displayName, style: { fontWeight: active() ? 'bold' : '' }"></span>
+            <span data-bind="if: custom() && !pending(), click: edit, clickBubble: false" style="font-size: 70%;">(edit)</span>
+            <span data-bind="if: custom, click: $parent.removeLayer, clickBubble: false" style="font-size: 70%;">(remove)</span>
+          </div>
           <div data-bind="template: {name: 'layer-edit', data: editContext, if: pending}"></div>
         </div>
       </div>
-      <div data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
+      <div class="dropdownchoice" data-bind="if: !pendingLayer(), click: newPendingLayer">new layer</div>
       <div data-bind="template: {name: 'layer-edit', data: editContext, if: pendingLayer}">
       </div>
     </div>
@@ -255,10 +261,10 @@ a:hover {
 
 <div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(255, 255, 255, .4); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
 <div id="poleinfo" class="poleinfo pole">
-  <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" style="margin-right: 3px;" /><span class="data"></span>
+  <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" /><span class="data"></span>
 </div>
 <div id="antipoleinfo" class="poleinfo antipole">
-  <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="img/swap.png" style="margin-left: 3px;" />
+  <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="img/swap.png" title="Swap poles" style="margin-left: 3px;" />
 </div>
 <div id="mouseinfo" class="pointerinfo">
   <span class="polehdr">POINTER</span><br>

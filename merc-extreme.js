@@ -1903,12 +1903,12 @@ function EMViewModel(merc) {
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
         var current = new PlaceModel({name: 'Current Location', geoloc: true}, merc);
-        current._select = current.select;
+        current.origselect = current.select;
         current.select = function() {
             navigator.geolocation.getCurrentPosition(function(position) {
                 current.pos = [position.coords.latitude,
                                position.coords.longitude];
-                current._select();
+                current.origselect();
             }, function(err) {
                 alert('could not get location');
             });
