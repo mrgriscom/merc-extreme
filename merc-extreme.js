@@ -1555,10 +1555,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.setUniforms();
         
         var debug = {};
-        var polefmt = fmt_pos(this.curPole, 5);
-        $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
-        var antipolefmt = fmt_pos(antipode(this.curPole), 5);
-        $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
         if (window.POS) {
             $('#mouseinfo').css('top', 0);
 
@@ -1709,6 +1705,15 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     
     this.setPole = function(lat, lon) {
         lon = lon_norm(lon);
+
+        if (!this.pole || lat != this.pole[0] || lon != this.pole[1]) {
+            console.log(this.pole, lat, lon);
+            var polefmt = fmt_pos(this.curPole, 5);
+            $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
+            var antipolefmt = fmt_pos(antipode(this.curPole), 5);
+            $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
+        }
+
         this.pole = [lat, lon];
         this.pole_t = ll_to_xy(lat, lon);
         this.layer.uniforms.pole.value = new THREE.Vector2(lon, lat);
