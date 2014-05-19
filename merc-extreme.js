@@ -36,7 +36,8 @@ var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
-var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas
+var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas (may be lowered based on
+                                   // gpu capabilities
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
@@ -49,48 +50,60 @@ var SCREEN_WIDTH_SOFTMAX = 1920;
 var SCREEN_HEIGHT_SOFTMAX = 1200;
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
-var SCREEN_WIDTH = Math.min(screen.width, SCREEN_WIDTH_SOFTMAX);
-var SCREEN_HEIGHT = Math.min(screen.height, SCREEN_HEIGHT_SOFTMAX);
 var HIGH_PREC_Z_BASELINE = 16;
 
-//// computed constants
+function setComputedConstants(GL) {
+    MAX_Z_WARP = 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND;
+    MIPMAP_LEVELS = Math.ceil(MAX_Z_WARP);
+    var tiles_per = function(dim, noround) {
+        var t = dim / TILE_SIZE *  Math.pow(2, MAX_Z_WARP);
+        return noround ? t : Math.ceil(t);
+    }
 
-var MAX_Z_WARP = 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND;
-var MIPMAP_LEVELS = Math.ceil(MAX_Z_WARP);
-var tiles_per = function(dim, noround) {
-    var t = dim / TILE_SIZE *  Math.pow(2, MAX_Z_WARP);
-    return noround ? t : Math.ceil(t);
+    // edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
+    TILE_FRINGE_WIDTH = Math.min(tiles_per(SAMPLE_FREQ, true), .5);
+    // size of a padded tile in the atlas texture
+    TILE_SKIRT = Math.pow(2, MIPMAP_LEVELS); //px
+    ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
+
+    if (typeof screen !== 'undefined') {
+        SCREEN_WIDTH = Math.min(screen.width, SCREEN_WIDTH_SOFTMAX);
+        SCREEN_HEIGHT = Math.min(screen.height, SCREEN_HEIGHT_SOFTMAX);
+        SCREEN_DIAG = Math.sqrt(Math.pow(SCREEN_WIDTH, 2) + Math.pow(SCREEN_HEIGHT, 2));
+        // maximum span of adjacent tiles of the same zoom level that can be visible at once
+        MAX_Z_TILE_SPAN = tiles_per(SCREEN_DIAG);
+        // an estimate of how many tiles can be active in the tile index at once
+        MAX_TILES_AT_ONCE = tiles_per(SCREEN_WIDTH) * tiles_per(SCREEN_HEIGHT) * 4./3.;
+        // 
+        TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
+        // size of a single z-level's cell in the atlas index texture
+        TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
+        // number of z index cells in one edge of the index texture
+        TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
+        // size of the atlas index texture
+        TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
+
+        if (GL) {
+            var _gl = GL.context;
+            var maxTexSize = _gl.getParameter(_gl.MAX_TEXTURE_SIZE);
+            ATLAS_TEX_SIZE = Math.min(maxTexSize, ATLAS_TEX_SIZE);
+            // number of tiles that can fit in one texture page (along one edge)
+            TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
+            NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
+        }
+    }
 }
 
-var SCREEN_DIAG = Math.sqrt(Math.pow(SCREEN_WIDTH, 2) + Math.pow(SCREEN_HEIGHT, 2));
-// maximum span of adjacent tiles of the same zoom level that can be visible at once
-var MAX_Z_TILE_SPAN = tiles_per(SCREEN_DIAG);
-// edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
-var TILE_FRINGE_WIDTH = Math.min(tiles_per(SAMPLE_FREQ, true), .5);
-// 
-var TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
-// size of a single z-level's cell in the atlas index texture
-var TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
-// number of z index cells in one edge of the index texture
-var TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
-// size of the atlas index texture
-var TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
-// size of a padded tile in the atlas texture
-var TILE_SKIRT = Math.pow(2, MIPMAP_LEVELS); //px
-var ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
-// number of tiles that can fit in one texture page (along one edge)
-var TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
-// an estimate of how many tiles can be active in the tile index at once
-var MAX_TILES_AT_ONCE = tiles_per(SCREEN_WIDTH) * tiles_per(SCREEN_HEIGHT) * 4./3.;
-var NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
-
 function init() {
-    console.log(checkEnvironment());
+    initGlobal();
+    var env = checkEnvironment();
+    console.log(env.errors);
+    setComputedConstants(env.gl);
 
     vertex_shader = loadShader('vertex');
     fragment_shader = loadShader('fragment');
     
-    var merc = new MercatorRenderer($('#container'), function(window) {
+    var merc = new MercatorRenderer(env.gl, $('#container'), function(window) {
         return [window.innerWidth, window.innerHeight - $('#titlebar').outerHeight()];
     }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
@@ -157,6 +170,7 @@ function init() {
 
 function checkEnvironment() {
     var errors = {};
+    var GL = null;
 
     // webgl enabled
     var webgl = (function() {
@@ -169,16 +183,21 @@ function checkEnvironment() {
     })();
     if (!webgl) {
         errors.webgl = true;
-    }
+    } else {
+        var GL = new THREE.WebGLRenderer();
+        var _gl = GL.context;
 
-    // shader precision
-    var context = new THREE.WebGLRenderer();
-    var _gl = context.context;
-    var prec_type = context.getPrecision();
-    var prec_bits = _gl.getShaderPrecisionFormat(_gl.FRAGMENT_SHADER, {highp: _gl.HIGH_FLOAT, mediump: _gl.MEDIUM_FLOAT}[prec_type]).precision;
-    console.log('fragment shader: ' + prec_type + ', ' + prec_bits + ' bits');
-    if (prec_bits < 23) {
-        errors.precision = true;
+        // shader precision
+        var prec_type = GL.getPrecision();
+        var prec_bits = _gl.getShaderPrecisionFormat(_gl.FRAGMENT_SHADER, {highp: _gl.HIGH_FLOAT, mediump: _gl.MEDIUM_FLOAT}[prec_type]).precision;
+        console.log('fragment shader: ' + prec_type + ', ' + prec_bits + ' bits');
+        if (prec_bits < 23) {
+            errors.precision = true;
+        }
+
+        console.log('max tex size', _gl.getParameter(_gl.MAX_TEXTURE_SIZE));
+        console.log('max # texs', _gl.getParameter(_gl.MAX_TEXTURE_IMAGE_UNITS));
+        console.log('glextentions', _gl.getSupportedExtensions());
     }
 
     // screen size
@@ -191,7 +210,22 @@ function checkEnvironment() {
         errors.chrome = true;
     }
 
-    return errors;
+    return {errors: errors, gl: GL};
+}
+
+function initGlobal() {
+    GridGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
+
+    window.requestAnimFrame = (function(callback){
+        return window.requestAnimationFrame ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame ||
+            window.oRequestAnimationFrame ||
+            window.msRequestAnimationFrame ||
+            function(callback){
+                window.setTimeout(callback, 1000 / 60);
+            };
+    })();
 }
 
 function GoogleGeocoder() {
@@ -216,7 +250,6 @@ function GoogleGeocoder() {
 function BingGeocoder() {
     this.geocode = function(query, callbacks) {
         window.bingRecv = function(data) {
-            // todo handle no results
             var entry = data.resourceSets[0].resources[0];
             if (entry == null) {
                 callbacks.onnoresult();
@@ -233,7 +266,6 @@ function BingGeocoder() {
 function MapquestGeocoder() {
     this.geocode = function(query, callbacks) {
         $.getJSON('http://www.mapquestapi.com/geocoding/v1/address?key=' + API_KEYS.mapquest + '&location=' + encodeURIComponent(query), {}, function(results) {
-            // todo handle no results
             var entry = results.results[0].locations[0];
             if (entry.geocodeQualityCode.substring(0, 2) == 'A1') {
                 callbacks.onnoresult();
@@ -420,7 +452,7 @@ GridGeometry = function(maxquads) {
     }
 
 }
-GridGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
+// see initGlobal
 
 function TexBuffer(size, texopts, bufopts) {
     bufopts = bufopts || {};
@@ -813,12 +845,6 @@ function TextureLayer(context) {
         });
 
         $.each(tiles, function(i, tile) {
-            //debug to reduce bandwidth (high zoom levels move out of view too fast)
-            //TODO replace with movement-based criteria
-            //if (tile.z > 16) {
-            //    return;
-            //}
-
             var entry = layer.tile_index[tilekey(tile)];
             if (entry != null && !entry.rebuild_z0) {
                 return;
@@ -1042,8 +1068,8 @@ function TextureLayer(context) {
     };
 }
     
-function MercatorRenderer($container, getViewportDims, extentN, extentS) {
-    this.renderer = new THREE.WebGLRenderer();
+function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
+    this.renderer = GL;
     this.glContext = this.renderer.getContext();
 
     this.curPole = null;
@@ -1103,10 +1129,6 @@ function MercatorRenderer($container, getViewportDims, extentN, extentS) {
     }
     
     this.init = function() {
-        console.log('max tex size', this.glContext.getParameter(this.glContext.MAX_TEXTURE_SIZE));
-        console.log('max # texs', this.glContext.getParameter(this.glContext.MAX_TEXTURE_IMAGE_UNITS));
-        console.log(this.glContext.getSupportedExtensions());
-
         this.scene = new THREE.Scene();
         this.group = new THREE.Object3D();
         this.scene.add(this.group);
@@ -2470,17 +2492,6 @@ function configureShader(template, context) {
     //console.log(template(context));
     return template(context);
 }
-
-window.requestAnimFrame = (function(callback){
-    return window.requestAnimationFrame ||
-           window.webkitRequestAnimationFrame ||
-           window.mozRequestAnimationFrame ||
-           window.oRequestAnimationFrame ||
-           window.msRequestAnimationFrame ||
-           function(callback){
-               window.setTimeout(callback, 1000 / 60);
-           };
-})();
 
 function renderLoop(render) {
     var cb = function(timestamp) {

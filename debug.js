@@ -2,6 +2,8 @@
 
 function init_debug() {
     
+    setComputedConstants();
+
     var context = new DebugContext();
 
     window.addEventListener("message", function(e) {

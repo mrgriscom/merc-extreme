@@ -1,9 +1,5 @@
-// stub out stuff so we can load main script
-// this is hacky-- all we want is the constants
-window = {};
-screen = {width: 9999, height: 9999};
-THREE = {BufferGeometry: String};
 importScripts('merc-extreme.js');
+setComputedConstants();
 // explicitly list which constants we use
 MAX_ZOOM = MAX_ZOOM;
 TILE_FRINGE_WIDTH = TILE_FRINGE_WIDTH;
