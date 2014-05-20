@@ -194,7 +194,7 @@ function checkEnvironment() {
         }
     })();
     if (!webgl) {
-        //errors.webgl = true;
+        noWebGL();
     } else {
         var GL = new THREE.WebGLRenderer();
         var _gl = GL.context;
@@ -213,7 +213,14 @@ function checkEnvironment() {
     // chrome
     ERR.setError('chrome', !$.browser.chrome);
 
+    $('#splash').hide();
     return {gl: GL};
+}
+
+function noWebGL() {
+    $('#loading_msg').hide();
+    $('#nowebgl_msg').show();
+    throw 'webgl not supported; aborting';
 }
 
 function initGlobal() {
