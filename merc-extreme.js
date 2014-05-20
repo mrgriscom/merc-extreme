@@ -97,7 +97,6 @@ function setComputedConstants(GL) {
 function init() {
     initGlobal();
     var env = checkEnvironment();
-    console.log(env.errors);
     setComputedConstants(env.gl);
 
     vertex_shader = loadShader('vertex');
@@ -153,7 +152,7 @@ function init() {
                 merc.poleAt(lat, lon);
             },
             onnoresult: function() {
-                alert('no results');
+                alert('no results found');
             },
         };
 
@@ -183,7 +182,6 @@ function init() {
 }
 
 function checkEnvironment() {
-    var errors = {};
     var GL = null;
 
     // webgl enabled
@@ -196,7 +194,7 @@ function checkEnvironment() {
         }
     })();
     if (!webgl) {
-        errors.webgl = true;
+        //errors.webgl = true;
     } else {
         var GL = new THREE.WebGLRenderer();
         var _gl = GL.context;
@@ -205,29 +203,22 @@ function checkEnvironment() {
         var prec_type = GL.getPrecision();
         var prec_bits = _gl.getShaderPrecisionFormat(_gl.FRAGMENT_SHADER, {highp: _gl.HIGH_FLOAT, mediump: _gl.MEDIUM_FLOAT}[prec_type]).precision;
         console.log('fragment shader: ' + prec_type + ', ' + prec_bits + ' bits');
-        if (prec_bits < 23) {
-            errors.precision = true;
-        }
+        ERR.setError('precision', prec_bits < 23);
 
         console.log('max tex size', _gl.getParameter(_gl.MAX_TEXTURE_SIZE));
         console.log('max # texs', _gl.getParameter(_gl.MAX_TEXTURE_IMAGE_UNITS));
         console.log('glextentions', _gl.getSupportedExtensions());
     }
 
-    // screen size
-    if (screen.width > SCREEN_WIDTH_SOFTMAX || screen.height > SCREEN_HEIGHT_SOFTMAX) {
-        errors.screensize = true;
-    }
-
     // chrome
-    if (!$.browser.chrome) {
-        errors.chrome = true;
-    }
+    ERR.setError('chrome', !$.browser.chrome);
 
-    return {errors: errors, gl: GL};
+    return {gl: GL};
 }
 
 function initGlobal() {
+    ERR = new ErrorContext();
+
     GridGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
 
     window.requestAnimFrame = (function(callback){
@@ -1140,6 +1131,14 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	        new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI),
 	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
         ]);
+
+        if (this.width_px > SCREEN_WIDTH || this.height_px > SCREEN_HEIGHT) {
+            ERR.setError('screensize', true);
+            $('#maxwidth').text(SCREEN_WIDTH);
+            $('#maxheight').text(SCREEN_HEIGHT);
+        } else {
+            ERR.setError('screensize', false);
+        }
     }
     
     this.init = function() {
@@ -1978,6 +1977,17 @@ function EMViewModel(merc) {
 
     this.toggleUnit = function(val) {
         that.active_unit(that.units()[(that.units().indexOf(that.active_unit()) + 1) % that.units().length]);
+    }
+}
+
+function ErrorContext() {
+    var errors = {};
+
+    this.setError = function(name, val) {
+        errors[name] = val;
+        $('#err_' + name)[val ? 'show' : 'hide']();
+        var any_errors = _.reduce(_.values(errors), function(memo, val) { return memo || val; }, false);
+        $('#alerts')[any_errors ? 'show' : 'hide']();
     }
 }
 
