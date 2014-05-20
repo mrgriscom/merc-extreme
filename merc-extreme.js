@@ -124,7 +124,6 @@ function init() {
     initSlider($('#overzoom'), .5, 'overzoom');
     initSlider($('#blinders'), 1, 'blinder_opacity', .7);
 
-
     var koRoot = new EMViewModel(merc);
     koRoot.load(tile_specs, landmarks);
     ko.applyBindings(koRoot);
@@ -134,9 +133,10 @@ function init() {
 
     merc.start();
 
-    $('#companion').click(function() {
+    $('.companion').click(function() {
         COMPANION = window.open('companion/', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
         COMPANION.onbeforeunload = function() { COMPANION = null; };
+        return false;
     });
     DEBUG = {postMessage: function(){}};
     METRIC = true;
@@ -1146,6 +1146,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         } else {
             ERR.setError('screensize', false);
         }
+
+        $('#help').css('max-height', this.height_px + 'px');
     }
     
     this.init = function() {
@@ -1933,6 +1935,22 @@ function EMViewModel(merc) {
         this.places.splice(0, 0, current);
 
         this.active_unit(this.units()[0]);
+
+        $('a.goto').click(function(e) {
+            var $e = $(e.target).closest('a');
+            var dest = $e.attr('dest');
+            var place = _.find(that.places(), function(e) { return e.tag == dest; });
+            place.select();
+            var layer = $e.attr('layer');
+            if (layer) {
+                var actual_layer = {
+                    map: 'Google Map',
+                    sat: 'Google Satellite',
+                }[layer];
+                that.selectLayer(_.find(that.layers(), function(e) { return e.name() == actual_layer; }));
+            }
+            return false;
+        });
     }
 
     that.selectLayer = function(layer) {
@@ -2254,13 +2272,14 @@ function LayerModel(data, merc, root) {
         return this.url() ? compile_tile_spec(this.url()) : null;
     }, this);
     this.attribution = ko.computed(function() {
-        return '&copy; ' + _.map(this.attr, function(e) {
+        var s = _.map(this.attr, function(e) {
             if (typeof e == 'string') {
                 return e;
             } else {
                 return '<a target="_blank" href="' + e[1] + '">' + e[0] + '</a>';
             }
         }).join(', ');
+        return s ? '&copy; ' + s : '';
     }, this);
     this.displayName = ko.computed(function() {
         return this.name() || '\u2014custom layer\u2014';
@@ -2335,6 +2354,7 @@ function PlaceModel(data, merc) {
     this.byline = ko.observable(data.desc);
     this.geoloc = ko.observable(data.geoloc);
     this.default = data.default;
+    this.tag = data.tag;
 
     this.select = function() {
         this._select();
@@ -2439,7 +2459,8 @@ var tile_specs = [
 landmarks = [{
     name: 'Arc de Triomphe',
     pos: [48.87379, 2.29504],
-    desc: 'the \'spokes\' of this central plaza become parallel lines'
+    desc: 'the \'spokes\' of this central plaza become parallel lines',
+    tag: 'arc'
 }, {
     name: 'St. Peter\'s Basilica',
     pos: [41.90224, 12.45725]
@@ -2456,18 +2477,21 @@ landmarks = [{
 }, {
     name: 'Vulcan Point',
     pos: [14.00926, 120.99610],
-    desc: 'island inside a lake inside an island inside a lake inside an island'
+    desc: 'island inside a lake inside an island inside a lake inside an island',
+    tag: 'vulcan'
 }, {
     name: 'St. Helena',
     pos: [-15.93788, -5.71189],
     lon_center: 0,
-    desc: 'a remote island'
+    desc: 'a remote island',
+    tag: 'sthelena'
 }, {
     name: 'Spain/New Zealand Antipode',
     pos: [43.56060, -7.41384],
     lon_center: 120,
     antipode: true,
-    desc: 'two buildings exactly opposite the planet from each other'
+    desc: 'two buildings exactly opposite the planet from each other',
+    tag: 'antipode'
 }, {
     name: 'Cape Town',
     pos: [-33.90768, 18.39219],
@@ -2478,7 +2502,8 @@ landmarks = [{
 }, {
     name: 'Atlanta',
     pos: [33.74503, -84.39005],
-    desc: 'a dendritic network of highways heading off to destinations near and far'
+    desc: 'a dendritic network of highways heading off to destinations near and far',
+    tag: 'atl'
 }, {
     name: 'Boston',
     pos: [42.35735, -71.05961],
@@ -2488,7 +2513,8 @@ landmarks = [{
     name: '"View of the World from 9th Avenue"',
     pos: [40.76847, -73.98493],
     lon_center: -90,
-    desc: 'compare to <a target="_blank" href="http://www.mappery.com/maps/A-View-of-World-from-9th-Avenue-Map.jpg">the original</a>'
+    desc: 'compare to <a target="_blank" href="http://www.mappery.com/maps/A-View-of-World-from-9th-Avenue-Map.jpg">the original</a>',
+    tag: 'ny'
 }, {
     name: 'Bondi Beach',
     pos: [-33.89123, 151.27748]
@@ -2516,7 +2542,8 @@ landmarks = [{
     lon_center: 0,
 }, {
     name: 'North Pole',
-    pos: [90, 0]
+    pos: [90, 0],
+    tag: 'np'
 }, {
     name: 'South Pole',
     pos: [-90, 0]

@@ -48,7 +48,7 @@ body {
   position: absolute;
   top: 100%;
   right: -30px;
-  background: rgba(0, 0, 0, .7);
+  background: rgba(0, 0, 0, .85);
   z-index: 500;
   display: none;
   min-width: 8em;
@@ -237,7 +237,7 @@ h3 {
 <div id="titlebar" style="color: white;">
   <div class="dropdown-anchor" style="float: right; position: relative; margin-right: 30px;">
     <img class="icon" src="img/help.png" title="Help" />
-    <div class="dropdown" style="width: 40em; text-align: left;" id="help">
+    <div class="dropdown" style="width: 40em; text-align: left; overflow: auto;" id="help">
       <h3>Controls</h3>
       <div style="width: 20em;">
         <div style="clear: both;">
@@ -257,7 +257,7 @@ h3 {
             shift+drag<br>
             right-click drag
           </div>
-          <div class="ctrllabel">warp map (change origin point)</div>
+          <div class="ctrllabel">warp map (change pole/origin point)</div>
         </div>
         <div style="clear: both;">
           <div class="ctrlkey">
@@ -267,108 +267,122 @@ h3 {
           <div class="ctrllabel">go to point</div>
         </div>
       </div>
-      <h3>The Short Story</h3>
+      <h3>Backstory</h3>
       <div style="font-size: 80%;">
+
         <p>
-        This project is a visualization of the Mercator projection.
-        But unlike most Mercator maps, this map cuts off much, much closer to the earth's poles.
+          The Mercator projection is infamous for its distortion at high latitudes.
+          This distortion gets exponentially and infinitely worse as you approach the poles.
+          It is in fact impossible to show the poles on a Mercator map &mdash; they are infinitely far away.
         </p>
 
         <p>
-        The map is shown sideways from its usual orientation for better viewing (that is, the poles are at the left and right edges, not the top and bottom).
+          Any Mercator map you've ever seen must cut off the top and bottom edges at some arbitrary point.
+          The map stops short hundreds, if not thousands of miles away from the poles.
         </p>
-        
+
         <p>
-        Furthermore, you can shift the pole of the projection to any point on earth, in order to see the Mercator's extreme distortion wrought on a familiar place.
+          But I've often wondered what lies beyond those cut-offs... to make a map that didn't cut off but simply kept going.
+          As the distortion progresses towards infinity, you would eventually reach the scale of cities, houses, insects, atoms...
+        </p>
+
+        <p>
+          But of course that'd all be on a featureless expanse of ice.
+          No map service even publishes image tiles for such extreme latitudes.
+        </p>
+
+        <p>
+          To make things actually interesting, we must artifically shift the pole of the project to a more interesting place.
+          Imagine the earth encased by a rigid cage of latitude and longitude lines.
+          We rotate the earth while leaving the cage fixed until a new point of interest has taken the place of the North Pole.
+        </p>
+
+        <p>
+          This is called an <em>oblique Mercator</em>, and is normally used to shift an area of interest onto the equator of the map to avoid distortion.
+          But whereas others avoid distortion, we embrace it.
+        </p>
+
+        <p>
+          Note how strange the oblique Mercator looks even without the increased cutoffs.
+          The standard Mercator is so ingrained in the public consciousness that we perceive it as 'normal'.
+          But once you shift the pole its ubiquitous distortion is laid bare.
+        </p>
+
+        <p>
+          Lastly, increasing the cutoffs produces a map much taller than it is wide.
+          It is presented sideways here for easier viewing.
+          (<a href="#" class="goto" dest="np">set the pole to the North Pole</a> like usual to see this most clearly)
+        </p>
+
+      </div>
+      <h3>Orientation</h3>
+      <div style="font-size: 80%;">
+        <p>
+          Let's take a moment to digest what we have here. Namely:
+          <ul>
+            <li>a single map projection
+            <li>&hellip;showing the entire surface of the earth
+            <li>&hellip;while traversing all the way from the human scale, to the global scale
+          </ul>
+        </p>
+
+        <p>
+          It really creates this "center of the universe" feeling.
+          Basically a mathematical embodiment of the sentiment in this <a target="_blank" href="http://www.mappery.com/maps/A-View-of-World-from-9th-Avenue-Map.jpg">famous <i>New Yorker</i> cover</a>. (<a href="#" class="goto" dest="ny" layer="map"><i>Mercator: Extreme</i> version</a>)
+        </p>
+
+        <p>Keep these principles in mind to best navigate around the map:
+
+          <ul>
+            <li>
+              Horizontal lines on the map ("meridians") represent straight lines radiating out from the pole point in all directions.
+              Lines one half of a map-width apart from each other represent <em>opposite</em> directions.
+              The properties of the meridians are best seen with a central plaza like the <a href="#" class="goto" dest="arc" layer="sat">Arc de Triomphe</a>.
+            <li>
+              Vertical lines ("parallels") show rings of constant distance from the pole point.
+              This can visualize <a href="#" class="goto" dest="vulcan">encircledness</a> or <a href="#" class="goto" dest="sthelena">remoteness</a>.
+              The nearest landfall from St. Helena in any direction can be found by a vertical line sweeping towards the left.
+          </ul>
+        </p>
+
+        <p>
+          You may find yourself trying to get 'behind' or 'to the other side of' the pole point.
+          There is no such thing!
+          All directions away from the pole point proceed towards the left.
+          The pole itself exists at all points along the right-hand edge (technically, infinitely far to the right).
+        </p>
+
+        <p>
+          If at any time you get disoriented, I strongly recommend using the <a href="#" class="companion">companion map <img src="img/map.png"></a> to see the correspondence to a normal map which makes these navigational principles clear.
         </p>
       </div>
-      <h3>The Long Story</h3>
+      <h3>Other Curiosities</h3>
       <div style="font-size: 80%;">
         <p>
-          The Mercator projection is infamous for its distortion as you approach the poles.
-          It is in fact impossible to ever reach the poles on a Mercator map; they are infinitely far off.
-          A typical Mercator map cuts off as the distortion gets too severe &mdash; hundreds if not thousands of miles short of the poles.
+          Now knowing that horizontal and vertical lines represent distance and bearing, if we center the pole on a <a href="#" class="goto" dest="atl" layer="map">major city</a>, we can visualize its transportation network in a whole new way.
+          Beltways and ring roads become vertical frontiers, while highways become a dendritic network branching off to destinations in all directions.
+          We can see all of Atlanta's highway links in a single view, including the special few that make it as far as New York, St. Louis, Dallas, and Miami.
         </p>
 
         <p>
-          But I've always wondered what it'd be like if we didn't cut off, and simply&hellip; kept going.
-          As the distortion marches exponentially and infinitely onward, you'd eventually be on the scale of cities, houses, insects, atoms&hellip;
-          But of course all this only for a featureless expanse of ice.
+          Closely related, the extreme Mercator is an excellent way to visualize long-distance driving routes.
+          Think about how when you drive such a route, you start on some local/residential roads, then make your way to bigger arteries, and eventually to a highway.
+          Here, even as smaller roads fade into nothing, the next road of your route always seems to still be visible.
+          Size in this map is proportional to distance, so the extreme Mercator ends up normalizing scale in a very human-accessible way.
+          The only cost is you have to turn your mind inside-out a bit.
         </p>
 
         <p>
-          To make things interesting, we can artificially shift the pole of the projection to a more familiar place instead.
-          This is called an <em>oblique Mercator</em>, and already things start to look a little weird.
-          -- familiar places subject to the same distortion that the polar regions are subjected to in the most popular map projection in the world.
+          Lastly, the extreme Mercator is an excellent way to visualize antipodes &mdash; points that are on the complete opposite sides of the earth from each other.
+          So far we haven't touched the left-side cutoff, namely because the antipode is usually <a target="_blank" href="http://upload.wikimedia.org/wikipedia/commons/6/64/Antipodes_LAEA.png">in the middle of the ocean</a>.
+          But this is <a href="#" class="goto" dest="antipode" layer="sat">not always the case</a>.
+          Here we find two buildings exactly opposite the planet from each other.
+          Where one is day, the other is always night.
         </p>
 
-
-
-
-
-(show mercator projection, normal clip plane, normal orientation)
-
-This is the ubiquitous Mercator projection.
-
-Aesthetically pleasing for being both conformal (shape preserving) and cylindrical (grid preserving)...
-
-...but reviled for its extreme distortion as you approach the poles.
-
-(overlay distortion circles)
-
-Distortion so extreme that the map cuts off hundreds, if not thousands of miles short of the pole.
-
-But I've often wondered what I'd find if instead of cutting off, we simply... kept going.
-
-...
-
-Of course, we'd find a featureless expanse of ice.
-
-First we must artificially shift the pole to a more familiar place.
-
-(shift pole to new york)
-
-If this looks weird, realize that this is the distortion the polar regions are subjected to in the most popular map projection in the world!
-
-This kind of projection -- an oblique Mercator -- is not uncommon. But it is used to shift an area of interest into the zone of minimum distortion.
-
-But whereas other try to minimize distortion, instead, we embrace it.
-
-(tilt map horizontal, change clip boundaries to full extreme)
-
-Let's take a moment to appreciate was we have here.
-We have:
-* a single map projection
-* that shows the entire surface of the earth
-* while traversing all the way from the human scale, to the global scale
-
-To underscore this "center of the universe" feeling...
-(new yorker cover comparison)
-
-Interesting properties:
-
-Vertical lines ("parallels") show rings of constant distance from the pole point.
-the parallels can visualize remoteness
-(move to st helena)
-
-Horizontal lines ("meridians") show straight lines radiating out from the pole point in all directions. Meridians one map-width apart from each other represent _opposite_ directions.
-the meridians can visualize central plazas and spokes
-(move to arc du triomphe)
-
-together, if we center on a major city, beltways become vertical frontiers and the highways look like a dendritic network to far-flung destinations
-(move to atlanta, boston too?)
-
-relatedly, it's an excellent way to visualize long-distance driving routes. generally such a route has many turns locally, a few arteries at intermediate distance, then long-distance highways. the extreme mercator seems to normalize scale vs distance in a very accessible way. you just have to turn your head inside out a bit
-
-lastly, it's an excellent way to visualize antipodes -- points that are on the complete opposite sides of the earth from each other.
-(move to spain/nz) -- these two buildings are directly opposite from eachother. when one is night, the other is always day, and vice versa.
-
-
-        <p>I am already far north of London, and as I walk in the streets of Petersburgh, I feel a cold northern breeze play upon my cheeks, which braces my nerves and fills me with delight. Do you understand this feeling? This breeze, which has travelled from the regions towards which I am advancing, gives me a foretaste of those icy climes. Inspirited by this wind of promise, my daydreams become more fervent and vivid. I try in vain to be persuaded that the pole is the seat of frost and desolation; it ever presents itself to my imagination as the region of beauty and delight. There, Margaret, the sun is forever visible, its broad disk just skirting the horizon and diffusing a perpetual splendour. There—for with your leave, my sister, I will put some trust in preceding navigators—there snow and frost are banished; and, sailing over a calm sea, we may be wafted to a land surpassing in wonders and in beauty every region hitherto discovered on the habitable globe. Its productions and features may be without example, as the phenomena of the heavenly bodies undoubtedly are in those undiscovered solitudes. What may not be expected in a country of eternal light? I may there discover the wondrous power which attracts the needle and may regulate a thousand celestial observations that require only this voyage to render their seeming eccentricities consistent forever. I shall satiate my ardent curiosity with the sight of a part of the world never before visited, and may tread a land never before imprinted by the foot of man. These are my enticements, and they are sufficient to conquer all fear of danger or death and to induce me to commence this laborious voyage with the joy a child feels when he embarks in a little boat, with his holiday mates, on an expedition of discovery up his native river. But supposing all these conjectures to be false, you cannot contest the inestimable benefit which I shall confer on all mankind, to the last generation, by discovering a passage near the pole to those countries, to reach which at present so many months are requisite; or by ascertaining the secret of the magnet, which, if at all possible, can only be effected by an undertaking such as mine.
-
-        <p>These reflections have dispelled the agitation with which I began my letter, and I feel my heart glow with an enthusiasm which elevates me to heaven, for nothing contributes so much to tranquillize the mind as a steady purpose—a point on which the soul may fix its intellectual eye. This expedition has been the favourite dream of my early years. I have read with ardour the accounts of the various voyages which have been made in the prospect of arriving at the North Pacific Ocean through the seas which surround the pole. You may remember that a history of all the voyages made for purposes of discovery composed the whole of our good Uncle Thomas' library. My education was neglected, yet I was passionately fond of reading. These volumes were my study day and night, and my familiarity with them increased that regret which I had felt, as a child, on learning that my father's dying injunction had forbidden my uncle to allow me to embark in a seafaring life.
-
-        <p>These visions faded when I perused, for the first time, those poets whose effusions entranced my soul and lifted it to heaven. I also became a poet and for one year lived in a paradise of my own creation; I imagined that I also might obtain a niche in the temple where the names of Homer and Shakespeare are consecrated. You are well acquainted with my failure and how heavily I bore the disappointment. But just at that time I inherited the fortune of my cousin, and my thoughts were turned into the channel of their earlier bent.
+        <p style="margin-bottom: 3em;">
+          I hope you enjoy this novel way of viewing our world.
+        </p>
       </div>
     </div>
   </div>
@@ -396,7 +410,7 @@ lastly, it's an excellent way to visualize antipodes -- points that are on the c
       </div>
     </div>
   </div>
-  <div id="companion" style="float: right;">
+  <div class="companion" style="float: right;">
     <img class="icon" src="img/map.png" style="cursor: pointer;" title="View on a normal map" />
   </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
@@ -541,7 +555,7 @@ lastly, it's an excellent way to visualize antipodes -- points that are on the c
   </div>
 </script>
 
-<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(200, 200, 200, .7); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="html: curAttr"></span></div>
+<div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(200, 200, 200, .7); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="visible: curAttr, html: curAttr"></span></div>
 <div id="poleinfo" class="poleinfo pole">
   <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" /><span class="data"></span>
 </div>
