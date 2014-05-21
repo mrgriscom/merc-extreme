@@ -138,6 +138,11 @@ function init() {
         COMPANION.onbeforeunload = function() { COMPANION = null; };
         return false;
     });
+    window.onbeforeunload = function() {
+        if (window.COMPANION) {
+            COMPANION.close();
+        }
+    };
     DEBUG = {postMessage: function(){}};
     METRIC = true;
 
