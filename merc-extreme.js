@@ -1326,6 +1326,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             drag_context.last_px = drag_context.down_px;
             
             drag_context.mode = (e.which == 3 || e.shiftKey ? 'warp' : 'pan');
+
+            $(renderer.renderer.domElement).css('cursor', '-webkit-grabbing');
         });
         $(document).bind('mousemove', function(e) {
 	        var pos = mouse_pos(e);
@@ -1366,6 +1368,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 onDoubleRightClick(e);
                 DBL_RIGHT_CLICK = false;
             }
+
+            $(renderer.renderer.domElement).css('cursor', 'default');
         });
         $(document).bind('mouseout', function(e) {
             if (e.relatedTarget != null) {
