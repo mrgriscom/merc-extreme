@@ -2537,6 +2537,11 @@ landmarks = [{
     name: 'Lake Victoria',
     pos: [-1.79620, 33.39377],
 }, {
+    name: 'Cape Spear',
+    pos: [47.52538, -52.61978],
+    lon_center: 240,
+    desc: 'easternmost point in North America'
+}, {
     name: '\xc5land',
     pos: [60.03177, 20.89280],
     lon_center: 0,
