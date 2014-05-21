@@ -1386,7 +1386,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
             e = e.originalEvent;
             var pos = mouse_pos(e);
-            // TODO think i need to normalize this more (mac uses a different scale?)
+            // TODO think i need to normalize this more (mac uses a different scale? (seemed to work fine on an MBP))
             var delta = (e.wheelDelta ? e.wheelDelta / 120.
                                       : e.deltaY / -3.);
             
