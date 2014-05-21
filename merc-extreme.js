@@ -1273,12 +1273,17 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.setAnimationContext(new DrivingAnimationContext(this.curPole, speed, heading, this));
     }
 
+    
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
             var ref = $('#container')[0];
             return {x: e.pageX - ref.offsetLeft, y: ref.offsetHeight - 1 - (e.pageY - ref.offsetTop)};
         }
         this.inertia_context = new MouseTracker(.1);
+
+        var logevt = function() {
+            //console.log.apply(console, arguments);
+        }
 
 	    var renderer = this;
         var drag_context = null;
@@ -1287,7 +1292,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             return false;
         });
         var onDoubleRightClick = function(e) {
-            //console.log('dblrightclick');
+            logevt('dblrightclick');
             var pos = mouse_pos(e);
             var merc = renderer.xyToWorld(pos.x, pos.y);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
@@ -1301,7 +1306,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 }
                 LAST_RIGHT_CLICK = clock();
             }
-            //console.log('mousedown', e.which);
+            logevt('mousedown', e.which);
             if (drag_context != null) {
                 return;
             }
@@ -1324,7 +1329,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         });
         $(document).bind('mousemove', function(e) {
 	        var pos = mouse_pos(e);
-            //console.log('mousemove', pos.x, pos.y);
+            logevt('mousemove', pos.x, pos.y);
             POS = pos;
             renderer.inertia_context.addSample([pos.x, pos.y]);
 
@@ -1343,7 +1348,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             drag_context.last_px = pos;
         });
         $(document).bind('mouseup', function(e) {
-            //console.log('mouseup', e.which);
+            logevt('mouseup', e.which);
             if (drag_context != null) {
 	            var pos = mouse_pos(e);
                 var pos = [pos.x, pos.y];
@@ -1367,14 +1372,23 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 // not a 'window leave' event
                 return;
             }
+            logevt('windowleave');
 
             POS = null;
         });
         $(this.renderer.domElement).bind('dblclick', function(e) {
-            //console.log('dblclick');
+            logevt('dblclick');
             if (e.shiftKey) {
                 onDoubleRightClick(e);
                 return;
+            }
+
+            // clear any selections caused by the double-click, as this messes up
+            // a subsequent drag
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            } else if (document.selection) {
+                document.selection.empty();
             }
 
             var pos = mouse_pos(e);
