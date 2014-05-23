@@ -218,6 +218,10 @@ function checkEnvironment() {
     // chrome
     ERR.setError('chrome', !$.browser.chrome);
 
+    // windows
+    var isWin = navigator.platform.toLowerCase().substring(0, 3) == 'win';
+    ERR.setError('windows', isWin);
+
     $('#splash').hide();
     return {gl: GL};
 }
