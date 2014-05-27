@@ -1391,10 +1391,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         });
         $(this.renderer.domElement).bind('dblclick', function(e) {
             logevt('dblclick');
-            if (e.shiftKey) {
-                onDoubleRightClick(e);
-                return;
-            }
 
             // clear any selections caused by the double-click, as this messes up
             // a subsequent drag
@@ -1402,6 +1398,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 window.getSelection().removeAllRanges();
             } else if (document.selection) {
                 document.selection.empty();
+            }
+
+            if (e.shiftKey) {
+                onDoubleRightClick(e);
+                return;
             }
 
             var pos = mouse_pos(e);
