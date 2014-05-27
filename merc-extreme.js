@@ -1282,6 +1282,9 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.setAnimationContext(new DrivingAnimationContext(this.curPole, speed, heading, this));
     }
 
+    this._driveTo = function(speed, destlat, destlon) {
+        this._drive(speed, bearing(this.curPole, [destlat, destlon]));
+    }
     
     this.init_interactivity = function() {
         var mouse_pos = function(e) {
