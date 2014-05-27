@@ -1441,6 +1441,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         if (this.animation_context) {
             this.animation_context.apply();
             if (this.animation_context.finished()) {
+                //console.log('animation finished');
                 this.animation_context = null;
             }
         }
@@ -2140,7 +2141,11 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform, ren
     }
 
     this.finished = function() {
-        return vlen(vdiff(end_pos, this.pos(clock()))) < .25;
+        if (drag_context.mode == 'pan') {
+            return vlen(vdiff(end_pos, this.pos(clock()))) < .25;
+        } else if (drag_context.mode == 'warp') {
+            return this.getSpeed() < 1.;
+        }
     }
 }
 
