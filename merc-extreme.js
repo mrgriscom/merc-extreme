@@ -128,8 +128,26 @@ function init() {
     koRoot.load(tile_specs, landmarks);
     ko.applyBindings(koRoot);
 
-    var initPole = _.find(koRoot.places(), function(e) { return e.default; });
-    initPole._select(true);
+    var manualPole = null;
+    if (window.location.href.indexOf('#') != -1) {
+        var frag = window.location.href.split('#')[1];
+        if (frag.indexOf(',') != -1) {
+            var coords = frag.split(',');
+            var lat = +coords[0];
+            var lon = +coords[1];
+            if (!isNaN(lat) && !isNaN(lon)) {
+                lat = Math.min(Math.max(lat, -90), 90);
+                lon = lon_norm(lon);
+                manualPole = [lat, lon];
+            }
+        }
+    }
+    if (manualPole) {
+        new PlaceModel({pos: manualPole}, merc)._select(true);
+    } else {
+        var initPole = _.find(koRoot.places(), function(e) { return e.default; });
+        initPole._select(true);
+    }
 
     merc.start();
 
@@ -1763,6 +1781,16 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
             var antipolefmt = fmt_pos(antipode(this.curPole), 5);
             $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
+        }
+
+        if (this.pole == null) {
+            POLE_CHANGED_AT = null;
+        } else if (this.pole[0] != lat || this.pole[1] != lon) {
+            POLE_CHANGED_AT = clock();
+        }
+        if (POLE_CHANGED_AT != null && clock() - POLE_CHANGED_AT > .5) {
+            history.replaceState(null, null, '#' + lat.toFixed(5) + ',' + lon.toFixed(5));
+            POLE_CHANGED_AT = null;
         }
 
         this.pole = [lat, lon];
