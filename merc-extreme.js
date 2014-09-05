@@ -128,25 +128,23 @@ function init() {
     koRoot.load(tile_specs, landmarks);
     ko.applyBindings(koRoot);
 
-    var manualPole = null;
-    if (window.location.href.indexOf('#') != -1) {
-        var frag = window.location.href.split('#')[1];
-        if (frag.indexOf(',') != -1) {
-            var coords = frag.split(',');
-            var lat = +coords[0];
-            var lon = +coords[1];
-            if (!isNaN(lat) && !isNaN(lon)) {
-                lat = Math.min(Math.max(lat, -90), 90);
-                lon = lon_norm(lon);
-                manualPole = [lat, lon];
-            }
-        }
-    }
-    if (manualPole) {
-        new PlaceModel({pos: manualPole}, merc)._select(true);
+    var initState = parseURLFragment();
+    if (initState.pole) {
+        new PlaceModel({pos: initState.pole}, merc)._select(true);
     } else {
         var initPole = _.find(koRoot.places(), function(e) { return e.default; });
         initPole._select(true);
+    }
+    if (initState.layer) {
+        initState.layer = _.find(koRoot.layers(), function(e) { return e.id() == initState.layer; });
+        if (!initState.layer) {
+            console.log('could not understand layer in url')
+        }
+    }
+    if (initState.layer) {
+        koRoot.selectLayer(initState.layer);
+    } else {
+        koRoot.selectDefaultLayer();
     }
 
     merc.start();
@@ -202,6 +200,31 @@ function init() {
         }
         return false;
     });
+}
+
+function parseURLFragment() {
+    var manualPole = null;
+    var layer = null;
+    if (window.location.href.indexOf('#') != -1) {
+        var frag = window.location.href.split('#')[1];
+        if (frag.indexOf('@') != -1) {
+            var pcs = frag.split('@');
+            layer = pcs[0];
+            frag = pcs[1];
+        }
+        if (frag.indexOf(',') != -1) {
+            var coords = frag.split(',');
+            var lat = +coords[0];
+            var lon = +coords[1];
+            if (!isNaN(lat) && !isNaN(lon)) {
+                lat = Math.min(Math.max(lat, -90), 90);
+                lon = lon_norm(lon);
+                manualPole = [lat, lon];
+                URLFRAG.setPole(lat, lon);
+            }
+        }
+    }
+    return {pole: manualPole, layer: layer};
 }
 
 function checkEnvironment() {
@@ -1790,7 +1813,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             POLE_CHANGED_AT = clock();
         }
         if (POLE_CHANGED_AT != null && clock() - POLE_CHANGED_AT > .5) {
-            history.replaceState(null, null, '#' + lat.toFixed(5) + ',' + lon.toFixed(5));
+            URLFRAG.setPole(lat, lon);
             POLE_CHANGED_AT = null;
         }
 
@@ -1892,6 +1915,40 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.init();
 }
 
+function URLFragmentContext() {
+    this.lat = null;
+    this.lon = null;
+    this.layer = null;
+    this.enabled = true;
+
+    this.setPole = function(lat, lon) {
+        this.lat = lat;
+        this.lon = lon;
+        this.update();
+    }
+
+    this.setLayer = function(layer) {
+        this.layer = layer;
+        this.update();
+    }
+
+    this.update = function() {
+        if (!this.enabled) {
+            return;
+        }
+
+        var frag = '';
+        if (this.layer) {
+            frag += this.layer + '@';
+        }
+        if (this.lat != null) {
+            frag += this.lat.toFixed(5) + ',' + this.lon.toFixed(5);
+        }
+        history.replaceState(null, null, '#' + frag);
+    }
+}
+URLFRAG = new URLFragmentContext();
+
 function hp_split(val) {
     var hp_extent = Math.pow(2., HIGH_PREC_Z_BASELINE);
     var primary = Math.floor(val * hp_extent) / hp_extent;
@@ -1979,7 +2036,6 @@ function EMViewModel(merc) {
         layers = layers.concat(custom_layers);
 
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
-        this.selectLayer(this.layers()[0]);
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
         var current = new PlaceModel({name: 'Current Location', geoloc: true}, merc);
@@ -2020,6 +2076,14 @@ function EMViewModel(merc) {
         };
         layer.activate();
         that.activeLayer(layer);
+    }
+
+    that.selectDefaultLayer = function() {
+        // oof, ghetto
+        URLFRAG.enabled = false;
+        that.selectLayer(that.layers()[0]);
+        URLFRAG.setLayer(null);
+        URLFRAG.enabled = true;
     }
 
     that.removeLayer = function(layer) {
@@ -2373,6 +2437,7 @@ function LayerModel(data, merc, root) {
         }
         this.active(true);
         merc.setLayer(this.to_obj());
+        URLFRAG.setLayer(this.id());
     }
 
     this.to_obj = function() {
