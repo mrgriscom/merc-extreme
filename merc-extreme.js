@@ -694,8 +694,8 @@ function TextureLayer(context) {
         }, false);
     }
     
-    this.setLayer = function(type) {
-        if (this.curlayer != null && type.id == this.curlayer.id) {
+    this.setLayer = function(type, forceReload) {
+        if (!forceReload && this.curlayer != null && type.id == this.curlayer.id) {
             return;
         }
 
@@ -1197,7 +1197,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     }
 
     this.setLayer = function(layer) {
-        this.layer.setLayer(layer);
+        // always force reload -- we assume UI blocks situations where we wouldn't actually want to
+        this.layer.setLayer(layer, true);
     }
 
     this.setWorldMatrix = function(transformations, update) {
@@ -2317,14 +2318,15 @@ function DrivingAnimationContext(start, speed, heading, merc) {
 function LayerModel(data, merc, root) {
     var that = this;
 
-    this.setID = function() {
-        this.id = Math.floor(Math.random()*Math.pow(2, 32)).toString(16);
-    }
-    this.setID();
     this.attr = data.attr;
     this.no_z0 = data.no_z0;
 
-    this.url = ko.observable(data.url);
+    this.url = ko.observable();
+    this.id = ko.computed(function() {
+        return string_hash(this.url() || '');
+    }, this);
+    this.url(data.url);
+
     this.name = ko.observable(data.name);
     this.max_depth = ko.observable(data.max_depth);
     this.custom = ko.observable(data.custom);
@@ -2361,6 +2363,7 @@ function LayerModel(data, merc, root) {
         img.onerror = function() {
             that.preview_status('error');
         };
+        img.crossOrigin = 'anonymous';
         img.src = that.preview_url();
     });
 
@@ -2374,7 +2377,7 @@ function LayerModel(data, merc, root) {
 
     this.to_obj = function() {
         return {
-            id: this.id,
+            id: this.id(),
             url: this.url(),
             tilefunc: this.tilefunc(),
             max_depth: this.max_depth(),
@@ -2395,7 +2398,6 @@ function LayerModel(data, merc, root) {
             that[e](layer[e]());
         });
 
-        this.setID(); // invalidate any tiles loaded already
         if (this.active()) {
             this.activate(true);
         }
@@ -2488,6 +2490,13 @@ var tile_specs = [
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
         attr: [['Pinterest'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
+    /* not CORS enabled :'(
+    {
+        name: '"Midnight Commander" by CloudMade',
+        url: 'http://{s:abc}.tile.cloudmade.com/1a1b06b230af4efdbb989ea99e9841af/999/256/{z}/{x}/{y}.png',
+        attr: ['CloudMade', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    */
     {
         name: 'Bing Map',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=' + API_KEYS.bing,
@@ -3018,4 +3027,16 @@ function snap_scale(scale, target_size) {
         len *= UNITS[unit];
     }
     return {label: format_with_unit(len, null, unit), size: len / scale};
+}
+
+function string_hash(s) {
+    var hash = 0;
+    for (i = 0; i < s.length; i++) {
+        var ch = s.charCodeAt(i);
+        hash = ((hash<<5)-hash)+ch;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    hash = (hash + Math.pow(2, 32)).toString(16);
+    hash = hash.substring(hash.length - 8);
+    return hash;
 }
