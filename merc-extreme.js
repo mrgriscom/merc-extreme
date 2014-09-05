@@ -1228,7 +1228,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             ERR.setError('screensize', false);
         }
 
-        $('#help').css('max-height', this.height_px + 'px');
+        $('#help').css('max-height', actual_height + 'px');
     }
     
     this.init = function() {
