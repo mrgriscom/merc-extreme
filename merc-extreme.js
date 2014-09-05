@@ -1129,6 +1129,9 @@ function TextureLayer(context) {
         },
     };
 }
+
+//HORIZONTAL = false;
+HORIZONTAL = true;
     
 function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.renderer = GL;
@@ -1170,18 +1173,36 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.initViewport = function(dim, merc_min, merc_max, lon_center) {
         lon_center = lon_center == null ? .5 : lon_center;
 
-        this.width_px = dim[0];
-        this.height_px = dim[1];
+        var actual_width = dim[0];
+        var actual_height = dim[1];
+
+        this.width_px = HORIZONTAL ? actual_width : actual_height;
+        this.height_px = HORIZONTAL ? actual_height : actual_width;
         this.aspect = this.width_px / this.height_px;
-        console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect);
+        console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect, HORIZONTAL ? 'horiz' : 'vert');
 
         var extent = merc_max - merc_min;
         var vextent = extent / this.aspect;
         this.scale_px = this.width_px / extent;
 
-        this.renderer.setSize(this.width_px, this.height_px);
-        this.camera = new THREE.OrthographicCamera(0, this.width_px, this.height_px, 0, -1, 1);
+        this.renderer.setSize(actual_width, actual_height);
+        this.camera = new THREE.OrthographicCamera(0, actual_width, actual_height, 0, -1, 1);
         this.layer.onViewportSet();
+
+        if (HORIZONTAL) {
+            var containerTransform = [];
+        } else {
+            var containerTransform = [
+                new THREE.Matrix4().makeRotationZ(.5*Math.PI),
+                new THREE.Matrix4().makeTranslation(actual_width, 0, 0),
+            ];
+        }
+        this.container.matrix = _.reduceRight(containerTransform, function(memo, e) {
+            return memo.multiply(e);
+        }, new THREE.Matrix4());
+        this.container.matrixAutoUpdate = false;
+        this.container.matrixWorldNeedsUpdate = true;
+        this.invContainer = new THREE.Matrix4().getInverse(this.container.matrix);
 
         this.setWorldMatrix([
 	        new THREE.Matrix4().makeTranslation(-.5 * vextent - lon_center, -merc_min, 0),
@@ -1202,8 +1223,10 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     
     this.init = function() {
         this.scene = new THREE.Scene();
-        this.group = new THREE.Object3D();
-        this.scene.add(this.group);
+        this.container = new THREE.Object3D();
+        this.scene.add(this.container);
+        this.pane = new THREE.Object3D();
+        this.container.add(this.pane);
         this.currentObjs = [];
         this.layer = new TextureLayer(this);
 
@@ -1233,9 +1256,9 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         }, new THREE.Matrix4());
         this.toWorld = new THREE.Matrix4().getInverse(this.M);
 
-        this.group.matrix = this.M;
-        this.group.matrixAutoUpdate = false;
-        this.group.matrixWorldNeedsUpdate = true;
+        this.pane.matrix = this.M;
+        this.pane.matrixAutoUpdate = false;
+        this.pane.matrixWorldNeedsUpdate = true;
 
         // todo: set these to class vars -- i reference them everywhere
         var p0 = this.xyToWorld(0, .5 * this.height_px);
@@ -1267,8 +1290,19 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         _setWorldFailsafe--;
     }
 
+    // convert xy screen coordinates (ASSUMING horizontal orientation) to merc x/y coords
     this.xyToWorld = function(x, y) {
         return new THREE.Vector3(x, y, 0).applyMatrix4(this.toWorld);
+    }
+
+    // convert xy window coordinates (factoring in orientation)
+    this.windowXYToWorld = function(x, y) {
+        var paneXY = this.xyOrient(x, y);
+        return this.xyToWorld(paneXY.x, paneXY.y);
+    }
+
+    this.xyOrient = function(x, y) {
+        return new THREE.Vector3(x, y, 0).applyMatrix4(this.invContainer);
     }
 
     this.worldToXY = function(x, y) {
@@ -1281,6 +1315,10 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         var p0 = this.xyToWorld(0, this.height_px);
         var p1 = this.xyToWorld(this.width_px, 0);
         z = Math.max(z, (p1.y - p0.y) / (2. * MAX_MERC));
+
+        var orientated = this.xyOrient(x, y);
+        x = orientated.x;
+        y = orientated.y;
 
         this.setWorldMatrix([
             new THREE.Matrix4().makeTranslation(-x, -y, 0),
@@ -1297,7 +1335,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     }
 
     this._warp = function(pos, drag_context) {
-        var merc = this.xyToWorld(pos.x, pos.y);
+        var merc = this.windowXYToWorld(pos.x, pos.y);
 	    var merc_ll = xy_to_ll(merc.x, merc.y);
 
         var orig_bearing = bearing(drag_context.down_ll, drag_context.down_pole);
@@ -1316,7 +1354,10 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     }
 
     this.pan = function(pos, drag_context) {
-        var delta = [pos.x - drag_context.last_px.x, pos.y - drag_context.last_px.y];
+        var pO = this.xyOrient(pos.x, pos.y);
+        var lastO = this.xyOrient(drag_context.last_px.x, drag_context.last_px.y);
+
+        var delta = [pO.x - lastO.x, pO.y - lastO.y];
         this.setWorldMatrix([new THREE.Matrix4().makeTranslation(delta[0], delta[1], 0)], true);
     }
 
@@ -1348,7 +1389,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         var onDoubleRightClick = function(e) {
             logevt('dblrightclick');
             var pos = mouse_pos(e);
-            var merc = renderer.xyToWorld(pos.x, pos.y);
+            var merc = renderer.windowXYToWorld(pos.x, pos.y);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
 	        var coords = translate_pole(merc_ll, renderer.curPole);
             renderer.poleAt(coords[0], coords[1]);
@@ -1373,7 +1414,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             renderer.inertia_context.addSample([drag_context.down_px.x, drag_context.down_px.y]);
             renderer.setAnimationContext(null);
 
-            var merc = renderer.xyToWorld(drag_context.down_px.x, drag_context.down_px.y);
+            var merc = renderer.windowXYToWorld(drag_context.down_px.x, drag_context.down_px.y);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
             drag_context.down_mll = merc_ll;
 	        drag_context.down_ll = translate_pole(merc_ll, drag_context.down_pole);
@@ -1603,7 +1644,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             }
             grid.clearQuads(data.length);
         };
-        this.group.add(plane);
+        this.pane.add(plane);
         this.currentObjs.push(plane);
         return plane;
     }
@@ -1612,7 +1653,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         line = new THREE.Geometry();
         line.vertices.push(new THREE.Vector3(0, 0, -1));
         line.vertices.push(new THREE.Vector3(0, 0, -1));
-        this.group.add(new THREE.Line(line, new THREE.LineBasicMaterial({
+        this.pane.add(new THREE.Line(line, new THREE.LineBasicMaterial({
             color: color,
             opacity: .6,
             linewidth: 2,
@@ -1654,7 +1695,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         if (window.POS) {
             $('#mouseinfo').css('top', 0);
 
-            var p = renderer.xyToWorld(POS.x, POS.y);
+            var p = renderer.windowXYToWorld(POS.x, POS.y);
             var merc_ll = xy_to_ll(mod(p.x, 1.), p.y);
             var ll = translate_pole(merc_ll, renderer.curPole);
 
@@ -1679,7 +1720,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
             var bearing_cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][mod(Math.floor(bearing / 45. + .5), 8)];
             $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0 (' + bearing_cardinal + ')');
-            $('#orient img').css('transform', 'rotate(' + (270 - orient) + 'deg)');
+            $('#orient img').css('transform', 'rotate(' + ((HORIZONTAL ? 270 : 180) - orient) + 'deg)');
             var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
             $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
@@ -2221,7 +2262,7 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform, ren
         if (drag_context.mode == 'pan') {
             return 0;
         } else if (drag_context.mode == 'warp') {
-            var merc = renderer.xyToWorld(pos[0], pos[1]);
+            var merc = renderer.windowXYToWorld(pos[0], pos[1]);
 	        var merc_ll = xy_to_ll(merc.x, merc.y);
             var res = 2 * Math.PI / renderer.scale_px * Math.cos(merc_ll[0] / DEG_RAD);
             return mouse_speed * res * EARTH_MEAN_RAD;
