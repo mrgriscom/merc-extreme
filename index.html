@@ -113,8 +113,6 @@ a:hover {
 .poleinfo {
   background: rgba(200, 200, 200, .7);
   position: absolute;
-  bottom: 0;
-  border-top: 2px solid rgba(100, 100, 100, .4);
   font-weight: bold;
   font-size: 14px;
   color: #222;
@@ -124,19 +122,6 @@ a:hover {
 .polehdr {
   font-size: 11px;
   color: #333;
-}
-
-.pole {
-  text-align: right;
-  right: 0;
-  border-radius: 5px 0 0 0;
-  border-left: 2px solid rgba(100, 100, 100, .4);
-}
-
-.antipole {
-  left: 0;
-  border-radius: 0 5px 0 0;
-  border-right: 2px solid rgba(100, 100, 100, .4);
 }
 
 .pointerinfo {
@@ -153,7 +138,39 @@ a:hover {
   padding: 3px;
 }
 
+.corner-ll {
+  left: 0;
+  bottom: 0;
+  border-radius: 0 5px 0 0;
+  border-right: 2px solid rgba(100, 100, 100, .4);
+  border-top: 2px solid rgba(100, 100, 100, .4);
+}
 
+.corner-lr {
+  text-align: right;
+  right: 0;
+  bottom: 0;
+  border-radius: 5px 0 0 0;
+  border-left: 2px solid rgba(100, 100, 100, .4);
+  border-top: 2px solid rgba(100, 100, 100, .4);
+}
+
+.corner-ur {
+  text-align: right;
+  right: 0;
+  top: 0;
+  border-radius: 0 0 0 5px;
+  border-left: 2px solid rgba(100, 100, 100, .4);
+  border-bottom: 2px solid rgba(100, 100, 100, .4);
+}
+
+.corner-ll .swapleft {
+  display: none;
+}
+
+.corner-lr .swapright {
+  display: none;
+}
 
 .ui-slider-handle {
     cursor: default;
@@ -585,11 +602,14 @@ h3 {
 </script>
 
 <div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(200, 200, 200, .7); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="visible: curAttr, html: curAttr"></span></div>
-<div id="poleinfo" class="poleinfo pole">
+<div id="poleinfo" class="poleinfo corner-lr">
   <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" /><span class="data"></span>
 </div>
-<div id="antipoleinfo" class="poleinfo antipole">
-  <span class="polehdr">ANTI-POLE</span><br><span class="data"></span><img class="swap" src="img/swap.png" title="Swap poles" style="margin-left: 3px;" />
+<div id="antipoleinfo" class="poleinfo corner-ll">
+  <span class="polehdr">ANTI-POLE</span><br>
+  <img class="swap swapleft" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" />
+  <span class="data"></span>
+  <img class="swap swapright" src="img/swap.png" title="Swap poles" style="margin-left: 3px;" />
 </div>
 <div id="mouseinfo" class="pointerinfo">
   <span class="polehdr">POINTER</span><br>

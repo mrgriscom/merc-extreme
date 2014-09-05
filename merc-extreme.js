@@ -166,6 +166,19 @@ function init() {
         merc.swapPoles();
     });
 
+    $('.orientation').click(function() {
+        merc.horizontalOrientation = !merc.horizontalOrientation;
+        merc.resetViewport();
+
+        hstyle = {poleinfo: 'lr', antipoleinfo: 'll'};
+        vstyle = {poleinfo: 'ur', antipoleinfo: 'lr'};
+        $.each({h: hstyle, v: vstyle}, function(mode, styles) {
+            $.each(styles, function(k, v) {
+                $('#' + k)[(merc.horizontalOrientation == (mode == 'h')) ? 'addClass' : 'removeClass']('corner-' + v);
+            });
+        });
+    });
+
     geocoder = new GEOCODERS.google();
     $('#search').submit(function() {
         var callbacks = {
@@ -1130,9 +1143,6 @@ function TextureLayer(context) {
     };
 }
 
-//HORIZONTAL = false;
-HORIZONTAL = true;
-    
 function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.renderer = GL;
     this.glContext = this.renderer.getContext();
@@ -1176,10 +1186,10 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         var actual_width = dim[0];
         var actual_height = dim[1];
 
-        this.width_px = HORIZONTAL ? actual_width : actual_height;
-        this.height_px = HORIZONTAL ? actual_height : actual_width;
+        this.width_px = this.horizontalOrientation ? actual_width : actual_height;
+        this.height_px = this.horizontalOrientation ? actual_height : actual_width;
         this.aspect = this.width_px / this.height_px;
-        console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect, HORIZONTAL ? 'horiz' : 'vert');
+        console.log('width', this.width_px, 'height', this.height_px, 'aspect', this.aspect, this.horizontalOrientation ? 'horiz' : 'vert');
 
         var extent = merc_max - merc_min;
         var vextent = extent / this.aspect;
@@ -1189,7 +1199,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.camera = new THREE.OrthographicCamera(0, actual_width, actual_height, 0, -1, 1);
         this.layer.onViewportSet();
 
-        if (HORIZONTAL) {
+        if (this.horizontalOrientation) {
             var containerTransform = [];
         } else {
             var containerTransform = [
@@ -1210,7 +1220,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
         ]);
 
-        if (this.width_px > SCREEN_WIDTH || this.height_px > SCREEN_HEIGHT) {
+        if (actual_width > SCREEN_WIDTH || actual_height > SCREEN_HEIGHT) {
             ERR.setError('screensize', true);
             $('#maxwidth').text(SCREEN_WIDTH);
             $('#maxheight').text(SCREEN_HEIGHT);
@@ -1230,16 +1240,21 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.currentObjs = [];
         this.layer = new TextureLayer(this);
 
+        this.horizontalOrientation = true;
         this.initViewport(getViewportDims(window), -extentS, extentN);
         var merc = this;
         $(window).resize(function() {
-            var p0 = merc.xyToWorld(0, .5 * merc.height_px);
-            var p1 = merc.xyToWorld(merc.width_px, 0);
-            merc.initViewport(getViewportDims(window), p0.y, p1.y, p0.x);
+            merc.resetViewport();
         });
         $container.append(this.renderer.domElement);
 
         this.init_interactivity();
+    }
+
+    this.resetViewport = function() {
+        var p0 = this.xyToWorld(0, .5 * this.height_px);
+        var p1 = this.xyToWorld(this.width_px, 0);
+        this.initViewport(getViewportDims(window), p0.y, p1.y, p0.x);
     }
 
     this.setLayer = function(layer) {
@@ -1720,7 +1735,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
             var bearing_cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][mod(Math.floor(bearing / 45. + .5), 8)];
             $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0 (' + bearing_cardinal + ')');
-            $('#orient img').css('transform', 'rotate(' + ((HORIZONTAL ? 270 : 180) - orient) + 'deg)');
+            $('#orient img').css('transform', 'rotate(' + ((this.horizontalOrientation ? 270 : 180) - orient) + 'deg)');
             var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
             $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
