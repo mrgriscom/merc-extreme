@@ -255,7 +255,7 @@ function checkEnvironment() {
     if (!webgl) {
         noWebGL();
     } else {
-        var GL = new THREE.WebGLRenderer();
+        var GL = new THREE.WebGLRenderer(window.EXPORT_MODE ? {preserveDrawingBuffer: true} : {});
         var _gl = GL.context;
 
         // shader precision
@@ -3160,4 +3160,101 @@ function string_hash(s) {
     hash = (hash + Math.pow(2, 32)).toString(16);
     hash = hash.substring(hash.length - 8);
     return hash;
+}
+
+
+
+
+
+
+
+function save_canvas(canvas, filename) {
+    if (!window.EXPORT_MODE) {
+        throw "not in export mode; cannot save canvas";
+    }
+
+    var dataurl = canvas.toDataURL();
+    var rawb64 = dataurl.substring(dataurl.indexOf(',')+1);
+    var raw = atob(rawb64);
+    var buf = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) {
+        buf[i] = raw.charCodeAt(i);
+    }
+
+    var blob = new Blob([buf], {type : 'image/png'});
+    saveAs(blob, filename);
+}
+
+/* to export an image mosaic:
+
+1. set a breakpoint on the first line of init(); set EXPORT_MODE = true on
+   the console at this breakpoint. resume execution
+
+ */
+
+/* TODO
+
+auto-trigger when all tiles have been loaded
+oversampling
+
+*/
+
+/*
+ x0/y0/x1/y1 are the extents of the image in mercator unit coordinates
+ res is in units/pixel
+ */
+function highres_export(x0, x1, y0, y1, res) { //, max_tile) {
+    var width = Math.round((y1 - y0) / res);
+    res = (y1 - y0) / width;
+    var height = Math.round((x1 - x0) / res);
+
+    var c = mk_canvas(width, height);
+    var filename = 'export-' + Math.floor(new Date().getTime() / 1000.) + '.png';
+
+    var chunkWidth = 1024;
+    var chunkHeight = 1024;
+    var numChunksX = Math.ceil(width / chunkWidth);
+    var numChunksY = Math.ceil(height / chunkHeight);
+    var chunks = [];
+    for (var row = 0; row < numChunksY; row++) {
+        for (var col = 0; col < numChunksX; col++) {
+            var offsetX = col * chunkWidth;
+            var offsetY = row * chunkHeight;
+            
+            var mxmin = x0 + offsetY * res;
+            var mymin = y0 + offsetX * res;
+            var mxmax = mxmin + chunkHeight * res;
+            var mymax = mymin + chunkWidth * res;
+
+            chunks.push({
+                offsetX: offsetX,
+                offsetY: offsetY,
+                mxmin: mxmin,
+                mxmax: mxmax,
+                mymin: mymin,
+                mymax: mymax,
+            });
+        }
+    }
+
+    var processChunk = function(chunk, oncomplete) {
+        if (chunk.mymax > MAX_MERC) {
+            MAX_MERC = chunk.mymax;
+        }
+        MERC.blinder_opacity = 0.;
+        MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
+        setTimeout(function() {
+            c.context.drawImage(MERC.renderer.domElement, chunk.offsetX, chunk.offsetY);
+            oncomplete();
+        }, 5000);
+    }
+
+    var process = function() {
+        if (chunks.length == 0) {
+            save_canvas(c.canvas, filename);
+        } else {
+            processChunk(chunks.splice(0, 1)[0], process);
+        }
+    }
+    process();
 }
