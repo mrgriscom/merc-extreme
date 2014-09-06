@@ -96,6 +96,7 @@ function setComputedConstants(GL) {
 
 function init() {
     initGlobal();
+    var initState = parseURLFragment();
     var env = checkEnvironment();
     setComputedConstants(env.gl);
 
@@ -128,7 +129,6 @@ function init() {
     koRoot.load(tile_specs, landmarks);
     ko.applyBindings(koRoot);
 
-    var initState = parseURLFragment();
     if (initState.pole) {
         new PlaceModel({pos: initState.pole}, merc)._select(true);
     } else {
@@ -178,6 +178,11 @@ function init() {
             });
         });
     });
+    if (window.EXPORT_MODE) {
+        _.each(['poleinfo', 'antipoleinfo'], function(e) {
+            $('#' + e).css('display', 'none');
+        });
+    }
 
     geocoder = new GEOCODERS.google();
     $('#search').submit(function() {
@@ -220,6 +225,10 @@ function parseURLFragment() {
     var layer = null;
     if (window.location.href.indexOf('#') != -1) {
         var frag = window.location.href.split('#')[1];
+        if (frag[0] == '!') {
+            EXPORT_MODE = true;
+            frag = frag.substring(1);
+        }
         if (frag.indexOf('@') != -1) {
             var pcs = frag.split('@');
             layer = pcs[0];
@@ -1994,6 +2003,9 @@ function URLFragmentContext() {
         }
 
         var frag = '';
+        if (window.EXPORT_MODE) {
+            frag += '!';
+        }
         if (this.layer) {
             frag += this.layer + '@';
         }
@@ -3187,29 +3199,57 @@ function save_canvas(canvas, filename) {
 
 /* to export an image mosaic:
 
-1. set a breakpoint on the first line of init(); set EXPORT_MODE = true on
-   the console at this breakpoint. resume execution
+1. add '!' to the URL fragment to enable export mode
+
+2. set the parameters of the image from the current view via setUR(), setLL(), setRes()
+
+3. configure view as desired (map layer, blending level, etc.)
+
+4. run the command: highres_export(null, null, null, null, null, ...), or to include full
+   longitude range, highres_export(0, null, null, null, null, ...)
+
+5. remain on page until mosaic is complete (TODO override requestAnimationFrame to obviate need for this?)
 
  */
 
 /* TODO
 
 auto-trigger when all tiles have been loaded
-oversampling
+subtiles for huge mosaics
 
 */
 
 /*
- x0/y0/x1/y1 are the extents of the image in mercator unit coordinates
- res is in units/pixel
+ - x0/y0/x1/y1 are the extents of the image in mercator unit coordinates
+ - res is in units/pixel
+ - oversampling creates an image N times larger than normal, but using the same
+   zoom levels, to provide antialiases (shrink by 100/N% in post-processing)
  */
-function highres_export(x0, x1, y0, y1, res) { //, max_tile) {
+function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
+    if (!window.EXPORT_MODE) {
+        throw "export mode not enabled";
+    }
+
+    if (x0 != null && x1 == null) {
+        x1 = x0 + 1.;
+    }
+    x0 = (x0 != null ? x0 : EXPORT_X0);
+    x1 = (x1 != null ? x1 : EXPORT_X1);
+    y0 = (y0 != null ? y0 : EXPORT_Y0);
+    y1 = (y1 != null ? y1 : EXPORT_Y1);
+    res = (res != null ? res : EXPORT_RES);
+
+    oversampling = oversampling || 1.;
+    res /= oversampling;
+
     var width = Math.round((y1 - y0) / res);
     res = (y1 - y0) / width;
     var height = Math.round((x1 - x0) / res);
 
+    console.log(width + 'x' + height);
+
     var c = mk_canvas(width, height);
-    var filename = 'export-' + Math.floor(new Date().getTime() / 1000.) + '.png';
+    var filename = 'export-' + Math.floor(new Date().getTime() / 1000.) + (oversampling > 1 ? '.x' + oversampling : '') + '.png';
 
     var chunkWidth = 1024;
     var chunkHeight = 1024;
@@ -3242,6 +3282,7 @@ function highres_export(x0, x1, y0, y1, res) { //, max_tile) {
             MAX_MERC = chunk.mymax;
         }
         MERC.blinder_opacity = 0.;
+        MERC.overzoom = Math.log(oversampling) / Math.LN2;
         MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
         setTimeout(function() {
             c.context.drawImage(MERC.renderer.domElement, chunk.offsetX, chunk.offsetY);
@@ -3250,11 +3291,81 @@ function highres_export(x0, x1, y0, y1, res) { //, max_tile) {
     }
 
     var process = function() {
-        if (chunks.length == 0) {
-            save_canvas(c.canvas, filename);
+        if (window.CANCEL_EXPORT) {
+            window.CANCEL_EXPORT = false;
+            console.log('cancelling export');
+            return;
+        }
+
+        var chunk = chunks.splice(0, 1)[0];
+        if (chunk != null) {
+            processChunk(chunk, process);
         } else {
-            processChunk(chunks.splice(0, 1)[0], process);
+            save_canvas(c.canvas, filename);
         }
     }
     process();
+}
+
+function cancelExport() {
+    console.log('cancel pending');
+    CANCEL_EXPORT = true;
+}
+
+function setUR() {
+    var p = MERC.xyToWorld(MERC.width_px, MERC.height_px);
+    EXPORT_X0 = mod(p.x, 1.);
+    EXPORT_Y1 = p.y;
+    if (window.EXPORT_X1 != null && EXPORT_X0 > EXPORT_X1) {
+        EXPORT_X0 -= 1.;
+    }
+    saveExportParams();
+}
+
+function setLL() {
+    var p = MERC.xyToWorld(0, 0);
+    EXPORT_X1 = mod(p.x, 1.);
+    EXPORT_Y0 = p.y;
+    if (window.EXPORT_X0 != null && EXPORT_X1 < EXPORT_X0) {
+        EXPORT_X1 += 1.;
+    }
+    saveExportParams();
+}
+
+function setScale() {
+    EXPORT_RES = 1. / MERC.scale_px;
+    saveExportParams();
+}
+
+function printExportParams() {
+    console.log('upper (x0)', EXPORT_X0);
+    console.log('lower (x1)', EXPORT_X1);
+    console.log('left (y0)', EXPORT_Y0);
+    console.log('right (y1)', EXPORT_Y1);
+    console.log('res', EXPORT_RES);
+
+    console.log('width', Math.round((window.EXPORT_Y1 - window.EXPORT_Y0) / window.EXPORT_RES));
+    console.log('height', Math.round((window.EXPORT_X1 - window.EXPORT_X0) / window.EXPORT_RES));
+    console.log('height_full', Math.round(1. / window.EXPORT_RES));
+}
+
+function saveExportParams() {
+    localStorage.export_params = JSON.stringify({
+        x0: window.EXPORT_X0,
+        x1: window.EXPORT_X1,
+        y0: window.EXPORT_Y0,
+        y1: window.EXPORT_Y1,
+        res: window.EXPORT_RES
+    });
+    printExportParams();
+}
+
+function restoreExportParams() {
+    var params = JSON.parse(localStorage.export_params);
+    EXPORT_X0 = params.x0;
+    EXPORT_X1 = params.x1;
+    EXPORT_Y0 = params.y0;
+    EXPORT_Y1 = params.y1;
+    EXPORT_RES = params.res;
+    printExportParams();
 }
