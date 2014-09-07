@@ -1844,6 +1844,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
         if (!this.sampling_in_progress && (this.last_sampling == null || timestamp - this.last_sampling > 1./SAMPLE_TIME_FREQ)) {
             this.sampling_in_progress = true;
+            this.sampling_started_at = clock();
             setMaterials('sampler');
             this.layer.sample_coverage(function() {
                 renderer.sampling_in_progress = false;
@@ -3296,13 +3297,17 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
         MERC.blinder_opacity = 0.;
         MERC.overzoom = base_ovz + Math.log(oversampling) / Math.LN2;
         MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
-        MERC.last_sampling = null;
 
         var viewportChangedAt = clock();
-        var copyChunk = function() {
+        var waitUntilReady = function(onReady, delay) {
             var wait = true;
+            var needsResample = false;
             if (MERC.last_sampling == null || MERC.last_sampling < viewportChangedAt) {
+                needsResample = true;
                 //console.log('hasnt resampled yet');
+            } else if (MERC.sampling_started_at < viewportChangedAt) {
+                needsResample = true;
+                //console.log('sampling is stale (was in progress when we changed viewport)');
             } else if (MERC.layer.numLoadingTiles() > 0) {
                 //console.log('not all tiles loaded');
             } else if (MERC.layer.pending.length > 0) {
@@ -3312,13 +3317,18 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
             }
 
             if (wait) {
-                setTimeout(copyChunk, 100);
+                if (needsResample) {
+                    MERC.last_sampling = null;
+                }
+                setTimeout(function() { waitUntilReady(onReady, delay); }, delay);
             } else {
-                c.context.drawImage(MERC.renderer.domElement, chunk.offsetX, chunk.offsetY);
-                oncomplete();
+                onReady();
             }
         }
-        copyChunk();
+        waitUntilReady(function() {
+            c.context.drawImage(MERC.renderer.domElement, chunk.offsetX, chunk.offsetY);
+            oncomplete();
+        }, 100);
     }
 
     var process = function() {
