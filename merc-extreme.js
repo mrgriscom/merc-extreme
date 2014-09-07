@@ -996,6 +996,17 @@ function TextureLayer(context) {
         DEBUG.postMessage({type: 'tiles', data: data}, '*');
     }
 
+    this.numLoadingTiles = function() {
+        var numPending = 0;
+        var layer = this;
+        _.each(this.active_tiles, function(v, k) {
+            if (layer.tile_index[k].status == 'loading') {
+                numPending++;
+            }
+        });
+        return numPending;
+    }
+
     var skirt = 1;
     var seamCorner = mk_canvas(skirt, skirt);
     var seamHoriz = mk_canvas(TILE_SIZE, skirt);
@@ -3213,10 +3224,8 @@ function save_canvas(canvas, filename) {
  */
 
 /* TODO
-
 auto-trigger when all tiles have been loaded
 subtiles for huge mosaics
-
 */
 
 /*
@@ -3284,10 +3293,28 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
         MERC.blinder_opacity = 0.;
         MERC.overzoom = Math.log(oversampling) / Math.LN2;
         MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
-        setTimeout(function() {
-            c.context.drawImage(MERC.renderer.domElement, chunk.offsetX, chunk.offsetY);
-            oncomplete();
-        }, 5000);
+
+        var start = clock();
+        var copyChunk = function() {
+            var wait = true;
+            if (MERC.last_sampling == null || MERC.last_sampling < start) {
+                //console.log('hasnt resampled yet');
+            } else if (MERC.layer.numLoadingTiles() > 0) {
+                //console.log('not all tiles loaded');
+            } else if (MERC.layer.pending.length > 0) {
+                //console.log('tiles not yet committed to texture atlas');
+            } else {
+                wait = false;
+            }
+
+            if (wait) {
+                setTimeout(copyChunk, 100);
+            } else {
+                c.context.drawImage(MERC.renderer.domElement, chunk.offsetX, chunk.offsetY);
+                oncomplete();
+            }
+        }
+        copyChunk();
     }
 
     var process = function() {
