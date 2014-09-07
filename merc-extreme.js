@@ -3286,12 +3286,14 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
         }
     }
 
+    var base_ovz = MERC.overzoom;
+
     var processChunk = function(chunk, oncomplete) {
         if (chunk.mymax > MAX_MERC) {
             MAX_MERC = chunk.mymax;
         }
         MERC.blinder_opacity = 0.;
-        MERC.overzoom = Math.log(oversampling) / Math.LN2;
+        MERC.overzoom = base_ovz + Math.log(oversampling) / Math.LN2;
         MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
 
         var start = clock();
@@ -3365,11 +3367,11 @@ function setScale() {
 }
 
 function printExportParams() {
-    console.log('upper (x0)', EXPORT_X0);
-    console.log('lower (x1)', EXPORT_X1);
-    console.log('left (y0)', EXPORT_Y0);
-    console.log('right (y1)', EXPORT_Y1);
-    console.log('res', EXPORT_RES);
+    console.log('upper (x0)', window.EXPORT_X0);
+    console.log('lower (x1)', window.EXPORT_X1);
+    console.log('left (y0)', window.EXPORT_Y0);
+    console.log('right (y1)', window.EXPORT_Y1);
+    console.log('res', window.EXPORT_RES);
 
     console.log('width', Math.round((window.EXPORT_Y1 - window.EXPORT_Y0) / window.EXPORT_RES));
     console.log('height', Math.round((window.EXPORT_X1 - window.EXPORT_X0) / window.EXPORT_RES));
