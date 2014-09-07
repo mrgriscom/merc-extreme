@@ -3260,9 +3260,9 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
         _oncomplete();
     }
 
-    var width = Math.round((y1 - y0) / res);
-    res = (y1 - y0) / width;
     var height = Math.round((x1 - x0) / res);
+    res = (x1 - x0) / height;
+    var width = Math.round((y1 - y0) / res);
 
     console.log('export size', width + 'x' + height);
 
