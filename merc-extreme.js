@@ -3295,11 +3295,12 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
         MERC.blinder_opacity = 0.;
         MERC.overzoom = base_ovz + Math.log(oversampling) / Math.LN2;
         MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
+        MERC.last_sampling = null;
 
-        var start = clock();
+        var viewportChangedAt = clock();
         var copyChunk = function() {
             var wait = true;
-            if (MERC.last_sampling == null || MERC.last_sampling < start) {
+            if (MERC.last_sampling == null || MERC.last_sampling < viewportChangedAt) {
                 //console.log('hasnt resampled yet');
             } else if (MERC.layer.numLoadingTiles() > 0) {
                 //console.log('not all tiles loaded');
@@ -3372,6 +3373,7 @@ function printExportParams() {
     console.log('left (y0)', window.EXPORT_Y0);
     console.log('right (y1)', window.EXPORT_Y1);
     console.log('res', window.EXPORT_RES);
+    console.log('pole', window.EXPORT_POLE);
 
     console.log('width', Math.round((window.EXPORT_Y1 - window.EXPORT_Y0) / window.EXPORT_RES));
     console.log('height', Math.round((window.EXPORT_X1 - window.EXPORT_X0) / window.EXPORT_RES));
@@ -3384,17 +3386,22 @@ function saveExportParams() {
         x1: window.EXPORT_X1,
         y0: window.EXPORT_Y0,
         y1: window.EXPORT_Y1,
-        res: window.EXPORT_RES
+        res: window.EXPORT_RES,
+        pole: MERC.curPole,
     });
     printExportParams();
 }
 
-function restoreExportParams() {
+function restoreExportParams(includePole) {
     var params = JSON.parse(localStorage.export_params);
     EXPORT_X0 = params.x0;
     EXPORT_X1 = params.x1;
     EXPORT_Y0 = params.y0;
     EXPORT_Y1 = params.y1;
     EXPORT_RES = params.res;
+    EXPORT_POLE = params.pole;
+    if (includePole && EXPORT_POLE) {
+        MERC.poleAt(EXPORT_POLE[0], EXPORT_POLE[1], {duration: 0});
+    }
     printExportParams();
 }
