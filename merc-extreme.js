@@ -3224,8 +3224,8 @@ function save_canvas(canvas, filename) {
  */
 
 /* TODO
-auto-trigger when all tiles have been loaded
-subtiles for huge mosaics
+mosaicking
+some bugs still with 'tiles loaded' trigger
 */
 
 /*
@@ -3238,6 +3238,7 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
     if (!window.EXPORT_MODE) {
         throw "export mode not enabled";
     }
+    console.log('have you set all your desired rendering parameters?');
 
     if (x0 != null && x1 == null) {
         x1 = x0 + 1.;
@@ -3343,23 +3344,47 @@ function cancelExport() {
 }
 
 function setUR() {
-    var p = MERC.xyToWorld(MERC.width_px, MERC.height_px);
-    EXPORT_X0 = mod(p.x, 1.);
-    EXPORT_Y1 = p.y;
-    if (window.EXPORT_X1 != null && EXPORT_X0 > EXPORT_X1) {
-        EXPORT_X0 -= 1.;
-    }
+    _setUpper();
+    _setRight();
+    saveExportParams();
+}
+function setLR() {
+    _setLower();
+    _setRight();
+    saveExportParams();
+}
+function setUL() {
+    _setUpper();
+    _setLeft();
+    saveExportParams();
+}
+function setLL() {
+    _setLower();
+    _setLeft();
     saveExportParams();
 }
 
-function setLL() {
+function _setUpper() {
+    var p = MERC.xyToWorld(MERC.width_px, MERC.height_px);
+    EXPORT_X0 = mod(p.x, 1.);
+    if (window.EXPORT_X1 != null && EXPORT_X0 > EXPORT_X1) {
+        EXPORT_X0 -= 1.;
+    }
+}
+function _setLower() {
     var p = MERC.xyToWorld(0, 0);
     EXPORT_X1 = mod(p.x, 1.);
-    EXPORT_Y0 = p.y;
     if (window.EXPORT_X0 != null && EXPORT_X1 < EXPORT_X0) {
         EXPORT_X1 += 1.;
     }
-    saveExportParams();
+}
+function _setLeft() {
+    var p = MERC.xyToWorld(0, 0);
+    EXPORT_Y0 = p.y;
+}
+function _setRight() {
+    var p = MERC.xyToWorld(MERC.width_px, MERC.height_px);
+    EXPORT_Y1 = p.y;
 }
 
 function setScale() {
