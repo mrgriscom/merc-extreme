@@ -3267,16 +3267,23 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
     console.log('export size', width + 'x' + height);
 
     var timestamp = Math.floor(new Date().getTime() / 1000.);
-    var mk_filename = function(sub_tile) {
+    var mk_filename = function(sub_tile, ovs) {
+        ovs = ovs || oversampling;
         return 'export-' + timestamp +
-        (oversampling > 1 ? '.x' + oversampling : '') +
+        (ovs > 1 ? '.x' + ovs : '') +
         (sub_tile ? '.' + sub_tile[0] + ',' + sub_tile[1] : '') +
         '.png';
     }
 
     if (width * height <= max_tile * max_tile) {
         // one image
-        highres_export_tile(x0, y0, res, width, height, overzoom, mk_filename(), oncomplete);
+        var filename = mk_filename();
+        highres_export_tile(x0, y0, res, width, height, overzoom, filename, function() {
+            if (oversampling > 1) {
+                console.log('convert -geometry ' + (100. / oversampling) + '% ~/Downloads/' + filename + ' ' + mk_filename(null, 1));
+            }
+            oncomplete();
+        });
     } else {
         // mosaic
         var subtiles = [];
@@ -3295,7 +3302,11 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
         sequential_process(subtiles, function(st, oncomplete) {
             highres_export_tile(st.xmin, st.ymin, res, st.width, st.height, overzoom, mk_filename(st.subtile), oncomplete);
         }, function() {
-            console.log('montage -mode Concatenate -tile ' + dim[0] + 'x' + dim[1] + ' ~/Downloads/export-' + timestamp + '.* ' + mk_filename());
+            if (oversampling > 1) {
+                console.log('montage -mode Concatenate -tile ' + dim[0] + 'x' + dim[1] + ' ~/Downloads/export-' + timestamp + '.* tif:- | convert -geometry ' + (100. / oversampling) + '% tif:- ' + mk_filename(null, 1));
+            } else {
+                console.log('montage -mode Concatenate -tile ' + dim[0] + 'x' + dim[1] + ' ~/Downloads/export-' + timestamp + '.* ' + mk_filename());
+            }
             oncomplete();
         });
     }
