@@ -3213,33 +3213,32 @@ function save_canvas(canvas, filename) {
 
 1. add '!' to the URL fragment to enable export mode
 
-2. set the parameters of the image from the current view via setUR(), setLL(), setRes()
+2. set the parameters of the image from the current view via setUR(), setLL(), setScale(), etc.
 
-3. configure view as desired (map layer, blending level, etc.)
+3. configure view as desired (map layer, blending level, overzoom, etc.)
 
 4. run the command: highres_export(null, null, null, null, null, ...), or to include full
    longitude range, highres_export(0, null, null, null, null, ...)
 
-5. remain on page until mosaic is complete (TODO override requestAnimationFrame to obviate need for this?)
+5. remain on page until mosaic is complete (export will pause while page is not visible) -- TODO
+   override the dependence on requestAnimationFrame?
 
  */
-
-/* TODO
-mosaicking
-some bugs still with 'tiles loaded' trigger
-*/
 
 /*
  - x0/y0/x1/y1 are the extents of the image in mercator unit coordinates
  - res is in units/pixel
  - oversampling creates an image N times larger than normal, but using the same
    zoom levels, to provide antialiases (shrink by 100/N% in post-processing)
+ - max_tile size before mosaicking is used
+ - oncomplete callback
  */
-function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
+function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete) {
     if (!window.EXPORT_MODE) {
         throw "export mode not enabled";
     }
     console.log('have you set all your desired rendering parameters?');
+    oncomplete = oncomplete || function(){};
 
     if (x0 != null && x1 == null) {
         x1 = x0 + 1.;
@@ -3250,52 +3249,75 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
     y1 = (y1 != null ? y1 : EXPORT_Y1);
     res = (res != null ? res : EXPORT_RES);
 
+    max_tile = max_tile || 10000;
     oversampling = oversampling || 1.;
     res /= oversampling;
+    var overzoom = MERC.overzoom + Math.log(oversampling) / Math.LN2;
 
     var width = Math.round((y1 - y0) / res);
     res = (y1 - y0) / width;
     var height = Math.round((x1 - x0) / res);
 
-    console.log(width + 'x' + height);
+    console.log('export size', width + 'x' + height);
 
+    var timestamp = Math.floor(new Date().getTime() / 1000.);
+    var mk_filename = function(sub_tile) {
+        return 'export-' + timestamp +
+        (oversampling > 1 ? '.x' + oversampling : '') +
+        (sub_tile ? '.' + sub_tile[0] + ',' + sub_tile[1] : '') +
+        '.png';
+    }
+
+    if (width * height <= max_tile * max_tile) {
+        // one image
+        highres_export_tile(x0, y0, res, width, height, overzoom, mk_filename(), oncomplete);
+    } else {
+        // mosaic
+        var subtiles = [];
+        var dim = [];
+        chunker(function(xo, yo, xmin, xmax, ymin, ymax, w, h, col, row) {
+            subtiles.push({
+                xmin: ymin,
+                ymin: xmin,
+                width: w,
+                height: h,
+                subtile: [row, col],
+            });
+        }, width, height, y0, x0, res, max_tile, max_tile, true, dim);
+
+        console.log('rendering as ' + dim[0] + 'x' + dim[1] + ' tiles');
+        sequential_process(subtiles, function(st, oncomplete) {
+            highres_export_tile(st.xmin, st.ymin, res, st.width, st.height, overzoom, mk_filename(st.subtile), oncomplete);
+        }, function() {
+            console.log('montage -mode Concatenate -tile ' + dim[0] + 'x' + dim[1] + ' ~/Downloads/export-' + timestamp + '.* ' + mk_filename());
+            oncomplete();
+        });
+    }
+}
+
+function highres_export_tile(x0, y0, res, width, height, overzoom, filename, oncomplete) {
     var c = mk_canvas(width, height);
-    var filename = 'export-' + Math.floor(new Date().getTime() / 1000.) + (oversampling > 1 ? '.x' + oversampling : '') + '.png';
 
     var chunkWidth = 1024;
     var chunkHeight = 1024;
-    var numChunksX = Math.ceil(width / chunkWidth);
-    var numChunksY = Math.ceil(height / chunkHeight);
     var chunks = [];
-    for (var row = 0; row < numChunksY; row++) {
-        for (var col = 0; col < numChunksX; col++) {
-            var offsetX = col * chunkWidth;
-            var offsetY = row * chunkHeight;
-            
-            var mxmin = x0 + offsetY * res;
-            var mymin = y0 + offsetX * res;
-            var mxmax = mxmin + chunkHeight * res;
-            var mymax = mymin + chunkWidth * res;
-
-            chunks.push({
-                offsetX: offsetX,
-                offsetY: offsetY,
-                mxmin: mxmin,
-                mxmax: mxmax,
-                mymin: mymin,
-                mymax: mymax,
-            });
-        }
-    }
-
-    var base_ovz = MERC.overzoom;
+    chunker(function(xo, yo, xmin, xmax, ymin, ymax) {
+        chunks.push({
+            offsetX: xo,
+            offsetY: yo,
+            mxmin: ymin,
+            mxmax: ymax,
+            mymin: xmin,
+            mymax: xmax,
+        });
+    }, width, height, y0, x0, res, chunkWidth, chunkHeight);
 
     var processChunk = function(chunk, oncomplete) {
         if (chunk.mymax > MAX_MERC) {
             MAX_MERC = chunk.mymax;
         }
         MERC.blinder_opacity = 0.;
-        MERC.overzoom = base_ovz + Math.log(oversampling) / Math.LN2;
+        MERC.overzoom = overzoom;
         MERC.initViewport([chunkWidth, chunkHeight], chunk.mymin, chunk.mymax, .5*(chunk.mxmin + chunk.mxmax));
 
         var viewportChangedAt = clock();
@@ -3331,21 +3353,64 @@ function highres_export(x0, x1, y0, y1, res, oversampling) { //, max_tile) {
         }, 100);
     }
 
-    var process = function() {
+    sequential_process(chunks, processChunk, function() {
+        save_canvas(c.canvas, filename);
+        oncomplete();
+    }, function() {
         if (window.CANCEL_EXPORT) {
             window.CANCEL_EXPORT = false;
-            console.log('cancelling export');
-            return;
+            return 'cancelling export';
         }
+    });
+}
 
-        var chunk = chunks.splice(0, 1)[0];
-        if (chunk != null) {
-            processChunk(chunk, process);
-        } else {
-            save_canvas(c.canvas, filename);
+function chunker(process, width, height, x0, y0, res, chunkWidth, chunkHeight, trim, dim) {
+    var numChunksX = Math.ceil(width / chunkWidth);
+    var numChunksY = Math.ceil(height / chunkHeight);
+    if (dim) {
+        dim.push(numChunksX);
+        dim.push(numChunksY);
+    }
+    var xAbsMax = x0 + width * res;
+    var yAbsMax = y0 + height * res;
+    for (var row = 0; row < numChunksY; row++) {
+        for (var col = 0; col < numChunksX; col++) {
+            var offsetX = col * chunkWidth;
+            var offsetY = row * chunkHeight;
+            
+            var xmin = x0 + offsetX * res;
+            var ymin = y0 + offsetY * res;
+            var xmax = xmin + chunkWidth * res;
+            var ymax = ymin + chunkHeight * res;
+            var w = chunkWidth;
+            var h = chunkHeight;
+            if (trim) {
+                xmax = Math.min(xmax, xAbsMax);
+                ymax = Math.min(ymax, yAbsMax);
+                w = Math.min(w, width - offsetX);
+                h = Math.min(h, height - offsetY);
+            }
+
+            var fmtCol = npad(col, (numChunksX + '').length);
+            var fmtRow = npad(row, (numChunksY + '').length);
+
+            process(offsetX, offsetY, xmin, xmax, ymin, ymax, w, h, fmtCol, fmtRow);
         }
     }
-    process();
+}
+
+function sequential_process(items, process, oncomplete, checkcancel) {
+    var cancelMsg = checkcancel ? checkcancel() : null;
+    if (cancelMsg) {
+        throw cancelMsg;
+    }
+
+    var item = items.splice(0, 1)[0];
+    if (item != null) {
+        process(item, function() { sequential_process(items, process, oncomplete, checkcancel); });
+    } else {
+        oncomplete();
+    }
 }
 
 function cancelExport() {
