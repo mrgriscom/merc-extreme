@@ -3238,7 +3238,6 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
         throw "export mode not enabled";
     }
     console.log('have you set all your desired rendering parameters?');
-    oncomplete = oncomplete || function(){};
 
     if (x0 != null && x1 == null) {
         x1 = x0 + 1.;
@@ -3252,7 +3251,14 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
     max_tile = max_tile || 10000;
     oversampling = oversampling || 1.;
     res /= oversampling;
+    ORIG_OVERZOOM = MERC.overzoom;
     var overzoom = MERC.overzoom + Math.log(oversampling) / Math.LN2;
+
+    var _oncomplete = oncomplete || function(){};
+    oncomplete = function() {
+        MERC.overzoom = ORIG_OVERZOOM;
+        _oncomplete();
+    }
 
     var width = Math.round((y1 - y0) / res);
     res = (y1 - y0) / width;
@@ -3359,6 +3365,7 @@ function highres_export_tile(x0, y0, res, width, height, overzoom, filename, onc
     }, function() {
         if (window.CANCEL_EXPORT) {
             window.CANCEL_EXPORT = false;
+            MERC.overzoom = ORIG_OVERZOOM;
             return 'cancelling export';
         }
     });
