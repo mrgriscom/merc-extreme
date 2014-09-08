@@ -3436,52 +3436,51 @@ function cancelExport() {
     CANCEL_EXPORT = true;
 }
 
-function setUR() {
-    _setUpper();
-    _setRight();
-    saveExportParams();
-}
-function setLR() {
-    _setLower();
-    _setRight();
-    saveExportParams();
-}
-function setUL() {
-    _setUpper();
-    _setLeft();
-    saveExportParams();
-}
-function setLL() {
-    _setLower();
-    _setLeft();
-    saveExportParams();
-}
-
-function _setUpper() {
-    var p = MERC.xyToWorld(MERC.width_px, MERC.height_px);
-    EXPORT_X0 = mod(p.x, 1.);
-    if (window.EXPORT_X1 != null && EXPORT_X0 > EXPORT_X1) {
-        EXPORT_X0 -= 1.;
+function setExtent(dir) {
+    var p0 = MERC.xyToWorld(0, 0);
+    var p1 = MERC.xyToWorld(MERC.width_px, MERC.height_px);
+    for (var i = 0; i < dir.length; i++) {
+        var c = dir[i];
+        if (c == 't') { //top
+            EXPORT_X0 = mod(p1.x, 1.);
+            if (window.EXPORT_X1 != null && EXPORT_X0 > EXPORT_X1) {
+                EXPORT_X0 -= 1.;
+            }
+        } else if (c == 'b') { //bottom
+            EXPORT_X1 = mod(p0.x, 1.);
+            if (window.EXPORT_X0 != null && EXPORT_X1 < EXPORT_X0) {
+                EXPORT_X1 += 1.;
+            }
+        } else if (c == 'l') { //left
+            EXPORT_Y0 = p0.y;
+        } else if (c == 'r') { //right
+            EXPORT_Y1 = p1.y;
+        }
     }
-}
-function _setLower() {
-    var p = MERC.xyToWorld(0, 0);
-    EXPORT_X1 = mod(p.x, 1.);
-    if (window.EXPORT_X0 != null && EXPORT_X1 < EXPORT_X0) {
-        EXPORT_X1 += 1.;
-    }
-}
-function _setLeft() {
-    var p = MERC.xyToWorld(0, 0);
-    EXPORT_Y0 = p.y;
-}
-function _setRight() {
-    var p = MERC.xyToWorld(MERC.width_px, MERC.height_px);
-    EXPORT_Y1 = p.y;
+    saveExportParams();
 }
 
 function setScale() {
     EXPORT_RES = 1. / MERC.scale_px;
+    saveExportParams();
+}
+
+function setPixels(px, dir) {
+    var dim = null;
+    if (dir == 'w') {
+        if (window.EXPORT_Y0 != null && window.EXPORT_Y1 != null) {
+            dim = EXPORT_Y1 - EXPORT_Y0;
+        } else {
+            throw 'y0/y1 not set';
+        }
+    } else if (dir == 'h') {
+        if (window.EXPORT_X0 != null && window.EXPORT_X1 != null) {
+            dim = EXPORT_X1 - EXPORT_X0;
+        } else {
+            throw 'x0/x1 not set';
+        }
+    }
+    EXPORT_RES = dim / px;
     saveExportParams();
 }
 
