@@ -3214,7 +3214,7 @@ function save_canvas(canvas, filename) {
 
 1. add '!' to the URL fragment to enable export mode
 
-2. set the parameters of the image from the current view via setUR(), setLL(), setScale(), etc.
+2. set the parameters of the image from the current view via setExtent(), setScale(), etc.
 
 3. configure view as desired (map layer, blending level, overzoom, etc.)
 
