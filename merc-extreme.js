@@ -3254,12 +3254,6 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
     ORIG_OVERZOOM = MERC.overzoom;
     var overzoom = MERC.overzoom + Math.log(oversampling) / Math.LN2;
 
-    var _oncomplete = oncomplete || function(){};
-    oncomplete = function() {
-        MERC.overzoom = ORIG_OVERZOOM;
-        _oncomplete();
-    }
-
     var height = Math.round((x1 - x0) / res);
     res = (x1 - x0) / height;
     var width = Math.round((y1 - y0) / res);
@@ -3273,6 +3267,13 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
         (ovs > 1 ? '.x' + ovs : '') +
         (sub_tile ? '.' + sub_tile[0] + ',' + sub_tile[1] : '') +
         '.png';
+    }
+
+    var _oncomplete = oncomplete || function(){};
+    oncomplete = function() {
+        MERC.overzoom = ORIG_OVERZOOM;
+        writeParamsFile(x0, x1, y0, y1, timestamp);
+        _oncomplete();
     }
 
     if (width * height <= max_tile * max_tile) {
@@ -3521,4 +3522,10 @@ function restoreExportParams(includePole) {
         MERC.poleAt(EXPORT_POLE[0], EXPORT_POLE[1], {duration: 0});
     }
     printExportParams();
+}
+
+function writeParamsFile(x0, x1, y0, y1, timestamp) {
+    var data = 'pole: ' + MERC.curPole[0].toFixed(5) + ' ' + MERC.curPole[1].toFixed(5) + '\nleft/right: ' + y0 + ' ' + y1 + '\ntop/bottom: ' + x0 + ' ' + x1 + '\nblend: ' + MERC.zoom_blend + '\noverzoom: ' + MERC.overzoom + '\n';
+    var blob = new Blob([data], {type : 'text/plain'});
+    saveAs(blob, 'export-' + timestamp + '.params');
 }
