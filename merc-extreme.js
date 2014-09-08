@@ -179,6 +179,7 @@ function init() {
         });
     });
     if (window.EXPORT_MODE) {
+        merc.blinder_opacity = 0.;
         _.each(['poleinfo', 'antipoleinfo'], function(e) {
             $('#' + e).css('display', 'none');
         });
