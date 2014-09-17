@@ -2634,7 +2634,7 @@ var tile_specs = [
     {
         name: 'Pinterest theme by Stamen/Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
-        attr: [['Pinterest'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+        attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     /* not CORS enabled :'(
     {
@@ -2643,6 +2643,12 @@ var tile_specs = [
         attr: ['CloudMade', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     */
+    {
+        name: '"Oilslick" Color Elevation',
+        url: 'http://s3.amazonaws.com/oilslick/{z}/{x}/{y}.jpg',
+        attr: [['Drew Roos', 'http://mrgris.com/projects/oilslick/'], ['Jonathan de Ferranti', 'http://www.viewfinderpanoramas.org/dem3.html'], ['NSIDC', 'http://nsidc.org/data/nsidc-0082']],
+        max_depth: 11,
+    },
     {
         name: 'Bing Map',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=' + API_KEYS.bing,
