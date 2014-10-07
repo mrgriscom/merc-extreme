@@ -262,6 +262,31 @@ h3 {
   margin: 1em 0;
 }
 
+#controls-popup {
+  position: absolute;
+  top: 60px;
+  right: 0;
+  color: white;
+  background: rgba(0, 0, 0, .85);
+  z-index: 400;
+  padding: 15px;
+  border-radius: 10px 0 0 10px;
+}
+
+#controls-dismiss {
+  cursor: pointer;
+}
+
+.controls-hidden {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 3s linear, visibility 0s linear 3s;
+}
+
+.aborthide {
+  transition: opacity .3s linear;
+}
+
 </style>
 
 <div id="titlebar" style="color: white;">
@@ -518,6 +543,40 @@ h3 {
 </div>
 
 <div id="container" style="position: relative;">
+
+<div id="controls-popup">
+  <h3 style="margin-top: -.3em;">
+    <div id="controls-dismiss" style="float: right;">&times;</div>
+    Controls
+  </h3>
+  <div style="width: 15em;">
+    <div style="clear: both;">
+      <div class="ctrlkey">drag</div>
+      <div class="ctrllabel">pan</div>
+    </div>
+    <div style="clear: both;">
+      <div class="ctrlkey">
+        scrollwheel<br>
+        double-click
+      </div>
+      <div class="ctrllabel">zoom</div>
+    </div>
+    <div style="clear: both;">
+      <div class="ctrlkey">
+        shift+drag<br>
+        right-click drag
+      </div>
+      <div class="ctrllabel">warp map</div>
+    </div>
+    <div style="clear: both;">
+      <div class="ctrlkey">
+        shift+double-click<br>
+        right-double-click
+      </div>
+      <div class="ctrllabel">go to point</div>
+    </div>
+  </div>
+</div>
 
 <script type="text/html" id="layer-edit">
   <div class="layerform" style="text-align: left; padding: .5em; white-space: normal;">

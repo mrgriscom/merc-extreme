@@ -185,6 +185,18 @@ function init() {
         });
     }
 
+    var controlsFadeTimer = setTimeout(function() {
+        $('#controls-popup').addClass('controls-hidden');
+    }, 8000);
+    $('#controls-popup').mouseover(function() {
+        $('#controls-popup').addClass('aborthide');
+        $('#controls-popup').removeClass('controls-hidden');
+        clearTimeout(controlsFadeTimer);
+    });
+    $('#controls-dismiss').click(function() {
+        $('#controls-popup').css('display', 'none');
+    });
+
     geocoder = new GEOCODERS.google();
     $('#search').submit(function() {
         var callbacks = {
