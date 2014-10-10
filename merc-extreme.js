@@ -108,22 +108,32 @@ function init() {
     }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
 
-    var initSlider = function($container, max, field, init) {
-        var set = function(val) {
-            $container.find('.slider-val').text(val + '%');
-            merc[field] = .01 * val;
+    merc.setSlider = function(id, val, from_slide) {
+        var field = {
+            'blend': 'zoom_blend',
+            'overzoom': 'overzoom',
+            'blinders': 'blinder_opacity',
+        }[id];
+        var $container = $('#' + id);
+        $container.find('.slider-val').text(val + '%');
+        merc[field] = .01 * val;
+        if (!from_slide) {
+            $container.find('.slider').slider('value', val);
         }
+    }
+    var initSlider = function(id, max, init) {
+        var $container = $('#' + id);
         $container.find('.slider').slider({
             range: 'max',
             max: 100 * max,
             value: 100 * (init || 0),
-            slide: function(ev, ui) { set(ui.value); }
+            slide: function(ev, ui) { merc.setSlider(id, ui.value, true); }
         });
-        set($container.find('.slider').slider('value'));
+        merc.setSlider(id, $container.find('.slider').slider('value'));
     };
-    initSlider($('#blend'), MAX_ZOOM_BLEND, 'zoom_blend');
-    initSlider($('#overzoom'), .5, 'overzoom');
-    initSlider($('#blinders'), 1, 'blinder_opacity', .7);
+    initSlider('blend', MAX_ZOOM_BLEND);
+    initSlider('overzoom', .5);
+    initSlider('blinders', 1, .7);
 
     var koRoot = new EMViewModel(merc);
     koRoot.load(tile_specs, landmarks);
@@ -179,7 +189,8 @@ function init() {
         });
     });
     if (window.EXPORT_MODE) {
-        merc.blinder_opacity = 0.;
+        merc.setSlider('blinders', 0.);
+        merc.setSlider('blend', 100*MAX_ZOOM_BLEND);
         _.each(['poleinfo', 'antipoleinfo'], function(e) {
             $('#' + e).css('display', 'none');
         });
