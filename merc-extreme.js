@@ -42,6 +42,7 @@ var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to c
 var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
+var GUESS_POLE_COLOR = true;
 var MAX_MERC = 2.5;
 var DEFAULT_EXTENT_S = .5;
 
@@ -975,7 +976,7 @@ function TextureLayer(context) {
                 }
 
                 if (tile.z == 0) {
-                    layer.mk_top_level_tile(img);
+                    layer.mk_top_level_tile(curlayer, img);
                     delete ix_entry.rebuild_z0;
                     return;
                 }
@@ -1065,39 +1066,68 @@ function TextureLayer(context) {
             var neighbor = {z: tile.z, x: mod(tile.x + dx, Math.pow(2., tile.z)), y: tile.y + dy};
             var n_entry = layer.tile_index[tilekey(e.layer, neighbor)];
             if (neighbor.y < 0 || neighbor.y >= Math.pow(2., tile.z)) {
-                // out of bounds
+                // out of bounds -- fill pole edge
                 writeImgData(slot, dx, dy, function() {
                     buf.context.fillStyle = (dy < 0 ? NORTH_POLE_COLOR : SOUTH_POLE_COLOR);
                     buf.context.fillRect(0, 0, buf.canvas.width, buf.canvas.height);
                     return buf.canvas;
                 });
             } else if (n_entry != null && n_entry.slot && !n_entry.pending) {
-                //write this edge to other tile
-                writeImgData(n_entry.slot, -dx, -dy, function() {
-                    buf.context.drawImage(e.img, imgOffset(dx), imgOffset(dy));
-                    return buf.canvas;
-                });
-                //write other tile's edge to this tile
-                writeImgData(slot, dx, dy, function() {
-                    buf.context.drawImage(n_entry.img, imgOffset(-dx), imgOffset(-dy));
-                    return buf.canvas;
-                });
+                if (!e.edge) {
+                    //write this edge to other tile
+                    writeImgData(n_entry.slot, -dx, -dy, function() {
+                        buf.context.drawImage(e.img, imgOffset(dx), imgOffset(dy));
+                        return buf.canvas;
+                    });
+                    //write other tile's edge to this tile
+                    writeImgData(slot, dx, dy, function() {
+                        buf.context.drawImage(n_entry.img, imgOffset(-dx), imgOffset(-dy));
+                        return buf.canvas;
+                    });
+                } else {
+                    // pole edge
+                    writeImgData(n_entry.slot, -dx, -dy, function() {
+                        buf.context.fillStyle = (dy > 0 ? NORTH_POLE_COLOR : SOUTH_POLE_COLOR);
+                        buf.context.fillRect(0, 0, buf.canvas.width, buf.canvas.height);
+                        return buf.canvas;
+                    });
+                }
             }
         }
 
         _.each(this.pending, function(e) {
-            writeImgData(e.slot, 0, 0, function() { return e.img; });
+            if (e.tile.z > 0) {
+                writeImgData(e.slot, 0, 0, function() { return e.img; });
 
-            for (var dx = -1; dx < 2; dx++) {
-                for (var dy = -1; dy < 2; dy++) {
-                    if (dx == 0 && dy == 0) {
-                        continue;
+                for (var dx = -1; dx < 2; dx++) {
+                    for (var dy = -1; dy < 2; dy++) {
+                        if (dx == 0 && dy == 0) {
+                            continue;
+                        }
+                        handle_neighbor(e, dx, dy);
                     }
-                    handle_neighbor(e, dx, dy);
                 }
-            }
 
-            delete layer.tile_index[tilekey(e.layer, e.tile)].pending;
+                delete layer.tile_index[tilekey(e.layer, e.tile)].pending;
+            } else {
+                // z0 tile already had special handling in separate texture;
+                // just need to update the fringe color for border tiles currently loaded
+                _.each(layer.tile_index, function(v, k) {
+                    var pcs = k.split(':');
+                    var z = +pcs[1];
+                    var x = +pcs[2];
+                    var y = +pcs[3];
+
+                    if (z > 0 && (y == 0 || y == Math.pow(2, z) - 1)) {
+                        var dy = (y == 0 ? 1 : -1);
+                        e.tile = {z: z, x: x, y: y - dy};
+                        e.edge = true;
+                        for (var dx = -1; dx < 2; dx++) {
+                            handle_neighbor(e, dx, dy);
+                        }
+                    }
+                });
+            }
         });
         this.pending = [];
     }
@@ -1133,7 +1163,34 @@ function TextureLayer(context) {
         });
     }
 
-    this.mk_top_level_tile = function(img) {
+    this.mk_top_level_tile = function(layer, img) {
+        if (GUESS_POLE_COLOR) {
+            var c = mk_canvas(TILE_SIZE, TILE_SIZE);
+            c.context.drawImage(img, 0, 0);
+            var pixels = c.context.getImageData(0, 0, TILE_SIZE, TILE_SIZE);
+            var blendLine = function(y) {
+                var GAMMA = 2.2;
+                var color = [0, 0, 0];
+                for (var x = 0; x < TILE_SIZE; x++) {
+                    for (var i = 0; i < 3; i++) {
+                        var ix = 4 * (TILE_SIZE * y + x) + i;
+                        var ch = (pixels.data[ix] + .5) / 256.;
+                        color[i] += Math.pow(ch, GAMMA);
+                    }
+                }
+                var style = 'rgb(';
+                for (var i = 0; i < 3; i++) {
+                    var ch = Math.pow(color[i] / TILE_SIZE, 1 / GAMMA);
+                    style += Math.floor(ch * 256.) + (i < 2 ? ',' : ')');
+                }
+                return style;
+            }
+            
+            NORTH_POLE_COLOR = blendLine(0);
+            SOUTH_POLE_COLOR = blendLine(TILE_SIZE - 1);
+            this.pending.push({layer: layer, tile: {z: 0, x: 0, y: 0}, img: null, slot: null});
+        }
+
         this.tex_z0.update(function(ctx, w, h) {
             ctx.fillStyle = NORTH_POLE_COLOR;
             ctx.fillRect(0, 0, TILE_SIZE, .5*TILE_SIZE);
@@ -1562,7 +1619,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             // TODO think i need to normalize this more (mac uses a different scale? (seemed to work fine on an MBP))
             var delta = (e.wheelDelta ? e.wheelDelta / 120.
                                       : e.deltaY / -3.);
-            
+            if (e.shiftKey) {
+                // slow zoom
+                delta /= 50;
+            }
+
             renderer._numScrollEvents++;
 
             // for now, don't provide any scroll momentum -- assume any momentum
