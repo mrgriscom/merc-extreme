@@ -2716,6 +2716,11 @@ var tile_specs = [
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
+        name: '"Pencil" by Mapbox',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/aj.03e9e12d/{z}/{x}/{y}.jpg',
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    {
         name: 'Pinterest theme by Stamen/Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
