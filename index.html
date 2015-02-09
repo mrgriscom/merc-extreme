@@ -462,6 +462,14 @@ h3 {
         </p>
       </div>
 
+      <!--
+          gripes during development:
+          - complete lack of double precision support in gpu
+          - inability to explicitly choose mipmapping level or generate mipmaps for a texture subarea (texture atlases are a hack, basically, in the eyes of opengl)
+          - can't choose which texture to access via a variable in shader code; need to unroll everything
+          - coordinate system transforms are fucking hard to keep straight
+      -->
+
       <div style="height: 3em;"></div>
     </div>
   </div>
