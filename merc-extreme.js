@@ -2203,7 +2203,7 @@ function EMViewModel(merc) {
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
-        var current = new PlaceModel({name: 'Current Location', geoloc: true}, merc);
+        var current = new PlaceModel({name: 'Current Location', special: 'geoloc'}, merc);
         current.origselect = current.select;
         current.select = function() {
             navigator.geolocation.getCurrentPosition(function(position) {
@@ -2214,7 +2214,14 @@ function EMViewModel(merc) {
                 alert('could not get location');
             });
         };
+        var random = new PlaceModel({name: 'Random', special: 'rand'}, merc);
+        random.origselect = random.select;
+        random.select = function() {
+            random.pos = randomPos();
+            random.origselect();
+        };
         this.places.splice(0, 0, current);
+        this.places.push(random);
 
         this.active_unit(this.units()[0]);
 
@@ -2648,7 +2655,7 @@ function PlaceModel(data, merc) {
     this.lon_center = data.lon_center;
     this.antipode = data.antipode;
     this.byline = ko.observable(data.desc);
-    this.geoloc = ko.observable(data.geoloc);
+    this.special = ko.observable(data.special);
     this.default = data.default;
     this.tag = data.tag;
 
@@ -2671,6 +2678,13 @@ function PlaceModel(data, merc) {
         }
         merc.poleAt(this.pos[0], this.pos[1], args);
     }
+
+    this.specImg = ko.computed(function() {
+        return {
+            'geoloc': 'img/crosshair.png',
+            'rand': 'img/dice.png'
+        }[this.special()];
+    }, this);
 }
 
 API_KEYS = {
@@ -3282,7 +3296,10 @@ function string_hash(s) {
     return hash;
 }
 
-
+function randomPos() {
+    return [Math.asin(2. * (Math.random() - .5)) * DEG_RAD,
+            360. * (Math.random() - .5)];
+}
 
 
 

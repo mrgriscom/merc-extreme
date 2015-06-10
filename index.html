@@ -513,8 +513,8 @@ h3 {
     <div class="dropdown" data-bind="foreach: places" style="width: 15em;">
       <div class="dropdownchoice">
         <div style="cursor: pointer;" data-bind="click: select">
-          <img data-bind="visible: geoloc" src="img/crosshair.png" />
-          <span data-bind="text: name, style: {fontStyle: geoloc() ? 'italic' : ''}"></span>
+          <img data-bind="visible: specImg, attr: {src: specImg}" />
+          <span data-bind="text: name, style: {fontStyle: specImg() ? 'italic' : ''}"></span>
         </div>
         <div data-bind="html: byline" style="font-size: 70%; margin-left: 1em;"></div>
       </div>
