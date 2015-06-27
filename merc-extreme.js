@@ -1895,13 +1895,16 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         }
 
         if (window.CURSOR) {
+            // blink a few times at first to get attention then stop
+            // fade out still quite far from the edge
+
 	        var coords = inv_translate_pole(CURSOR, renderer.curPole);
             var merc = ll_to_xy(coords[0], coords[1]);
             var offset = this.layer.uniforms.blinder_start.value;
             merc.x = (merc.x - offset) % 1. + offset;
             merc.y = .5 - merc.y;
 
-            var opac = Math.min((2.5 - merc.y) / 1.5, 1) * .9;
+            var opac = Math.min((1. - merc.y) / .75, 1) * .8;
             var toggle = (clock() / .0666) % 2 < 1.;
             this.test1.material.color.setHex(toggle ? 0xaaaaaa : 0x666666);
             this.test2.material.color.setHex(toggle ? 0xaaaaaa : 0x666666);
