@@ -172,6 +172,7 @@ function init() {
     };
     DEBUG = {postMessage: function(){}};
     METRIC = true;
+    CURSOR_ENABLED = true;
 
     $('.swap').click(function() {
         merc.swapPoles();
@@ -1812,7 +1813,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             this.qLinearAnti = this.makeQuad('linear', 1024);
             this.qGooeyMiddle = this.makeQuad('sphere');
 
-            this.test1 = this.makeLine(0xff0000, .9, 4);
+            CURSOR_SIZE = 3;
+            this.cursor = this.makeLine(0xffffff, 1., CURSOR_SIZE);
 
             this.vline = this.makeLine(0x00aaff, .6, 2);
             this.hline = this.makeLine(0xff0000, .6, 2);
@@ -1893,28 +1895,26 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             }
         }
 
-        if (window.CURSOR) {
-            // blink a few times at first to get attention then stop
-            // fade out still quite far from the edge
-
+        if (window.CURSOR && window.CURSOR_ENABLED) {
 	        var coords = inv_translate_pole(CURSOR, renderer.curPole);
             var merc = ll_to_xy(coords[0], coords[1]);
             var offset = this.layer.uniforms.blinder_start.value;
             merc.x = (merc.x - offset) % 1. + offset;
             merc.y = .5 - merc.y;
 
-            this.test1.material.color.setHex((clock() / .00066) % 2 < 1 ? 0xff0000 : 0x444444);
-            var opac = Math.min((1.25 - merc.y) / 1., 1) * .95;
-            this.test1.material.opacity = opac;
+            window.CURSOR_TOGGLE = !window.CURSOR_TOGGLE;
+            this.cursor.material.color.setHex(CURSOR_TOGGLE ? 0xdd2222 : 0x222222);
+            var opac = Math.min(Math.max(1.25 - merc.y, 0) / .75, 1) * 1.;
+            this.cursor.material.opacity = opac;
             
-            var hl = 2. / this.scale_px;
-            this.test1.vertices[0] = new THREE.Vector3(merc.x, merc.y - hl, .1);
-            this.test1.vertices[1] = new THREE.Vector3(merc.x, merc.y + hl, .1);
-            this.test1.verticesNeedUpdate = true;
+            var hl = .5*CURSOR_SIZE / this.scale_px;
+            this.cursor.vertices[0] = new THREE.Vector3(merc.x, merc.y - hl, .1);
+            this.cursor.vertices[1] = new THREE.Vector3(merc.x, merc.y + hl, .1);
+            this.cursor.verticesNeedUpdate = true;
         } else {
-            this.test1.vertices[0] = new THREE.Vector3(0, 0, -1);
-            this.test1.vertices[1] = new THREE.Vector3(0, 0, -1);
-            this.test1.verticesNeedUpdate = true;
+            this.cursor.vertices[0] = new THREE.Vector3(0, 0, -1);
+            this.cursor.vertices[1] = new THREE.Vector3(0, 0, -1);
+            this.cursor.verticesNeedUpdate = true;
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -2230,6 +2230,11 @@ function EMViewModel(merc) {
         METRIC = (val == 'metric');
     });
 
+    this.show_waypoint = ko.observable(true);
+    this.show_waypoint.subscribe(function(val) {
+        CURSOR_ENABLED = val;
+    });
+
     this.load = function(layers, places) {
         var custom_layers = JSON.parse(localStorage.custom_layers || '[]');
         _.each(custom_layers, function(e) { e.custom = true; });
@@ -2334,6 +2339,10 @@ function EMViewModel(merc) {
 
     this.toggleUnit = function(val) {
         that.active_unit(that.units()[(that.units().indexOf(that.active_unit()) + 1) % that.units().length]);
+    }
+
+    this.toggleWaypointMode = function() {
+        this.show_waypoint(!this.show_waypoint());
     }
 }
 

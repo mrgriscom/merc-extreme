@@ -500,6 +500,10 @@ h3 {
         <div class="slider-label">Blinders</div>
         <div class="slider" style="clear: both;"></div>
       </div>
+
+      <div style="text-align: center; font-weight: bold; margin-top: 15px; cursor: pointer;" data-bind="click: toggleWaypointMode">
+        <span data-bind="text: (show_waypoint() ? 'mark destination' : 'leave unmarked')" title="highlight the destination point when in motion; disable if distracting"></span>
+      </div>
     </div>
   </div>
   <div class="orientation" style="float: right;">
