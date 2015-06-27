@@ -1812,8 +1812,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             this.qLinearAnti = this.makeQuad('linear', 1024);
             this.qGooeyMiddle = this.makeQuad('sphere');
 
-            this.test1 = this.makeLine(0xff0000, .9, 3);
-            this.test2 = this.makeLine(0xff0000, .9, 3);
+            this.test1 = this.makeLine(0xff0000, .9, 4);
 
             this.vline = this.makeLine(0x00aaff, .6, 2);
             this.hline = this.makeLine(0xff0000, .6, 2);
@@ -1904,27 +1903,18 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             merc.x = (merc.x - offset) % 1. + offset;
             merc.y = .5 - merc.y;
 
-            var opac = Math.min((1. - merc.y) / .75, 1) * .8;
-            var toggle = (clock() / .0666) % 2 < 1.;
-            this.test1.material.color.setHex(toggle ? 0xaaaaaa : 0x666666);
-            this.test2.material.color.setHex(toggle ? 0xaaaaaa : 0x666666);
+            this.test1.material.color.setHex((clock() / .00066) % 2 < 1 ? 0xff0000 : 0x444444);
+            var opac = Math.min((1.25 - merc.y) / 1., 1) * .95;
             this.test1.material.opacity = opac;
-            this.test2.material.opacity = opac;
             
-            var hl = 3. / this.scale_px;
-            this.test1.vertices[0] = new THREE.Vector3(merc.x - hl, merc.y - hl, .1);
-            this.test1.vertices[1] = new THREE.Vector3(merc.x + hl, merc.y + hl, .1);
+            var hl = 2. / this.scale_px;
+            this.test1.vertices[0] = new THREE.Vector3(merc.x, merc.y - hl, .1);
+            this.test1.vertices[1] = new THREE.Vector3(merc.x, merc.y + hl, .1);
             this.test1.verticesNeedUpdate = true;
-            this.test2.vertices[0] = new THREE.Vector3(merc.x + hl, merc.y - hl, .1);
-            this.test2.vertices[1] = new THREE.Vector3(merc.x - hl, merc.y + hl, .1);
-            this.test2.verticesNeedUpdate = true;
         } else {
             this.test1.vertices[0] = new THREE.Vector3(0, 0, -1);
             this.test1.vertices[1] = new THREE.Vector3(0, 0, -1);
             this.test1.verticesNeedUpdate = true;
-            this.test2.vertices[0] = new THREE.Vector3(0, 0, -1);
-            this.test2.vertices[1] = new THREE.Vector3(0, 0, -1);
-            this.test2.verticesNeedUpdate = true;
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
