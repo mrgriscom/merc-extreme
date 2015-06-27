@@ -410,7 +410,7 @@ function ll_to_xy(lat, lon) {
 }
 
 /* xy is x:0,1 == -180,180, y:equator=0 */
-// t -> g
+// m -> g
 function xy_to_ll(x, y) {
     var lon = (x - .5) * 360.;
     var merc_y = 2. * Math.PI * y;
@@ -1643,16 +1643,19 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     }
 
     this.setAnimationContext = function(animctx) {
-        this.applyAnimationContext();
+        this.applyAnimationContext(true);
         this.animation_context = animctx;
     }
 
-    this.applyAnimationContext = function() {
+    this.applyAnimationContext = function(preempt) {
         if (this.animation_context) {
             this.animation_context.apply();
             if (this.animation_context.finished()) {
                 //console.log('animation finished');
+                this.animation_context.onfinish(false);
                 this.animation_context = null;
+            } else if (preempt) {
+                this.animation_context.onfinish(true);
             }
         }
     }
@@ -1773,16 +1776,18 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         return plane;
     }
 
-    this.makeLine = function(color) {
+    this.makeLine = function(color, opacity, width) {
         line = new THREE.Geometry();
         line.vertices.push(new THREE.Vector3(0, 0, -1));
         line.vertices.push(new THREE.Vector3(0, 0, -1));
-        this.pane.add(new THREE.Line(line, new THREE.LineBasicMaterial({
+        var material = new THREE.LineBasicMaterial({
             color: color,
-            opacity: .6,
-            linewidth: 2,
+            opacity: opacity,
+            linewidth: width,
             transparent: true
-        })));
+        });
+        this.pane.add(new THREE.Line(line, material));
+        line.material = material;
         return line;
     }
 
@@ -1799,7 +1804,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         var renderer = this;
 
         this.applyAnimationContext();
-        
+
         if (!this.currentObjs.length) {
             this.qPolar = this.makeQuad('flat');
             this.qPolarAnti = this.makeQuad('flat');
@@ -1807,8 +1812,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             this.qLinearAnti = this.makeQuad('linear', 1024);
             this.qGooeyMiddle = this.makeQuad('sphere');
 
-            this.vline = this.makeLine(0x00aaff);
-            this.hline = this.makeLine(0xff0000);
+            this.test1 = this.makeLine(0xff0000, .9, 3);
+            this.test2 = this.makeLine(0xff0000, .9, 3);
+
+            this.vline = this.makeLine(0x00aaff, .6, 2);
+            this.hline = this.makeLine(0xff0000, .6, 2);
         }
 
         this.setPole(this.curPole[0], this.curPole[1]);
@@ -1884,6 +1892,36 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 }, '*');
                 this.layer.curlayer.tilefunc = tf;
             }
+        }
+
+        if (window.CURSOR) {
+	        var coords = inv_translate_pole(CURSOR, renderer.curPole);
+            var merc = ll_to_xy(coords[0], coords[1]);
+            var offset = this.layer.uniforms.blinder_start.value;
+            merc.x = (merc.x - offset) % 1. + offset;
+            merc.y = .5 - merc.y;
+
+            var opac = Math.min((2.5 - merc.y) / 1.5, 1) * .9;
+            var toggle = (clock() / .0666) % 2 < 1.;
+            this.test1.material.color.setHex(toggle ? 0xaaaaaa : 0x666666);
+            this.test2.material.color.setHex(toggle ? 0xaaaaaa : 0x666666);
+            this.test1.material.opacity = opac;
+            this.test2.material.opacity = opac;
+            
+            var hl = 3. / this.scale_px;
+            this.test1.vertices[0] = new THREE.Vector3(merc.x - hl, merc.y - hl, .1);
+            this.test1.vertices[1] = new THREE.Vector3(merc.x + hl, merc.y + hl, .1);
+            this.test1.verticesNeedUpdate = true;
+            this.test2.vertices[0] = new THREE.Vector3(merc.x + hl, merc.y - hl, .1);
+            this.test2.vertices[1] = new THREE.Vector3(merc.x - hl, merc.y + hl, .1);
+            this.test2.verticesNeedUpdate = true;
+        } else {
+            this.test1.vertices[0] = new THREE.Vector3(0, 0, -1);
+            this.test1.vertices[1] = new THREE.Vector3(0, 0, -1);
+            this.test1.verticesNeedUpdate = true;
+            this.test2.vertices[0] = new THREE.Vector3(0, 0, -1);
+            this.test2.vertices[1] = new THREE.Vector3(0, 0, -1);
+            this.test2.verticesNeedUpdate = true;
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -2419,6 +2457,8 @@ function InertialAnimationContext(p0, v0, friction, drag_context, transform, ren
             return this.getSpeed() < 1.;
         }
     }
+
+    this.onfinish = function() {}
 }
 
 function ZoomAnimationContext(p, zdelta, period, transform) {
@@ -2447,6 +2487,8 @@ function ZoomAnimationContext(p, zdelta, period, transform) {
     this.finished = function() {
         return (clock() - this.t0) > period;
     }
+
+    this.onfinish = function() {}
 }
 
 function logistic(x, k) {
@@ -2507,6 +2549,7 @@ function GoToAnimationContext(start, end, transform, args) {
     }
 
     this.apply = function() {
+        CURSOR = end;
         var k = this.k(clock());
         var p = plotter(k.pole, true);
         var dh = (p.heading - this.last_heading) + (k.pole - this.last_k.pole) / params.yscale * this.heading_change;
@@ -2528,6 +2571,10 @@ function GoToAnimationContext(start, end, transform, args) {
     this.finished = function() {
         var t = clock() - this.t0;
         return (t > period && t > zoomoutperiod);
+    }
+
+    this.onfinish = function(preempted) {
+        CURSOR = null;
     }
 }
 
@@ -2553,6 +2600,8 @@ function DrivingAnimationContext(start, speed, heading, merc) {
     this.finished = function() {
         return false;
     }
+
+    this.onfinish = function() {}
 }
 
 function LayerModel(data, merc, root) {
