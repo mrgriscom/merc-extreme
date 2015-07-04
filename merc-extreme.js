@@ -46,6 +46,10 @@ var GUESS_POLE_COLOR = true;
 var MAX_MERC = 2.5;
 var DEFAULT_EXTENT_S = .5;
 
+var MIN_TRAVEL_TIME = 2.;
+var MAX_TRAVEL_TIME = 60.;
+var DEFAULT_TRAVEL_TIME = 5.;
+
 // these aren't really meant to be changed... more just to justify how various constants got their values
 var SCREEN_WIDTH_SOFTMAX = 1920;
 var SCREEN_HEIGHT_SOFTMAX = 1200;
@@ -109,32 +113,49 @@ function init() {
     }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
 
+    SLIDERS = {};
+    SLIDER_RES = 1000;
     merc.setSlider = function(id, val, from_slide) {
         var field = {
             'blend': 'zoom_blend',
             'overzoom': 'overzoom',
             'blinders': 'blinder_opacity',
+            'travel': 'travel_time',
         }[id];
         var $container = $('#' + id);
-        $container.find('.slider-val').text(val + '%');
-        merc[field] = .01 * val;
+        $container.find('.slider-val').text(SLIDERS[id].disp(val));
+        merc[field] = val;
         if (!from_slide) {
-            $container.find('.slider').slider('value', val);
+            $container.find('.slider').slider('value', SLIDER_RES * SLIDERS[id].from_val(val));
         }
     }
-    var initSlider = function(id, max, init) {
+    var initSlider = function(id, max, init, to_val, from_val, dispfunc) {
+        to_val = to_val || function(x) { return x; };
+        from_val = from_val || function(x) { return x; };
+        dispfunc = dispfunc || function(val) { return (100*val).toFixed(0) + '%'; };
+        SLIDERS[id] = {to_val: to_val, from_val: from_val, disp: dispfunc};
+
         var $container = $('#' + id);
         $container.find('.slider').slider({
             range: 'max',
-            max: 100 * max,
-            value: 100 * (init || 0),
-            slide: function(ev, ui) { merc.setSlider(id, ui.value, true); }
+            max: SLIDER_RES * max,
+            slide: function(ev, ui) { merc.setSlider(id, to_val(ui.value / SLIDER_RES), true); }
         });
-        merc.setSlider(id, $container.find('.slider').slider('value'));
+        merc.setSlider(id, init || 0);
     };
     initSlider('blend', MAX_ZOOM_BLEND);
     initSlider('overzoom', .5);
     initSlider('blinders', 1, .7);
+    initSlider('travel', 1, DEFAULT_TRAVEL_TIME,
+               function(x) {
+                   return geomInterp(MAX_TRAVEL_TIME, MIN_TRAVEL_TIME, x);
+               },
+               function(x) {
+                   return invGeomInterp(MAX_TRAVEL_TIME, MIN_TRAVEL_TIME, x);
+               },
+               function(val) {
+                   return val.toPrecision(2) + 's';
+               });
 
     var koRoot = new EMViewModel(merc);
     koRoot.load(tile_specs, landmarks);
@@ -192,7 +213,7 @@ function init() {
     });
     if (window.EXPORT_MODE) {
         merc.setSlider('blinders', 0.);
-        merc.setSlider('blend', 100*MAX_ZOOM_BLEND);
+        merc.setSlider('blend', MAX_ZOOM_BLEND);
         _.each(['poleinfo', 'antipoleinfo'], function(e) {
             $('#' + e).css('display', 'none');
         });
@@ -1683,9 +1704,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         return futurepole || this.curPole
     }
 
-    var _interp = function(a, b, k) {
-        return (1. - k) * a + k * b;
-    }
     var computeTex = function(x, y, offset, pole) {
         var merc_ll = xy_to_ll(x, y);
         var ll = translate_pole(merc_ll, pole);
@@ -1902,7 +1920,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             merc.x = (merc.x - offset) % 1. + offset;
             merc.y = .5 - merc.y;
 
-            window.CURSOR_TOGGLE = !window.CURSOR_TOGGLE;
+            MAX_TOGGLE_FREQ = 20.;
+            if (window.TOGGLED_AT == null || clock() - window.TOGGLED_AT > .5/MAX_TOGGLE_FREQ) {
+                window.CURSOR_TOGGLE = !window.CURSOR_TOGGLE;
+                window.TOGGLED_AT = clock();
+            }
             this.cursor.material.color.setHex(CURSOR_TOGGLE ? 0xdd2222 : 0x222222);
             var opac = Math.min(Math.max(1.25 - merc.y, 0) / .75, 1) * 1.;
             this.cursor.material.opacity = opac;
@@ -2106,7 +2128,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
     this.swapPoles = function() {
         var pole = antipode(this.curPole);
-        this.poleAt(pole[0], pole[1], {duration: 2});
+        this.poleAt(pole[0], pole[1], {duration: MIN_TRAVEL_TIME});
     }
 
     this.init();
@@ -2516,11 +2538,12 @@ function goto_parameters(dist, v0) {
     return {yscale: yscale, xmax: xmax, y0: y0};
 }
 
+DEFAULT_GOTO_V0 = 2.;
 function GoToAnimationContext(start, end, transform, args) {
     this.t0 = clock();
 
-    this.duration = args.duration || 5.;
-    this.v0 = args.v0 || 2.;
+    this.duration = args.duration || MERC.travel_time;
+    this.v0 = args.v0 || DEFAULT_GOTO_V0;
 
     var dist = distance(start, end);
     var init_heading = bearing(start, end);
@@ -3228,6 +3251,22 @@ function log2(x) {
     return Math.log(x) / Math.LN2;
 }
 
+function _interp(a, b, k) {
+    return (1. - k) * a + k * b;
+}
+
+function _invInterp(a, b, x) {
+    return (x - a) / (b - a);
+}
+
+function geomInterp(a, b, k) {
+    return Math.exp(_interp(Math.log(a), Math.log(b), k));
+}
+
+function invGeomInterp(a, b, x) {
+    return _invInterp(Math.log(a), Math.log(b), Math.log(x));
+}
+
 function prec_digits_for_res(delta) {
     return Math.max(-Math.round(Math.log(delta) / Math.LN10), 0);
 }
@@ -3306,7 +3345,7 @@ UNITS = {
 };
 
 function geomean(x, xu, y, yu) {
-    return Math.sqrt(x * y * UNITS[xu] * UNITS[yu]);
+    return geomInterp(x * UNITS[xu], y * UNITS[yu], .5);
 }
 
 function snap_scale(scale, target_size) {
