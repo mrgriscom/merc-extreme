@@ -2868,6 +2868,10 @@ landmarks = [{
     desc: 'the \'spokes\' of this central plaza become parallel lines',
     tag: 'arc'
 }, {
+    name: 'Black Rock City',
+    pos: [40.787005, -119.204325],
+    lon_center: 267,
+}, {
     name: 'St. Peter\'s Basilica',
     pos: [41.90224, 12.45725]
 }, {
