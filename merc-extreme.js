@@ -1379,6 +1379,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     }
 
     this.resetViewport = function() {
+        if (window.EXPORT_IN_PROGRESS) {
+            console.log("export in progress; viewport reset ignored");
+            return;
+        }
+
         var p0 = this.xyToWorld(0, .5 * this.height_px);
         var p1 = this.xyToWorld(this.width_px, 0);
         this.initViewport(getViewportDims(window), p0.y, p1.y, p0.x);
@@ -3530,6 +3535,7 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
     res = (x1 - x0) / height;
     var width = Math.round((y1 - y0) / res);
 
+    EXPORT_IN_PROGRESS = true;
     console.log('exporting...');
     console.log('cancelExport() to cancel');
     console.log('raw size', width + 'x' + height);
@@ -3545,6 +3551,7 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
 
     var _oncomplete = oncomplete || function(){};
     oncomplete = function() {
+        EXPORT_IN_PROGRESS = false;
         MERC.overzoom = ORIG_OVERZOOM;
         MERC.initViewport(MERC.viewportDims(window), y0, y1, (x0+x1)/2);
         writeParamsFile(x0, x1, y0, y1, timestamp);
@@ -3652,6 +3659,7 @@ function highres_export_tile(x0, y0, res, width, height, overzoom, filename, onc
     }, function() {
         if (window.CANCEL_EXPORT) {
             window.CANCEL_EXPORT = false;
+            window.EXPORT_IN_PROGRESS = false;
             MERC.overzoom = ORIG_OVERZOOM;
             return 'cancelling export';
         }
