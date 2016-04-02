@@ -2773,6 +2773,7 @@ function PlaceModel(data, merc) {
 API_KEYS = {
     bing: 'AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
     mapquest: 'Fmjtd%7Cluur2dubll%2C20%3Do5-9arlqa', // caution: url-encoded
+    mapbox: 'pk.eyJ1IjoibXJncmlzY29tIiwiYSI6IjJKYUlRVHcifQ.j4XIpsV19H0CTryO_QIfGg',
 }
 
 var tile_specs = [
@@ -2800,26 +2801,34 @@ var tile_specs = [
     {
         name: 'Mapbox Terrain',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mrgriscom.i8gjfm3i/{z}/{x}/{y}.png',
+        max_depth: 14,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         name: '"Space Station" by Mapbox',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.3hqcl3di/{z}/{x}/{y}.jpg',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.4iecw76a/{z}/{x}/{y}.png?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
+    /* gone!! :'(
     {
         name: '"Zombie World" by Mapbox',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.fb8f9523/{z}/{x}/{y}.jpg',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.fb8f9523/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    */
+    {
+        name: '"Pencil" by Mapbox',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/aj.03e9e12d/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        name: '"Pencil" by Mapbox',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/aj.03e9e12d/{z}/{x}/{y}.jpg',
+        name: '"Woodcut" by Mapbox',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.b0v97egc/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         name: 'Pinterest theme by Stamen/Mapbox',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/examples.map-51f69fea/{z}/{x}/{y}.jpg',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/pinterest.map-ho21rkos/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     /* not CORS enabled :'(
