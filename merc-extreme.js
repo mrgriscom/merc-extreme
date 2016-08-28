@@ -2893,7 +2893,7 @@ landmarks = [{
     pos: [21.42251, 39.82616]
 }, {
     name: 'US Capitol',
-    pos: [38.88980, -77.00919]
+    pos: [38.88978, -77.00916]
 }, {
     name: 'Tip of Cape Cod',
     pos: [42.03471, -70.17058],
@@ -2905,7 +2905,7 @@ landmarks = [{
     tag: 'vulcan'
 }, {
     name: 'St. Helena',
-    pos: [-15.93788, -5.71189],
+    pos: [-15.94482, -5.70526],
     lon_center: 0,
     desc: 'a remote island',
     tag: 'sthelena'
@@ -2943,11 +2943,14 @@ landmarks = [{
     name: 'Bondi Beach',
     pos: [-33.89123, 151.27748]
 }, {
+    name: 'Panama Canal',
+    pos: [9.11925, -79.75897]
+}, {
     name: 'Ft. Jefferson',
     pos: [24.63025, -82.87126]
 }, {
     name: 'Christ the Redeemer',
-    pos: [-22.95192, -43.21049]
+    pos: [-22.95227, -43.21070]
 }, {
     name: 'UTA Flight 772 Memorial',
     pos: [16.86491, 11.95374]
@@ -2958,17 +2961,10 @@ landmarks = [{
     name: 'Mississippi River Delta',
     pos: [29.14828, -89.25165],
 }, {
-    name: 'Lake Victoria',
-    pos: [-1.79620, 33.39377],
-}, {
     name: 'Cape Spear',
     pos: [47.52538, -52.61978],
     lon_center: 240,
     desc: 'easternmost point in North America'
-}, {
-    name: '\xc5land',
-    pos: [60.03177, 20.89280],
-    lon_center: 0,
 }, {
     name: 'North Pole',
     pos: [90, 0],
