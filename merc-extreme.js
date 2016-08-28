@@ -2944,7 +2944,8 @@ landmarks = [{
     pos: [-33.89123, 151.27748]
 }, {
     name: 'Panama Canal',
-    pos: [9.11925, -79.75897]
+    pos: [9.11925, -79.75897],
+    lon_center: 190
 }, {
     name: 'Ft. Jefferson',
     pos: [24.63025, -82.87126]
@@ -2952,19 +2953,23 @@ landmarks = [{
     name: 'Christ the Redeemer',
     pos: [-22.95227, -43.21070]
 }, {
-    name: 'UTA Flight 772 Memorial',
-    pos: [16.86491, 11.95374]
-}, {
     name: 'Great Bend of Brahmaputra',
     pos: [29.56799, 95.39003]
 }, {
-    name: 'Mississippi River Delta',
-    pos: [29.14828, -89.25165],
+    name: 'Farol do Calcanhar',
+    pos: [-5.16004, -35.48571],
+    lon_center: 225
 }, {
     name: 'Cape Spear',
     pos: [47.52538, -52.61978],
     lon_center: 240,
     desc: 'easternmost point in North America'
+}, {
+    name: 'UTA Flight 772 Memorial',
+    pos: [16.86491, 11.95374]
+}, {
+    name: 'Mississippi River Delta',
+    pos: [29.14828, -89.25165],
 }, {
     name: 'North Pole',
     pos: [90, 0],
