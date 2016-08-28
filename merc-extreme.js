@@ -2917,17 +2917,18 @@ landmarks = [{
     desc: 'two buildings exactly opposite the planet from each other',
     tag: 'antipode'
 }, {
-    name: 'Cape Town',
-    pos: [-33.90768, 18.39219],
-    lon_center: 120
-}, {
-    name: 'Dubai',
-    pos: [25.11739, 55.13432]
-}, {
     name: 'Atlanta',
     pos: [33.74503, -84.39005],
     desc: 'a dendritic network of highways heading off to destinations near and far',
     tag: 'atl'
+}, {
+    name: 'Dubai',
+    pos: [25.11739, 55.13432],
+    lon_center: 130
+}, {
+    name: 'Cape Town',
+    pos: [-33.90768, 18.39219],
+    lon_center: 120
 }, {
     name: 'Boston',
     pos: [42.35735, -71.05961],
@@ -2941,20 +2942,23 @@ landmarks = [{
     tag: 'ny'
 }, {
     name: 'Bondi Beach',
-    pos: [-33.89123, 151.27748]
+    pos: [-33.89123, 151.27748],
+    lon_center: 220,
 }, {
     name: 'Panama Canal',
     pos: [9.11925, -79.75897],
     lon_center: 190
-}, {
-    name: 'Ft. Jefferson',
-    pos: [24.63025, -82.87126]
+//}, {
+//    name: 'Ft. Jefferson',
+//    pos: [24.63025, -82.87126]
 }, {
     name: 'Christ the Redeemer',
-    pos: [-22.95227, -43.21070]
+    pos: [-22.95227, -43.21070],
+    lon_center: 90
 }, {
     name: 'Great Bend of Brahmaputra',
-    pos: [29.56799, 95.39003]
+    pos: [29.56799, 95.39003],
+    lon_center: 240
 }, {
     name: 'Farol do Calcanhar',
     pos: [-5.16004, -35.48571],
@@ -2965,18 +2969,25 @@ landmarks = [{
     lon_center: 240,
     desc: 'easternmost point in North America'
 }, {
-    name: 'UTA Flight 772 Memorial',
-    pos: [16.86491, 11.95374]
+    name: 'Golden Gate Bridge',
+    pos: [37.81894, -122.47920],
+    lon_center: 60
+//}, {
+//    name: 'UTA Flight 772 Memorial',
+//    pos: [16.86491, 11.95374]
 }, {
     name: 'Mississippi River Delta',
     pos: [29.14828, -89.25165],
+    lon_center: 300
 }, {
     name: 'North Pole',
-    pos: [90, 0],
+    // Don't set to 90 to avoid directional discontinuity
+    pos: [89.999999, 0],
     tag: 'np'
 }, {
     name: 'South Pole',
-    pos: [-90, 0]
+    // Don't set to 90 to avoid directional discontinuity
+    pos: [-89.999999, 0]
 }];
 
 //=== UTIL ===
