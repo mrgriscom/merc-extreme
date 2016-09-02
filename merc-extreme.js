@@ -2883,7 +2883,7 @@ landmarks = [{
     tag: 'arc'
 }, {
     name: 'Black Rock City',
-    pos: [40.787005, -119.204325],
+    pos: [40.7864, -119.2065],
     lon_center: 267,
 }, {
     name: 'St. Peter\'s Basilica',
