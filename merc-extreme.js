@@ -2800,12 +2800,14 @@ var tile_specs = [
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
+    /*
     {
         name: 'Mapbox Terrain',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mrgriscom.i8gjfm3i/{z}/{x}/{y}.png',
         max_depth: 14,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
+    */
     {
         name: '"Space Station" by Mapbox',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.4iecw76a/{z}/{x}/{y}.png?access_token=' + API_KEYS.mapbox,
@@ -2829,7 +2831,7 @@ var tile_specs = [
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        name: 'Pinterest theme by Stamen/Mapbox',
+        name: 'Pinterest theme by Stamen',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/pinterest.map-ho21rkos/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
@@ -2847,6 +2849,20 @@ var tile_specs = [
         max_depth: 16,
     },
     {
+        name: 'VIIRS Night (limited zoom)',
+        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
+        no_z0: true,
+        attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
+        max_depth: 8,
+    },
+    {
+        name: 'MODIS Real-time (limited zoom)',
+        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/MODIS_Terra_CorrectedReflectance_TrueColor/default//GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
+        attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
+        max_depth: 9,
+    },
+    /*
+    {
         name: 'Bing Map',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=' + API_KEYS.bing,
         no_z0: true,
@@ -2858,6 +2874,7 @@ var tile_specs = [
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
+    */
     {
         name: 'Bing Hybrid',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
