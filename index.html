@@ -4,6 +4,10 @@
 
 <meta name="viewport" content="width=device-width, height=device-height, user-scalable=no" />
 
+<!-- Always send referrer, since some tile providers require it. Default behavior drops
+referrer if app is loaded over https yet tile request is http, which is often the case -->
+<meta name="referrer" content="always">
+
 <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r66/three.min.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>

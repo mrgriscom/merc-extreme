@@ -2844,6 +2844,7 @@ var tile_specs = [
         url: 'http://{s:abc}-globalheat.strava.com/tiles/both/color7/{z}/{x}/{y}.png?v=6',
         no_z0: true,
         attr: ['Strava'],
+        max_depth: 16,
     },
     {
         name: 'Bing Map',
