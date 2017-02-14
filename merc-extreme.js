@@ -1219,6 +1219,8 @@ function TextureLayer(context) {
             ctx.fillRect(0, 0, TILE_SIZE, .5*TILE_SIZE);
             ctx.fillStyle = SOUTH_POLE_COLOR;
             ctx.fillRect(0, 1.5*TILE_SIZE, TILE_SIZE, .5*TILE_SIZE);
+            // Reset canvas in case of transparent layers, otherwise previous layer bleeds through.
+            ctx.clearRect(0, .5*TILE_SIZE, TILE_SIZE, TILE_SIZE);
             ctx.drawImage(img, 0, .5*TILE_SIZE);
         });
     }
@@ -2831,18 +2833,17 @@ var tile_specs = [
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/pinterest.map-ho21rkos/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
-    /* not CORS enabled :'(
-    {
-        name: '"Midnight Commander" by CloudMade',
-        url: 'http://{s:abc}.tile.cloudmade.com/1a1b06b230af4efdbb989ea99e9841af/999/256/{z}/{x}/{y}.png',
-        attr: ['CloudMade', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
-    },
-    */
     {
         name: '"Oilslick" Color Elevation',
         url: 'http://s3.amazonaws.com/oilslick/{z}/{x}/{y}.jpg',
         attr: [['Drew Roos', 'http://mrgris.com/projects/oilslick/'], ['Jonathan de Ferranti', 'http://www.viewfinderpanoramas.org/dem3.html'], ['NSIDC', 'http://nsidc.org/data/nsidc-0082']],
         max_depth: 11,
+    },
+    {
+        name: 'Strava Heatmap',
+        url: 'http://{s:abc}-globalheat.strava.com/tiles/both/color7/{z}/{x}/{y}.png?v=6',
+        no_z0: true,
+        attr: ['Strava'],
     },
     {
         name: 'Bing Map',
