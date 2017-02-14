@@ -2856,8 +2856,8 @@ var tile_specs = [
         max_depth: 8,
     },
     {
-        name: 'MODIS Real-time (limited zoom)',
-        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/MODIS_Terra_CorrectedReflectance_TrueColor/default//GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
+        name: 'VIIRS Daily (limited zoom)',
+        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default//GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
         max_depth: 9,
     },
