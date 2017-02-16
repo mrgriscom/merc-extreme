@@ -3152,29 +3152,61 @@ function compile_tile_spec(spec, no_guess) {
     }
 }
 
+// try to deduce from sample tile of known location
 function guess_spec(spec, known_point) {
-    // try to deduce from sample tile of known location
-    // 'known_point' should be sufficiently off the x=y axis to be able to easily
-    // distinguish x from y, and sufficiently far from (0, 0) that z is easily
-    // distinguishable from x and y.
-    // TODO: maybe move known_point off the prime meridian so any encoded tile size
-    // can't get mistaken for 'x'
+    var MIN_Z = 6;
+    var MAX_Z = 22;
+    var WINDOW_AT_MIN_Z = 3;
+
+    var to_tile = function(known_point, axis, z) {
+	if (axis == 'x') {
+	    var k = known_point[0];
+	} else if (axis == 'y') {
+	    var k = known_point[1];
+	} else if (axis == '-y') {
+	    var k = 1. - known_point[1];
+	}
+	return Math.floor(k * Math.pow(2, z));
+    }
+
+    // validate the suitability of known_point
+    var base_x = to_tile(known_point, 'x', MIN_Z);
+    var base_y = to_tile(known_point, 'y', MIN_Z);
+    var base_yinv = to_tile(known_point, '-y', MIN_Z);
+    if (Math.abs(base_x - base_y) <= 2 * WINDOW_AT_MIN_Z) {
+	throw("inadequate known_point: ambiguous x vs. y");
+    }
+    if (Math.abs(base_x - base_yinv) <= 2 * WINDOW_AT_MIN_Z) {
+	throw("inadequate known_point: ambiguous x vs. -y");
+    }
+    if (base_x <= MIN_Z + WINDOW_AT_MIN_Z) {
+	throw("inadequate known_point: ambiguous z vs. x");
+    }
+    if (base_y <= MIN_Z + WINDOW_AT_MIN_Z) {
+	throw("inadequate known_point: ambiguous z vs. y");
+    }
+    if (base_yinv <= MIN_Z + WINDOW_AT_MIN_Z) {
+	throw("inadequate known_point: ambiguous z vs. -y");
+    }
+    if (Math.abs(base_y - base_yinv) <= 2 * WINDOW_AT_MIN_Z) {
+	throw("inadequate known_point: ambiguous y vs. -y");
+    }
+    // x may also collide with number fragments denoting tile size (256,
+    // 512, etc.); i've seen this in a few url formats
+
     var numbers = [];
     spec.replace(/[\/=]\d+/g, function(match) {
         numbers.push(+match.substring(1));
     });
 
     var evaluate_z = function(z) {
-	var MIN_Z = 6;
-	var MAX_Z = 22;
-	var WINDOW_AT_MIN_Z = 3;
 	if (z < MIN_Z || z > MAX_Z) {
 	    return null;
 	}
 	var window = WINDOW_AT_MIN_Z * Math.pow(2, z - MIN_Z);
-	var ref_x = Math.floor(known_point[0] * Math.pow(2, z));
-	var ref_y = Math.floor(known_point[1] * Math.pow(2, z));
-	var ref_yinv = Math.floor((1. - known_point[1]) * Math.pow(2, z));
+	var ref_x = to_tile(known_point, 'x', z);
+	var ref_y = to_tile(known_point, 'y', z);
+	var ref_yinv = to_tile(known_point, '-y', z);
 	
 	var x = null;
 	var y = null;
