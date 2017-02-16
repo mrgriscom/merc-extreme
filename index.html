@@ -230,7 +230,7 @@ a:hover {
   margin-top: 15px;
 }
 
-label {
+.field-label {
   font-size: 11px;
   color: #aaa;
   font-weight: bold;
@@ -625,19 +625,19 @@ h3 {
     <td style="vertical-align: top;">
     <div id="tile_preview" class="help" data-bind="with: layer">
       <div style="width: 256px; padding-right: 1em;" data-bind="visible: preview_status()">
-        <div style="margin-bottom: 5px;"><label>preview</label></div>
+        <div style="margin-bottom: 5px;"><label class="field-label">preview</label></div>
         <div data-bind="if: preview_status() == 'loading'">loading...</div>
         <div data-bind="if: preview_status() == 'error'">
           <p style="font-weight: bold; color: #c22;">Could not load tile.</p>
           
           <p>This could be because:
             <ol>
-              <li>the url template is incorrect
-              <li>the tile server does not support cross-origin requests
+              <li>the url template is incorrect or 3rd-party access is blocked
+              <li>the tile server does not support cross-origin requests (<a target="_blank" href="https://chrome.google.com/webstore/detail/allow-control-allow-origi/nlfbmbojpeacfghkpbjhddihlkkiljbi">workaround</a>)
               <li>everything is in fact correct, but the map layer does not publish
-                a tile at zoom level 0. (Such map layers will probably not look good
-                in an extreme mercator anyway &mdash; layers that provide global coverage
-                are best).
+                a tile at zoom level <span data-bind="text: min_depth"></span>. (Such
+		map layers will probably not look good in an extreme mercator anyway
+		&mdash; layers that provide global coverage are best).
             </ol>
           </p>
         </div>
@@ -652,15 +652,22 @@ h3 {
     <div style="width: 20em; float: right;">
       <form data-bind="submit: commit" style="margin: 0;">
         <div data-bind="with: layer;">
-          <div><label>url template<span style="color: #c22;">*</span></label></div>
+          <div><label class="field-label">url template<span style="color: #c22;">*</span></label></div>
           <div><input style="width: 100%;" data-bind="value: url"></input></div>
           <div style="float: left; margin-right: 1em;">
-            <div><label>name</label></div>
+            <div><label class="field-label">name</label></div>
             <div><input style="width: 12em;" data-bind="value: name"></input></div>
           </div>
-          <div style="float: left;">
-            <div><label>max depth</label></div>
+          <div style="float: left; margin-right: 1em;">
+            <div><label class="field-label">max zoom</label></div>
             <div><input style="width: 4em;" data-bind="value: max_depth"></input></div>
+          </div>
+          <div style="float: left;">
+            <div><label class="field-label">min zoom</label></div>
+            <div style="font-size: 85%; margin-top: .4em;">
+	      <span><input id="z0" type="radio" name="topzoom" value="0" data-bind="checked: smin_depth" /><label for="z0"> 0</label></span>
+	      <span style="padding-left: .5em;"><input id="z1" type="radio" name="topzoom" value="1" data-bind="checked: smin_depth" /><label for="z1"> 1</label></span>
+	    </div>
           </div>
       </div>
         <div style="clear: both;">
@@ -677,6 +684,7 @@ h3 {
           <li><b>{z}</b> &mdash; zoom level
           <li><b>{x}</b> &mdash; x coordinate
           <li><b>{y}</b> &mdash; y coordinate
+          <li><b>{-y}</b> &mdash; y coordinate, inverted (rare)
           <li><b>{s:...}</b> &mdash; server shard (optional), e.g.:
             <ul style="list-style: none;">
               <li>{s:1-4} &mdash; use shards 1, 2, 3, 4

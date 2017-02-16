@@ -2640,7 +2640,6 @@ function LayerModel(data, merc, root) {
     var that = this;
 
     this.attr = data.attr;
-    this.no_z0 = data.no_z0;
 
     this.url = ko.observable();
     this.id = ko.computed(function() {
@@ -2650,6 +2649,8 @@ function LayerModel(data, merc, root) {
 
     this.name = ko.observable(data.name);
     this.max_depth = ko.observable(data.max_depth);
+    this.smin_depth = ko.observable(/* from custom layer save */ data.smin_depth || /* from tile spec */ ("" + (data.no_z0 ? 1 : 0)));
+    this.min_depth = ko.computed(function() { return +this.smin_depth(); }, this);
     this.custom = ko.observable(data.custom);
     this.active = ko.observable(false);
 
@@ -2669,14 +2670,17 @@ function LayerModel(data, merc, root) {
         return s ? '&copy; ' + s : '';
     }, this);
     this.displayName = ko.computed(function() {
-        return this.name() || '\u2014custom layer\u2014';
+        return this.name() || '\u00abcustom layer\u00bb';
     }, this);
 
     this.preview_url = ko.observable();
     this.preview_status = ko.observable();
-    this.tilefunc.subscribe(function(val) {
+    this.load_preview = function() {
+	if (!that.url()) {
+	    return;
+	}
         that.preview_status('loading');
-        that.preview_url(val(0, 0, 0));
+        that.preview_url(that.tilefunc()(that.min_depth(), 0, 0));
         var img = new Image();
         img.onload = function() {
             that.preview_status('success');
@@ -2686,7 +2690,9 @@ function LayerModel(data, merc, root) {
         };
         img.crossOrigin = 'anonymous';
         img.src = that.preview_url();
-    });
+    };
+    this.tilefunc.subscribe(this.load_preview);
+    this.min_depth.subscribe(this.load_preview);
 
     this.activate = function(force) {
         if (this.active() && !force) {
@@ -2703,11 +2709,11 @@ function LayerModel(data, merc, root) {
             url: this.url(),
             tilefunc: this.tilefunc(),
             max_depth: this.max_depth(),
-            no_z0: this.no_z0,
+            no_z0: this.min_depth() > 0,
         };
     }
 
-    this.CUSTOM_FIELDS = ['name', 'url', 'max_depth'];
+    this.CUSTOM_FIELDS = ['name', 'url', 'max_depth', 'smin_depth'];
     this.edit = function() {
         this.pending(new LayerModel({}));
         _.each(this.CUSTOM_FIELDS, function(e) {
