@@ -158,7 +158,7 @@ function init() {
                });
 
     var koRoot = new EMViewModel(merc);
-    koRoot.load(tile_specs, landmarks);
+    koRoot.load(load_tile_specs(), landmarks);
     ko.applyBindings(koRoot);
 
     if (initState.pole) {
@@ -2778,7 +2778,8 @@ API_KEYS = {
     mapbox: 'pk.eyJ1IjoibXJncmlzY29tIiwiYSI6IjJKYUlRVHcifQ.j4XIpsV19H0CTryO_QIfGg',
 }
 
-var tile_specs = [
+function load_tile_specs() {
+    return [
     {
         name: 'Google Map',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
@@ -2857,7 +2858,11 @@ var tile_specs = [
     },
     {
         name: 'VIIRS Daily (limited zoom)',
-        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default//GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
+        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/' + (function() {
+	    // Most recent snapshot seems to often have data gaps; use slightly stale data
+	    var lookback = 1.5;  // days
+	    return moment().utc().subtract(lookback * 24, 'hours').format('YYYY-MM-DD');
+	})() + '/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
         max_depth: 9,
     },
@@ -2893,8 +2898,9 @@ var tile_specs = [
         url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
-];
-
+    ];
+}
+    
 landmarks = [{
     name: 'Arc de Triomphe',
     pos: [48.87379, 2.29504],
