@@ -3141,7 +3141,7 @@ function compile_tile_spec(spec, no_guess) {
     var valid_spec = (found.z && found.x && (found.y || found['-y'])) || found.qt;
     if (!valid_spec && !no_guess) {
         var LONDON_CENTER = [.5, .333];
-        return guess_spec(spec, LONDON_CENTER);
+	return compile_tile_spec(guess_spec(spec, LONDON_CENTER), true);
     }
 
     return function(zoom, x, y) {
@@ -3154,39 +3154,82 @@ function compile_tile_spec(spec, no_guess) {
 
 function guess_spec(spec, known_point) {
     // try to deduce from sample tile of known location
+    // 'known_point' should be sufficiently off the x=y axis to be able to easily
+    // distinguish x from y, and sufficiently far from (0, 0) that z is easily
+    // distinguishable from x and y.
+    // TODO: maybe move known_point off the prime meridian so any encoded tile size
+    // can't get mistaken for 'x'
     var numbers = [];
-    spec.replace(/[^A-Za-z]\d+(?![A-Za-z])/g, function(match) {
+    spec.replace(/[\/=]\d+/g, function(match) {
         numbers.push(+match.substring(1));
     });
-    numbers = _.sortBy(numbers, function(e) { return e; });
-    var mapping = {};
-    _.each(numbers, function(e) {
-        if (e >= 6 && e <= 22) {
-            mapping.z = e;
-            return;
-        }
-        if (mapping.z) {
-            for (var i = 0; i < 2; i++) {
-                var ref = Math.floor(known_point[i] * Math.pow(2, mapping.z));
-                var diff = Math.abs(ref - e);
-                if (diff <= 3 * Math.pow(2, Math.max(mapping.z - 6, 0))) {
-                    mapping[i == 0 ? 'x' : 'y'] = e;
-                }
-            }
-        }
+
+    var evaluate_z = function(z) {
+	var MIN_Z = 6;
+	var MAX_Z = 22;
+	var WINDOW_AT_MIN_Z = 3;
+	if (z < MIN_Z || z > MAX_Z) {
+	    return null;
+	}
+	var window = WINDOW_AT_MIN_Z * Math.pow(2, z - MIN_Z);
+	var ref_x = Math.floor(known_point[0] * Math.pow(2, z));
+	var ref_y = Math.floor(known_point[1] * Math.pow(2, z));
+	var ref_yinv = Math.floor((1. - known_point[1]) * Math.pow(2, z));
+	
+	var x = null;
+	var y = null;
+	var yinv = null;
+	for (var i = 0; i < numbers.length; i++) {
+	    // no risk of this being the same number as current 'z', because
+	    // the ranges should never overlap
+	    var n = numbers[i];
+	    if (x == null && Math.abs(n - ref_x) <= window) {
+		x = i;
+	    }
+	    if (y == null && Math.abs(n - ref_y) <= window) {
+		y = i;
+	    }
+	    if (yinv == null && Math.abs(n - ref_yinv) <= window) {
+		yinv = i;
+	    }
+
+	    if (x != null && (y != null || yinv != null)) {
+		return {x: x, y: y, yinv: yinv};
+	    }
+	}
+    };
+    for (var i = 0; i < numbers.length; i++) {
+	var poss_z = numbers[i];
+	var mapping = evaluate_z(poss_z);
+	if (mapping) {
+	    mapping.z = i;
+	    break;
+	}
+    }
+    if (!mapping) {
+	return '';
+    }
+
+    var i = 0;
+    var new_spec = spec.replace(/[\/=]\d+/g, function(match) {
+	var frag;
+	if (i == mapping.z) {
+	    frag = '{z}';
+	} else if (i == mapping.x) {
+	    frag = '{x}';
+	} else if (i == mapping.y) {
+	    frag = '{y}';
+	} else if (i == mapping.yinv) {
+	    frag = '{-y}';
+	}
+	i += 1;
+	if (frag) {
+	    return match[0] + frag;
+	} else {
+	    return match;
+	}
     });
-    var rev_mapping = {};
-    _.each(mapping, function(v, k) {
-        rev_mapping[v] = k;
-    });
-    var new_spec = spec.replace(/[^A-Za-z]\d+(?![A-Za-z])/g, function(match) {
-        if (rev_mapping[match.substring(1)]) {
-            return match[0] + '{' + rev_mapping[match.substring(1)] + '}';
-        } else {
-            return match;
-        }
-    });
-    return compile_tile_spec(new_spec, true);
+    return new_spec;
 }
 
 
