@@ -8,6 +8,8 @@
 referrer if app is loaded over https yet tile request is http, which is often the case -->
 <meta name="referrer" content="always">
 
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans+Condensed:300,700|Open+Sans:400" />
+
 <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r66/three.min.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
@@ -18,8 +20,6 @@ referrer if app is loaded over https yet tile request is http, which is often th
 <script src="lib/filesaver.js"></script>
 <script src="merc-extreme.js"></script>
 <script src="geodesy.js"></script>
-
-<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans+Condensed:300,700|Open+Sans:400" />
 
 <meta name="description" content="An interactive playground to explore the extreme distortions of the Mercator projection. Set any point on Earth as the new North Pole. Warp the map in real-time. See the world in a whole new way." />
 
@@ -295,6 +295,21 @@ h3 {
 }
 
 </style>
+
+<div id="splash" style="position: absolute; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background: #111;">
+  <!-- duplicated -->
+  <div id="titlebar" style="color: white;">
+    <span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
+    <span style="font-family: &quot;Open Sans&quot;, sans-serif; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
+  </div>
+
+  <div style="width: 100%; height: 100%; display: table;">
+    <div style="width: 100%; height: 100%; display: table-cell; text-align: center; vertical-align: middle; color: #ccc; font-family: &quot;Open Sans&quot;, sans-serif; font-size: 72px; padding: 0 20%;">
+      <div id="loading_msg">loading&hellip;</div>
+      <div id="nowebgl_msg" style="display: none;">Your browser does not support WebGL :'(</div>
+    </div>
+  </div>
+</div>
 
 <div id="titlebar" style="color: white;">
   <div class="dropdown-anchor" style="float: right; position: relative; margin-right: 30px;">
@@ -735,21 +750,6 @@ h3 {
   <div id="scale" style="display: inline-block; padding-left: 30px; padding-top: 6px;"><span id="label" style="font-size: 11px;"></span><div id="bar" style="height: 6px; background: rgba(0, 0, 0, .6);"></div></div>
 </div>
 
-</div>
-
-<div id="splash" style="position: absolute; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background: #111;">
-  <!-- duplicated -->
-  <div id="titlebar" style="color: white;">
-    <span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
-    <span style="font-family: &quot;Open Sans&quot;, sans-serif; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
-  </div>
-
-  <div style="width: 100%; height: 100%; display: table;">
-    <div style="width: 100%; height: 100%; display: table-cell; text-align: center; vertical-align: middle; color: #ccc; font-family: &quot;Open Sans&quot;, sans-serif; font-size: 72px; padding: 0 20%;">
-      <div id="loading_msg">loading&hellip;</div>
-      <div id="nowebgl_msg" style="display: none;">Your browser does not support WebGL :'(</div>
-    </div>
-  </div>
 </div>
 
 </body>
