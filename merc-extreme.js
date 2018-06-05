@@ -39,7 +39,7 @@ var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile cov
 var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas (may be lowered based on
                                    // gpu capabilities
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
-var PREC_BUFFER = 2;               // number of zoom levels early to switch to 'high precision' mode
+var PREC_BUFFER = 5;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
 var GUESS_POLE_COLOR = true;
@@ -211,12 +211,23 @@ function init() {
             });
         });
     });
+
+    $('#exportmode').click(function() {
+	var url = window.location.href;
+	if (url.indexOf('#') != -1) {
+            url = url.split('#')[0];
+	}
+	url += '#' + URLFRAG.fragment(true);
+	window.open(url, '_blank');
+    });
+    
     if (window.EXPORT_MODE) {
         merc.setSlider('blinders', 0.);
         merc.setSlider('blend', MAX_ZOOM_BLEND);
         _.each(['poleinfo', 'antipoleinfo'], function(e) {
             $('#' + e).css('display', 'none');
         });
+	$('#exportmode').hide();
         exportBlurb();
     }
 
@@ -1927,12 +1938,12 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             merc.x = (merc.x - offset) % 1. + offset;
             merc.y = .5 - merc.y;
 
-            MAX_TOGGLE_FREQ = 20.;
+            MAX_TOGGLE_FREQ = 15.;
             if (window.TOGGLED_AT == null || clock() - window.TOGGLED_AT > .5/MAX_TOGGLE_FREQ) {
                 window.CURSOR_TOGGLE = !window.CURSOR_TOGGLE;
                 window.TOGGLED_AT = clock();
             }
-            this.cursor.material.color.setHex(CURSOR_TOGGLE ? 0xdd2222 : 0x222222);
+            this.cursor.material.color.setHex(CURSOR_TOGGLE ? 0xff1111 : 0x111111);
             var opac = Math.min(Math.max(1.25 - merc.y, 0) / .75, 1) * 1.;
             this.cursor.material.opacity = opac;
             
@@ -2163,17 +2174,22 @@ function URLFragmentContext() {
             return;
         }
 
-        var frag = '';
-        if (window.EXPORT_MODE) {
-            frag += '!';
-        }
-        if (this.layer) {
-            frag += this.layer + '@';
-        }
-        if (this.lat != null) {
-            frag += this.lat.toFixed(5) + ',' + this.lon.toFixed(5);
-        }
+	var frag = this.fragment(window.EXPORT_MODE);
         history.replaceState(null, null, '#' + frag);
+    }
+
+    this.fragment = function(export_mode) {
+	var frag = '';
+	if (export_mode) {
+            frag += '!';
+	}
+	if (this.layer) {
+            frag += this.layer + '@';
+	}
+	if (this.lat != null) {
+            frag += this.lat.toFixed(5) + ',' + this.lon.toFixed(5);
+	}
+	return frag;
     }
 }
 URLFRAG = new URLFragmentContext();
@@ -3581,6 +3597,7 @@ function exportBlurb() {
 
 
     console.log(blurb.join('\n'));
+    alert('Welcome to export mode!\n\nExport mode is for creating high quality image renders. This is advanced usage.\n\nPlease open Chrome Dev Tools and follow instructions...');
 }
 
 function do_export(params) {
