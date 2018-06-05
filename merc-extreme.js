@@ -2848,6 +2848,7 @@ function load_tile_specs() {
         attr: [['Drew Roos', 'http://mrgris.com/projects/oilslick/'], ['Jonathan de Ferranti', 'http://www.viewfinderpanoramas.org/dem3.html'], ['NSIDC', 'http://nsidc.org/data/nsidc-0082']],
         max_depth: 11,
     },
+    /* CORS restricted
     {
         name: 'Strava Heatmap',
         url: 'http://{s:abc}-globalheat.strava.com/tiles/both/color7/{z}/{x}/{y}.png?v=6',
@@ -2855,6 +2856,7 @@ function load_tile_specs() {
         attr: ['Strava'],
         max_depth: 16,
     },
+    */
     {
         name: 'VIIRS Night (limited zoom)',
         url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
@@ -2973,7 +2975,7 @@ landmarks = [{
     tag: 'ny'
 }, {
     name: 'Bondi Beach',
-    pos: [-33.89123, 151.27748],
+    pos: [-33.89105, 151.27766],
     lon_center: 220,
 }, {
     name: 'Panama Canal',
