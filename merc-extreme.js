@@ -261,17 +261,11 @@ function init() {
     });
 
     $('.orientation').click(function() {
-        merc.horizontalOrientation = !merc.horizontalOrientation;
-        merc.resetViewport();
-
-        hstyle = {poleinfo: 'lr', antipoleinfo: 'll'};
-        vstyle = {poleinfo: 'ur', antipoleinfo: 'lr'};
-        $.each({h: hstyle, v: vstyle}, function(mode, styles) {
-            $.each(styles, function(k, v) {
-                $('#' + k)[(merc.horizontalOrientation == (mode == 'h')) ? 'addClass' : 'removeClass']('corner-' + v);
-            });
-        });
+        merc.setOrientation(!merc.horizontalOrientation);
     });
+    if (window.EXPORT_MODE) {
+	$('.orientation').hide();
+    }
 
     $('#exportmode').click(function() {
 	var url = window.location.href;
@@ -1407,8 +1401,12 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     }
 
     this.initViewport = function(dim, merc_min, merc_max, lon_center, auto) {
+	if (dim == null) {
+	    dim = this.viewportDims();
+	}
+	
         lon_center = lon_center == null ? .5 : lon_center;
-
+	
         var actual_width = dim[0];
         var actual_height = dim[1];
 
@@ -1460,9 +1458,10 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.currentObjs = [];
         this.layer = new TextureLayer(this);
 
-        this.horizontalOrientation = true;
-        this.viewportDims = getViewportDims;
-        this.initViewport(getViewportDims(window), -extentS, extentN);
+        this.viewportDims = function() { return getViewportDims(window); };
+	this.horizontalOrientation = true;
+        this.initViewport(null, -extentS, extentN);
+        this.resetViewport();
         var merc = this;
         $(window).resize(function() {
             merc.resetViewport();
@@ -1480,7 +1479,30 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
         var p0 = this.xyToWorld(0, .5 * this.height_px);
         var p1 = this.xyToWorld(this.width_px, 0);
-        this.initViewport(getViewportDims(window), p0.y, p1.y, p0.x);
+
+	// determine if we should change orientation (horizontal / vertical)
+	// prefer the orientation that minimizes x-axis wraparound
+	var prevDim = window.PREV_DIM;
+	var dim = this.viewportDims();
+	PREV_DIM = dim;
+	var aspect = dim[0] / dim[1];
+	var prevAspect = (prevDim != null ? prevDim[0] / prevDim[1] : null);
+
+	var yspan = Math.abs(p1.y - p0.y);
+	// only swap if we're sufficiently zoomed out so as to have some wraparound visible
+	var yspanMin = 1.2;
+	// only change if the resizing crosses the threshold of where it makes sense to swap; this way
+	// we respect manual orientation changes
+	var crossedThreshold = (prevAspect == null || (aspect > 1.) != (prevAspect > 1.));
+	if (crossedThreshold && yspan > yspanMin) {
+	    var horiz = aspect > 1.;
+	    if (this.horizontalOrientation != horiz) {	    
+		this.setOrientation(horiz);
+		return;
+	    }
+	}
+	
+        this.initViewport(null, p0.y, p1.y, p0.x);
     }
 
     this.setLayer = function(layer) {
@@ -1488,6 +1510,23 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.layer.setLayer(layer, true);
     }
 
+    this.setOrientation = function(horiz) {
+	if (window.EXPORT_MODE) {
+	    return;
+	}
+
+        this.horizontalOrientation = horiz;
+        this.resetViewport();
+
+        hstyle = {poleinfo: 'lr', antipoleinfo: 'll'};
+        vstyle = {poleinfo: 'ur', antipoleinfo: 'lr'};
+        $.each({h: hstyle, v: vstyle}, function(mode, styles) {
+            $.each(styles, function(k, v) {
+                $('#' + k)[(horiz == (mode == 'h')) ? 'addClass' : 'removeClass']('corner-' + v);
+            });
+        });
+    }
+			   
     this.setWorldMatrix = function(transformations, update) {
         if (update) {
             transformations.splice(0, 0, this.M);
@@ -3780,7 +3819,7 @@ function highres_export(x0, x1, y0, y1, res, oversampling, max_tile, oncomplete)
     oncomplete = function() {
         EXPORT_IN_PROGRESS = false;
         MERC.overzoom = ORIG_OVERZOOM;
-        MERC.initViewport(MERC.viewportDims(window), y0, y1, (x0+x1)/2);
+        MERC.initViewport(null, y0, y1, (x0+x1)/2);
         writeParamsFile(x0, x1, y0, y1, timestamp);
         _oncomplete();
     }
