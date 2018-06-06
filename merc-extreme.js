@@ -61,7 +61,7 @@ function setComputedConstants(GL) {
     MAX_Z_WARP = 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND;
     MIPMAP_LEVELS = Math.ceil(MAX_Z_WARP);
     var tiles_per = function(dim, noround) {
-        var t = dim / TILE_SIZE *  Math.pow(2, MAX_Z_WARP);
+        var t = dim / TILE_SIZE * Math.pow(2, MAX_Z_WARP);
         return noround ? t : Math.ceil(t);
     }
 
@@ -749,16 +749,6 @@ function TextureLayer(context) {
         flipY: false,
     }, {aspect: 2.});
     this.tex_atlas = [];
-    for (var i = 0; i < NUM_ATLAS_PAGES; i++) {
-        var page = new TexBuffer(ATLAS_TEX_SIZE, {
-            // mipmapping must be done manually due to non-continguity of images
-            generateMipmaps: false,
-            magFilter: THREE.LinearFilter,
-            minFilter: THREE.LinearFilter,
-            flipY: false,
-        }, {nocanvas: true});
-        this.tex_atlas.push(page);
-    }
     this.tex_index = new TexBuffer(TEX_IX_SIZE, {
         generateMipmaps: false,
         magFilter: THREE.NearestFilter,
@@ -768,13 +758,6 @@ function TextureLayer(context) {
 
     this.tile_index = {};
     this.free_slots = {};
-    for (var i = 0; i < this.tex_atlas.length; i++) {
-        for (var j = 0; j < TEX_SIZE_TILES; j++) {
-            for (var k = 0; k < TEX_SIZE_TILES; k++) {
-                this.free_slots[i + ':' + j + ':' + k] = true;
-            }
-        }
-    }
     this.index_offsets = {};
     this.index_fragments = {};
     var layer = this;
@@ -791,6 +774,8 @@ function TextureLayer(context) {
     }
     
     this.init = function() {
+	this.tile_index_page_add();
+
         var layer = this;
         this.worker.addEventListener('message', function(e) {
             layer.sample_coverage_postprocess(e.data);
@@ -848,6 +833,33 @@ function TextureLayer(context) {
         }
     }
 
+    this.tile_index_page_add = function() {
+	if (this.tex_atlas.length == NUM_ATLAS_PAGES) {
+	    return false;
+	}
+	
+	var pageId = this.tex_atlas.length;
+        var page = new TexBuffer(ATLAS_TEX_SIZE, {
+            // mipmapping must be done manually due to non-continguity of images
+            generateMipmaps: false,
+            magFilter: THREE.LinearFilter,
+            minFilter: THREE.LinearFilter,
+            flipY: false,
+        }, {nocanvas: true});
+        this.tex_atlas.push(page);
+	if (pageId > 0) {
+	    this.uniforms.tx_atlas.value[pageId] = page.tx;
+	}
+	    
+        for (var i = 0; i < TEX_SIZE_TILES; i++) {
+            for (var j = 0; j < TEX_SIZE_TILES; j++) {
+                this.free_slots[pageId + ':' + i + ':' + j] = true;
+            }
+        }
+
+	return true;
+    }
+    
     this.tile_index_add = function(layer_type, tile, slot) {
         var xo = offset(tile.x, tile.z);
         var yo = offset(tile.y, tile.z);
@@ -1015,29 +1027,41 @@ function TextureLayer(context) {
                     return;
                 }
 
-                var slot = null;
-                $.each(layer.free_slots, function(k, v) {
-                    // always pick first and bail
-                    slot = split_slot_key(k);
-                    return false;
-                });
+		var first_free_slot = function() {
+		    var slot = null;
+                    $.each(layer.free_slots, function(k, v) {
+			// always pick first and bail
+			slot = split_slot_key(k);
+			return false;
+                    });
+		    return slot;
+		};		
+                var slot = first_free_slot();
                 if (slot == null) {
                     //console.log('no slot');
                     var _oldest = layer.tiles_by_age.pop() || [null, null];
                     var oldest_key = _oldest[0];
                     var oldest_entry = _oldest[1];
                     if (oldest_entry == null || oldest_entry.mru == MRU_counter) {
-                        // tile cache is full (provision extra space?)
-                        console.log('tile cache is full!');
-                        return;
-                    }
-                    
-                    slot = oldest_entry.slot;
-                    delete layer.tile_index[oldest_key];
+                        // tile cache is full; add more pages
+			var added = layer.tile_index_page_add();
+			if (added) {
+			    console.log('added page to tile cache: ' + layer.tex_atlas.length + '/' + NUM_ATLAS_PAGES);
+			    var slot = first_free_slot();
+			} else {
+                            console.log('tile cache is full!');
+			}
+                    } else {
+			slot = oldest_entry.slot;
+			delete layer.tile_index[oldest_key];
 
-                    var pcs = oldest_key.split(':');
-                    layer.tile_index_remove(pcs[0], +pcs[1], +pcs[2], +pcs[3]);
+			var pcs = oldest_key.split(':');
+			layer.tile_index_remove(pcs[0], +pcs[1], +pcs[2], +pcs[3]);
+		    }
                 }
+		if (slot == null) {
+		    return;
+		}
                 
                 ix_entry.slot = slot;
                 ix_entry.pending = true;
@@ -1238,6 +1262,7 @@ function TextureLayer(context) {
     
     this.material = function(params) {
         if (!this.uniforms) {
+	    var layer = this;
             this.uniforms = {
                 scale: {type: 'f', value: 0.},
                 bias: {type: 'f', value: 0.},
@@ -1246,7 +1271,9 @@ function TextureLayer(context) {
                 ref_t: {type: 'v2', value: null},
                 anti_ref_t: {type: 'v2', value: null},
                 tx_ix: {type: 't', value: this.tex_index.tx},
-                tx_atlas: {type: 'tv', value: $.map(this.tex_atlas, function(e) { return e.tx; })},
+		// map all page slots to the first page to start to suppress the 'no texture bound' warning
+                tx_atlas: {type: 'tv', value: _.map(_.range(NUM_ATLAS_PAGES),
+						    function(e) { return layer.tex_atlas[0].tx; })},
                 tx_z0: {type: 't', value: this.tex_z0.tx},
                 zoom_blend: {type: 'f', value: 0.},
                 blinder_start: {type: 'f', value: 0.},
