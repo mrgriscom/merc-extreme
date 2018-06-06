@@ -36,8 +36,10 @@ var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
-var ATLAS_TEX_SIZE = 4096;         // (px) dimensions of single page of texture atlas (may be lowered based on
-                                   // gpu capabilities
+var PREFERRED_ATLAS_TEX_SIZE = 4096;   // (px) dimensions of single page of texture atlas
+var MAX_SCREEN_DIM = [7680, 4320]  // don't try to cater to displays larger than this
+var SCREEN_CONFIG_MULTIPLIER = 2.  // overprovision for a screen this times larger than the actual screen
+                                   // (alternative is to recompile the shader dynamically)
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 5;               // number of zoom levels early to switch to 'high precision' mode
 var NORTH_POLE_COLOR = '#ccc';
@@ -51,51 +53,106 @@ var MAX_TRAVEL_TIME = 60.;
 var DEFAULT_TRAVEL_TIME = 5.;
 
 // these aren't really meant to be changed... more just to justify how various constants got their values
-var SCREEN_WIDTH_SOFTMAX = 1920;
-var SCREEN_HEIGHT_SOFTMAX = 1200;
 var MIN_BIAS = 0.;
 var MAX_ZOOM_BLEND = .6;
 var HIGH_PREC_Z_BASELINE = 16;
 
+function getGLLimits(GL) {
+    var _gl = GL.context;
+    var limits = {
+	texsize: _gl.getParameter(_gl.MAX_TEXTURE_SIZE),
+	numtex: _gl.getParameter(_gl.MAX_TEXTURE_IMAGE_UNITS),
+	fragment_precision_bits: _gl.getShaderPrecisionFormat(_gl.FRAGMENT_SHADER, {highp: _gl.HIGH_FLOAT, mediump: _gl.MEDIUM_FLOAT}[GL.getPrecision()]).precision,
+        extensions: _gl.getSupportedExtensions(),
+    };
+    console.log('webgl limits', limits);
+    return limits;
+}
+
+function tiles_per(dim, noround) {
+    var t = dim / TILE_SIZE * Math.pow(2, MAX_Z_WARP);
+    return noround ? t : Math.ceil(t);
+}
+
+function computeTileIndexConstants(width, height) {
+    var constants = {};    
+    var screen_diag = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2));
+    // maximum span of adjacent tiles of the same zoom level that can be visible at once
+    var max_z_tile_span = tiles_per(screen_diag);
+    constants.TILE_OFFSET_RESOLUTION = pow2ceil(max_z_tile_span);
+    // size of a single z-level's cell in the atlas index texture
+    constants.TEX_Z_IX_SIZE = 2 * constants.TILE_OFFSET_RESOLUTION;
+    // size of the atlas index texture
+    constants.TEX_IX_SIZE = TEX_IX_CELLS * constants.TEX_Z_IX_SIZE;
+    return constants;
+}
+
+function computeTileAtlasConstants(width, height, atlasTexSize) {
+    var constants = {};
+    // an estimate of how many tiles can be active in the tile index at once
+    max_tiles_at_once = Math.ceil(tiles_per(width) * tiles_per(height) * 4./3.);
+    // number of tiles that can fit in one texture page (along one edge)
+    constants.TEX_SIZE_TILES = Math.floor(atlasTexSize / ATLAS_TILE_SIZE);
+    constants.NUM_ATLAS_PAGES = Math.ceil(max_tiles_at_once / Math.pow(constants.TEX_SIZE_TILES, 2));
+    return constants;
+}
+
 function setComputedConstants(GL) {
     MAX_Z_WARP = 1. - MIN_BIAS + .5 * MAX_ZOOM_BLEND;
     MIPMAP_LEVELS = Math.ceil(MAX_Z_WARP);
-    var tiles_per = function(dim, noround) {
-        var t = dim / TILE_SIZE * Math.pow(2, MAX_Z_WARP);
-        return noround ? t : Math.ceil(t);
-    }
 
     // edge of tile where adjacent tile should also be loaded to compensate for lower resolution of tile coverage pass
     TILE_FRINGE_WIDTH = Math.min(tiles_per(SAMPLE_FREQ, true), .5);
     // size of a padded tile in the atlas texture
     TILE_SKIRT = Math.pow(2, MIPMAP_LEVELS); //px
     ATLAS_TILE_SIZE = TILE_SIZE + 2 * TILE_SKIRT;
+    // number of z index cells in one edge of the index texture
+    TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
 
     if (typeof screen !== 'undefined') {
-        SCREEN_WIDTH = Math.min(screen.width, SCREEN_WIDTH_SOFTMAX);
-        SCREEN_HEIGHT = Math.min(screen.height, SCREEN_HEIGHT_SOFTMAX);
-        SCREEN_DIAG = Math.sqrt(Math.pow(SCREEN_WIDTH, 2) + Math.pow(SCREEN_HEIGHT, 2));
-        // maximum span of adjacent tiles of the same zoom level that can be visible at once
-        MAX_Z_TILE_SPAN = tiles_per(SCREEN_DIAG);
-        // an estimate of how many tiles can be active in the tile index at once
-        MAX_TILES_AT_ONCE = tiles_per(SCREEN_WIDTH) * tiles_per(SCREEN_HEIGHT) * 4./3.;
-        // 
-        TILE_OFFSET_RESOLUTION = pow2ceil(MAX_Z_TILE_SPAN);
-        // size of a single z-level's cell in the atlas index texture
-        TEX_Z_IX_SIZE = 2 * TILE_OFFSET_RESOLUTION;
-        // number of z index cells in one edge of the index texture
-        TEX_IX_CELLS = pow2ceil(Math.sqrt(2 * (MAX_ZOOM + 1)));
-        // size of the atlas index texture
-        TEX_IX_SIZE = TEX_IX_CELLS * TEX_Z_IX_SIZE;
+	var targetDim = function(dim, softmax) {
+	    return Math.max(dim, Math.min(dim * SCREEN_CONFIG_MULTIPLIER, softmax));
+	}
+	var targetWidth = targetDim(screen.width, MAX_SCREEN_DIM[0]);
+	var targetHeight = targetDim(screen.height, MAX_SCREEN_DIM[1]);
+	console.log('screen size', screen.width, screen.height);
+	console.log('target screen size', targetWidth, targetHeight);
+	
+	var indexConstants = computeTileIndexConstants(targetWidth, targetHeight);
+	// it is extremely unlikely the index texture size will exceed device capabilities, even with over-provisioning
+	_.each(indexConstants, function(v, k) {
+	    window[k] = v;
+	});
+	console.log('index texture size, max offset', TEX_IX_SIZE, TILE_OFFSET_RESOLUTION);
+	
+	if (GL) {
+	    var glLimits = getGLLimits(GL);
+	    ERR.setError('precision', glLimits.fracment_precision_bits < 23);
 
-        if (GL) {
-            var _gl = GL.context;
-            var maxTexSize = _gl.getParameter(_gl.MAX_TEXTURE_SIZE);
-            ATLAS_TEX_SIZE = Math.min(maxTexSize, ATLAS_TEX_SIZE);
-            // number of tiles that can fit in one texture page (along one edge)
-            TEX_SIZE_TILES = Math.floor(ATLAS_TEX_SIZE / ATLAS_TILE_SIZE);
-            NUM_ATLAS_PAGES = Math.ceil(MAX_TILES_AT_ONCE / Math.pow(TEX_SIZE_TILES, 2));
-        }
+	    // find the smallest texture size (>= the min preferred size) that still lets the texture atlas
+	    // fit fully within the available # of textures. this is because smaller textures seem to increase
+	    // load time greatly, and i haven't really observed a performance impact from searching more pages
+	    var numReservedTex = 2; // index, z0
+	    var availAtlasPages = glLimits.numtex - numReservedTex;
+	    ATLAS_TEX_SIZE = PREFERRED_ATLAS_TEX_SIZE;
+	    while (ATLAS_TEX_SIZE < glLimits.texsize) {
+		var atlasConstants = computeTileAtlasConstants(targetWidth, targetHeight, ATLAS_TEX_SIZE);
+		if (atlasConstants.NUM_ATLAS_PAGES <= availAtlasPages) {
+		    break;
+		}
+		ATLAS_TEX_SIZE *= 2;
+	    }
+	    ATLAS_TEX_SIZE = Math.min(ATLAS_TEX_SIZE, glLimits.texsize);
+	    var atlasConstants = computeTileAtlasConstants(targetWidth, targetHeight, ATLAS_TEX_SIZE);
+	    _.each(atlasConstants, function(v, k) {
+		window[k] = v;
+	    });
+	    console.log('atlas', ATLAS_TEX_SIZE + 'px', NUM_ATLAS_PAGES + ' pages');
+	    if (NUM_ATLAS_PAGES > availAtlasPages) {
+		NUM_ATLAS_PAGES = availAtlasPages;
+		console.log('capping # pages at ' + NUM_ATLAS_PAGES);
+	    }
+	}
     }
 }
 
@@ -323,18 +380,7 @@ function checkEnvironment() {
     if (!webgl) {
         noWebGL();
     } else {
-        var GL = new THREE.WebGLRenderer(window.EXPORT_MODE ? {preserveDrawingBuffer: true} : {});
-        var _gl = GL.context;
-
-        // shader precision
-        var prec_type = GL.getPrecision();
-        var prec_bits = _gl.getShaderPrecisionFormat(_gl.FRAGMENT_SHADER, {highp: _gl.HIGH_FLOAT, mediump: _gl.MEDIUM_FLOAT}[prec_type]).precision;
-        console.log('fragment shader: ' + prec_type + ', ' + prec_bits + ' bits');
-        ERR.setError('precision', prec_bits < 23);
-
-        console.log('max tex size', _gl.getParameter(_gl.MAX_TEXTURE_SIZE));
-        console.log('max # texs', _gl.getParameter(_gl.MAX_TEXTURE_IMAGE_UNITS));
-        console.log('glextentions', _gl.getSupportedExtensions());
+        GL = new THREE.WebGLRenderer(window.EXPORT_MODE ? {preserveDrawingBuffer: true} : {});
     }
 
     // chrome
@@ -774,8 +820,11 @@ function TextureLayer(context) {
     }
     
     this.init = function() {
-	this.tile_index_page_add();
+	this.tile_index_page_add(true);
 
+	// allocate all atlas pages upfront (useful for debugging)
+	//while (this.tile_index_page_add(true));
+	
         var layer = this;
         this.worker.addEventListener('message', function(e) {
             layer.sample_coverage_postprocess(e.data);
@@ -833,7 +882,7 @@ function TextureLayer(context) {
         }
     }
 
-    this.tile_index_page_add = function() {
+    this.tile_index_page_add = function(noupdate) {
 	if (this.tex_atlas.length == NUM_ATLAS_PAGES) {
 	    return false;
 	}
@@ -847,7 +896,7 @@ function TextureLayer(context) {
             flipY: false,
         }, {nocanvas: true});
         this.tex_atlas.push(page);
-	if (pageId > 0) {
+	if (!noupdate) {
 	    this.uniforms.tx_atlas.value[pageId] = page.tx;
 	}
 	    
@@ -1028,13 +1077,19 @@ function TextureLayer(context) {
                 }
 
 		var first_free_slot = function() {
+		    // first
 		    var slot = null;
-                    $.each(layer.free_slots, function(k, v) {
+		    $.each(layer.free_slots, function(k, v) {
 			// always pick first and bail
-			slot = split_slot_key(k);
+			slot = k;
 			return false;
-                    });
-		    return slot;
+		    });
+
+		    // random
+		    //var size = _.size(layer.free_slots);
+		    //slot = size > 0 ? _.keys(layer.free_slots)[Math.floor(Math.random() * size)] : null;
+		    
+		    return (slot != null ? split_slot_key(slot) : null);
 		};		
                 var slot = first_free_slot();
                 if (slot == null) {
@@ -1271,9 +1326,9 @@ function TextureLayer(context) {
                 ref_t: {type: 'v2', value: null},
                 anti_ref_t: {type: 'v2', value: null},
                 tx_ix: {type: 't', value: this.tex_index.tx},
-		// map all page slots to the first page to start to suppress the 'no texture bound' warning
+		// to start, map all extra page slots to the first page to suppress the 'no texture bound' warning
                 tx_atlas: {type: 'tv', value: _.map(_.range(NUM_ATLAS_PAGES),
-						    function(e) { return layer.tex_atlas[0].tx; })},
+						    function(i) { return layer.tex_atlas[i < layer.tex_atlas.length ? i : 0].tx; })},
                 tx_z0: {type: 't', value: this.tex_z0.tx},
                 zoom_blend: {type: 'f', value: 0.},
                 blinder_start: {type: 'f', value: 0.},
@@ -1386,6 +1441,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
         ]);
 
+	/*
         if (actual_width > SCREEN_WIDTH || actual_height > SCREEN_HEIGHT) {
             ERR.setError('screensize', true);
             $('#maxwidth').text(SCREEN_WIDTH);
@@ -1393,6 +1449,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         } else {
             ERR.setError('screensize', false);
         }
+*/
 
         $('#help').css('max-height', actual_height + 'px');
     }
