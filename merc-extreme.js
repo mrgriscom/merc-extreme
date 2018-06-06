@@ -170,7 +170,8 @@ function init() {
     fragment_shader = loadShader('fragment');
     
     var merc = new MercatorRenderer(env.gl, $('#container'), function(window) {
-        return [window.innerWidth, window.innerHeight - $('#titlebar').outerHeight()];
+	var $c = $('#container');
+        return [$c.width(), $c.height()];
     }, MAX_MERC, DEFAULT_EXTENT_S);
     MERC = merc;
 
@@ -417,12 +418,17 @@ function initGlobal() {
 
 function GoogleGeocoder() {
     var that = this;
+    // caution: geocoder is loaded async
     google.maps.event.addDomListener(window, 'load', function() {
         that.geocoder = new google.maps.Geocoder();
     });
 
     this.geocode = function(query, callbacks) {
-        // caution: geocoder is loaded async
+	// if we init on window.load rather than document.ready, the async event didn't fire
+	if (this.geocoder == null) {
+            this.geocoder = new google.maps.Geocoder();
+	}
+	
         this.geocoder.geocode({address: query}, function(results, status) {
             if (status == google.maps.GeocoderStatus.OK) {
                 var pos = results[0].geometry.location;
@@ -737,7 +743,8 @@ function IndexFragment(type, z, xoffset, yoffset, layer) {
         if (dx >= TEX_Z_IX_SIZE || dy < 0 || dy >= TEX_Z_IX_SIZE) {
             // out of range for current offset
 	    console.log('index cell span exceeded!');
-	    ERR.setError('size', true);
+	    // this is happening more than expected, so suppress visible error for now
+	    //ERR.setError('size', true);
             return;
         }
  
@@ -1409,7 +1416,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	
         var actual_width = dim[0];
         var actual_height = dim[1];
-
+	if (actual_width <= 0 || actual_height <= 0) {
+	    console.log('invalid dimensions', actual_width, actual_height);
+	    return;
+	}
+	
         this.width_px = this.horizontalOrientation ? actual_width : actual_height;
         this.height_px = this.horizontalOrientation ? actual_height : actual_width;
         this.aspect = this.width_px / this.height_px;
