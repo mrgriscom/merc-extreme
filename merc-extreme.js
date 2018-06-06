@@ -74,6 +74,10 @@ function tiles_per(dim, noround) {
     return noround ? t : Math.ceil(t);
 }
 
+// TODO the index texture could be made more compact:
+// - could use cell size equal to offset_resolution (instead of 2x) by tracking x- and y-rollover points
+// - could fully utilize row of cells before moving to next row (only useful to get rectangular texture, though)
+// - the max-span estimates for a single cell appear to be extremely conservative
 function computeTileIndexConstants(width, height) {
     var constants = {};    
     var screen_diag = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2));
@@ -119,16 +123,16 @@ function setComputedConstants(GL) {
 	console.log('target screen size', targetWidth, targetHeight);
 	
 	var indexConstants = computeTileIndexConstants(targetWidth, targetHeight);
-	// it is extremely unlikely the index texture size will exceed device capabilities, even with over-provisioning
 	_.each(indexConstants, function(v, k) {
 	    window[k] = v;
 	});
 	console.log('index texture size, max offset', TEX_IX_SIZE, TILE_OFFSET_RESOLUTION);
-	
 	if (GL) {
 	    var glLimits = getGLLimits(GL);
 	    ERR.setError('precision', glLimits.fracment_precision_bits < 23);
-
+	    // it is extremely unlikely the index texture size will exceed device capabilities, even with over-provisioning
+	    ERR.setError('size', TEX_IX_SIZE > glLimits.texsize);
+	    
 	    // find the smallest texture size (>= the min preferred size) that still lets the texture atlas
 	    // fit fully within the available # of textures. this is because smaller textures seem to increase
 	    // load time greatly, and i haven't really observed a performance impact from searching more pages
@@ -738,6 +742,8 @@ function IndexFragment(type, z, xoffset, yoffset, layer) {
         var dy = (this.offsets.y - ix_offsets.y) * TILE_OFFSET_RESOLUTION;
         if (dx >= TEX_Z_IX_SIZE || dy < 0 || dy >= TEX_Z_IX_SIZE) {
             // out of range for current offset
+	    console.log('index cell span exceeded!');
+	    ERR.setError('size', true);
             return;
         }
  
@@ -1104,6 +1110,7 @@ function TextureLayer(context) {
 			    console.log('added page to tile cache: ' + layer.tex_atlas.length + '/' + NUM_ATLAS_PAGES);
 			    var slot = first_free_slot();
 			} else {
+			    ERR.setError('size', true);
                             console.log('tile cache is full!');
 			}
                     } else {
@@ -1440,16 +1447,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	        new THREE.Matrix4().makeRotationZ(-0.5 * Math.PI),
 	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
         ]);
-
-	/*
-        if (actual_width > SCREEN_WIDTH || actual_height > SCREEN_HEIGHT) {
-            ERR.setError('screensize', true);
-            $('#maxwidth').text(SCREEN_WIDTH);
-            $('#maxheight').text(SCREEN_HEIGHT);
-        } else {
-            ERR.setError('screensize', false);
-        }
-*/
 
         $('#help').css('max-height', actual_height + 'px');
     }
