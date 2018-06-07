@@ -18,6 +18,7 @@ referrer if app is loaded over https yet tile request is http, which is often th
 <script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.17.1/moment.min.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBA2HI6yFkwmdnKNKdETdTPoMbxV8v55Ak&sensor=false"></script>
 <script src="lib/jquery-ui-1.10.4.custom.min.js"></script>
+<!--<script src="lib/jquery.ui.touch-punch.min.js"></script>-->
 <script src="lib/filesaver.js"></script>
 <script src="merc-extreme.js"></script>
 <script src="geodesy.js"></script>
@@ -49,7 +50,7 @@ referrer if app is loaded over https yet tile request is http, which is often th
 
 <style>
 
-body {
+html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
@@ -82,6 +83,17 @@ body {
   min-width: 8em;
   padding: 15px;
   border-radius: 0 0 10px 10px;
+  overflow: auto;
+}
+
+#help {
+  width: 30em;
+}
+
+@media only screen and (max-width: 800px) {
+  #help {
+    width: 20em;
+  }
 }
 
 .dropdown-anchor:hover > .dropdown {
@@ -279,13 +291,13 @@ h3 {
 
 #controls-popup {
   position: absolute;
-  top: 60px;
+  top: 0px;
   right: 0;
   color: white;
   background: rgba(0, 0, 0, .85);
   z-index: 400;
   padding: 15px;
-  border-radius: 10px 0 0 10px;
+  border-radius: 0 0 0 10px;
 }
 
 #controls-dismiss {
@@ -330,7 +342,7 @@ h3 {
   <div style="float: right;">
   <div class="dropdown-anchor" style="float: right; position: relative; margin-right: 30px;">
     <img class="icon" src="img/help.png" title="Help" />
-    <div class="dropdown" style="width: 40em; text-align: left; overflow: auto;" id="help">
+    <div class="dropdown" style="text-align: left; overflow: auto;" id="help">
       <h3>Controls</h3>
       <div style="width: 15em;">
         <div style="clear: both;">
@@ -559,7 +571,7 @@ h3 {
   </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="img/placemark.png" title="Places" />
-    <div class="dropdown" data-bind="foreach: places" style="width: 15em;">
+    <div class="dropdown" data-bind="foreach: places" style="width: 15em; overflow: auto;">
       <div class="dropdownchoice">
         <div style="cursor: pointer;" data-bind="click: select">
           <img data-bind="visible: specImg, attr: {src: specImg}" />
@@ -571,7 +583,7 @@ h3 {
   </div> 
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="img/layers.png" title="Layers" />
-    <div id="layers" class="dropdown" style="text-align: right;">
+    <div id="layers" class="dropdown" style="text-align: right; overflow: auto;">
       <div data-bind="foreach: layers">
         <div class="dropdownchoice" style="white-space: nowrap;">
           <div data-bind="click: $parent.selectLayer" style="cursor: pointer;">
