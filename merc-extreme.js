@@ -1729,6 +1729,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 DRAGCTX = drag_context; // HACK
             }
 	};
+	var discreteZoom = function(pos) {
+            renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
+                renderer.zoom(x, y, z);
+            }));
+	}
 	
         $(this.renderer.domElement).bind('contextmenu', function(e) {
             return false;
@@ -1737,11 +1742,24 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             logevt('dblrightclick');
             setAsPole(mouse_pos(e));
         }
-	/*
+        var onDoubleTap = function(e) {
+            logevt('dbltap');
+	    discreteZoom(touch_pos(e)[0]);
+        }
         $(this.renderer.domElement).bind('touchstart', function(e) {
             logevt('touchstart', touch_pos(e));
 	    POS = null;
 	    e.preventDefault();
+
+	    /*
+            if (clock() - window.LAST_TAP < .4) {
+                onDoubleTap(e);
+		window.LAST_TAP = null;
+            } else {
+		LAST_TAP = clock();
+	    }
+            */
+	    
 	    dragStart(touch_pos(e)[0], 'pan');
 	});
         $(this.renderer.domElement).bind('touchmove', function(e) {
@@ -1754,7 +1772,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	    e.preventDefault();
 	    dragEnd(null);
 	});
-	*/
         $(this.renderer.domElement).bind('mousedown', function(e) {
             if (e.which == 3) {
                 if (clock() - window.LAST_RIGHT_CLICK < .4) {
@@ -1817,10 +1834,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 return;
             }
 
-            var pos = mouse_pos(e);
-            renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
-                renderer.zoom(x, y, z);
-            }));
+            discreteZoom(mouse_pos(e));
         });
         
         $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
