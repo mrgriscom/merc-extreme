@@ -287,6 +287,7 @@ function init() {
         exportBlurb();
     }
 
+    $('#controls-popup-content').html($('#controls').html());
     var controlsFadeTimer = setTimeout(function() {
         $('#controls-popup').addClass('controls-hidden');
     }, 8000);
@@ -1666,7 +1667,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             return {x: e.pageX - ref.offsetLeft, y: ref.offsetHeight - 1 - (e.pageY - ref.offsetTop)};
         }
 	var touch_pos = function(e) {
-	    return _.map(e.originalEvent.touches, mouse_pos);
+	    return mouse_pos({pageX: e.center.x, pageY: e.center.y})
 	}
         this.inertia_context = new MouseTracker(.1);
 
@@ -1733,45 +1734,92 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             renderer.setAnimationContext(new ZoomAnimationContext(pos, 3, 1.5, function(x, y, z) {
                 renderer.zoom(x, y, z);
             }));
-	}
-	
-        $(this.renderer.domElement).bind('contextmenu', function(e) {
-            return false;
-        });
-        var onDoubleRightClick = function(e) {
-            logevt('dblrightclick');
-            setAsPole(mouse_pos(e));
-        }
-        var onDoubleTap = function(e) {
-            logevt('dbltap');
-	    discreteZoom(touch_pos(e)[0]);
-        }
-        $(this.renderer.domElement).bind('touchstart', function(e) {
-            logevt('touchstart', touch_pos(e));
-	    POS = null;
-	    e.preventDefault();
+	};
+	var incrementalZoom = function(pos, increment) {
+            renderer.zoom(pos.x, pos.y, increment);
+	};
 
-	    /*
-            if (clock() - window.LAST_TAP < .4) {
-                onDoubleTap(e);
-		window.LAST_TAP = null;
-            } else {
-		LAST_TAP = clock();
-	    }
-            */
-	    
-	    dragStart(touch_pos(e)[0], 'pan');
+	// warning: hammer also seems to process mouse events... which, while not seeming to currently
+	// cause any problems, is not ideal
+	var hammer = new Hammer(this.renderer.domElement);
+	hammer.get('pinch').set({ enable: true, threshold: .1 });
+	hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL });
+	hammer.add(new Hammer.Pan({ event: 'pan2', pointers: 2, direction: Hammer.DIRECTION_ALL }));
+	hammer.get('press').set({ time: 1000 });
+	hammer.on('panstart', function(e) {
+	    var pos = touch_pos(e);
+	    logevt('panstart', pos.x, pos.y);
+	    POS = null;
+	    dragStart(pos, 'pan');
 	});
-        $(this.renderer.domElement).bind('touchmove', function(e) {
-            logevt('touchmove', touch_pos(e));
-	    e.preventDefault();
-	    dragMove(touch_pos(e)[0]);
+	hammer.on('pan2start', function(e) {
+	    var pos = touch_pos(e);
+	    logevt('pan2start', pos.x, pos.y);
+	    POS = null;
+	    dragStart(pos, 'warp');
 	});
-        $(this.renderer.domElement).bind('touchend', function(e) {
-            logevt('touchend');
-	    e.preventDefault();
+	hammer.on('panmove pan2move', function(e) {
+	    var pos = touch_pos(e);
+	    logevt(e.type, pos.x, pos.y);
+	    POS = null;
+	    dragMove(pos);
+	});
+	hammer.on('panend pan2end', function(e) {
+	    logevt(e.type);
+	    dragEnd(touch_pos(e));
+	});
+	hammer.on('pancancel pan2cancel', function(e) {
+	    logevt(e.type);
 	    dragEnd(null);
 	});
+	hammer.on('pinchstart', function(e) {
+	    logevt('pinchstart');
+	    LAST_PINCH = 1.;
+	});
+	hammer.on('pinchmove', function(e) {
+	    var pos = touch_pos(e);
+	    POS = null;
+	    logevt('pinchmove', pos.x, pos.y, e.scale);
+	    if (window.LAST_PINCH == null) {
+		return;
+	    }
+	    incrementalZoom(pos, e.scale / LAST_PINCH);
+	    LAST_PINCH = e.scale;
+	});
+	hammer.on('pinchend pinchcancel', function(e) {
+	    logevt(e.type);
+	    LAST_PINCH = null;
+	});
+	hammer.on('tap', function(e) {
+	    var pos = touch_pos(e);
+	    logevt('tap', pos.x, pos.y);
+	    // make the 'pointer info' box show
+	    POS = pos;
+	});
+	hammer.on('doubletap', function(e) {
+	    if (e.pointerType == 'mouse') {
+		return;
+	    }
+	    
+	    var pos = touch_pos(e);
+	    logevt('dbltap', pos.x, pos.y);
+	    discreteZoom(pos);
+	});
+	hammer.on('press', function(e) {
+	    if (e.pointerType == 'mouse') {
+		return;
+	    }
+	    
+	    var pos = touch_pos(e);
+	    logevt('press', pos.x, pos.y);
+	    POS = null;
+	    setAsPole(pos);
+	});
+	$(this.renderer.domElement).bind('touchstart', function(e) {
+	    // hammer options to do this don't seem to be working
+	    e.preventDefault();
+	});
+	
         $(this.renderer.domElement).bind('mousedown', function(e) {
             if (e.which == 3) {
                 if (clock() - window.LAST_RIGHT_CLICK < .4) {
@@ -1836,7 +1884,13 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
             discreteZoom(mouse_pos(e));
         });
-        
+        $(this.renderer.domElement).bind('contextmenu', function(e) {
+            return false;
+        });
+        var onDoubleRightClick = function(e) {
+            logevt('dblrightclick');
+            setAsPole(mouse_pos(e));
+        }        
         $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
             e = e.originalEvent;
             var pos = mouse_pos(e);
@@ -1857,7 +1911,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             // would be less expensive to accumulate total scroll then apply one
             // transform per frame rather than per event. but firefox already runs
             // this like a dog anyway, so not going to worry
-            renderer.zoom(pos.x, pos.y, Math.pow(1.05, delta));
+            incrementalZoom(pos, Math.pow(1.05, delta));
             return false;
         });
     }
