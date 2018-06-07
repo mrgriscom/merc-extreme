@@ -579,7 +579,7 @@ h3 {
     <img class="icon" src="img/placemark.png" title="Places" />
     <div class="dropdown" data-bind="foreach: places" style="width: 15em; overflow: auto;">
       <div class="dropdownchoice">
-        <div style="cursor: pointer;" data-bind="click: select">
+        <div style="cursor: pointer;" data-bind="click: select, hidemenuontouch: true">
           <img data-bind="visible: specImg, attr: {src: specImg}" />
           <span data-bind="text: name, style: {fontStyle: specImg() ? 'italic' : ''}"></span>
         </div>
@@ -592,7 +592,7 @@ h3 {
     <div id="layers" class="dropdown" style="text-align: right; overflow: auto;">
       <div data-bind="foreach: layers">
         <div class="dropdownchoice" style="white-space: nowrap;">
-          <div data-bind="click: $parent.selectLayer" style="cursor: pointer;">
+          <div data-bind="click: $parent.selectLayer, hidemenuontouch: true" style="cursor: pointer;">
             <span data-bind="text: displayName, style: { fontWeight: active() ? 'bold' : '' }"></span>
             <span data-bind="if: custom() && !pending(), click: edit, clickBubble: false" style="font-size: 70%;">(edit)</span>
             <span data-bind="if: custom, click: $parent.removeLayer, clickBubble: false" style="font-size: 70%;">(remove)</span>

@@ -219,6 +219,17 @@ function init() {
                    return val.toPrecision(2) + 's';
                });
 
+    // leave a message to future click handler that this was triggered by touch; handler must check this manually
+    ko.bindingHandlers.hidemenuontouch = {
+	init: function(element) {
+	    $(element).bind('touchstart', function(e) {
+		element.postClick = function() {
+		    $(element).closest('.dropdown').hide();
+		    element.postClick = null;
+		};
+	    });
+	}    
+    };
     var koRoot = new EMViewModel(merc);
     koRoot.load(load_tile_specs(), landmarks);
     ko.applyBindings(koRoot);
@@ -333,6 +344,32 @@ function init() {
             geocoder.geocode(query, callbacks);
         }
         return false;
+    });
+
+    // menu management for touch UIs
+    // (menu close on item click handled via knockout binding)
+    // menu open and close from icon
+    $('.dropdown-anchor .icon').bind('touchstart', function(e) {
+	e.preventDefault();
+
+	// deal with phantom clicks
+	if (e.timeStamp == window.LAST_MENU_TOUCH) {
+	    return;
+	}
+	LAST_MENU_TOUCH = e.timeStamp;
+
+	var $menu = $(e.currentTarget).parent().find('.dropdown');
+	var visible = $menu.is(':visible');
+	// close all other menus
+	$('.dropdown').hide();
+	// show this menu if was not open
+	$menu[visible ? 'hide' : 'show']();
+    });
+    // close menus if click anywhere outside menu
+    $(document).bind('touchstart', function(e) { 
+	if(!$(e.target).closest('.dropdown-anchor').length) {
+	    $('.dropdown').hide();
+	}        
     });
 }
 
@@ -1458,7 +1495,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
         ]);
 
-        $('.dropdown').css('max-height', actual_height + 'px');
+        $('.dropdown').css('max-height', actual_height + 'px');	
     }
     
     this.init = function() {
@@ -2561,7 +2598,11 @@ function EMViewModel(merc) {
         });
     }
 
-    that.selectLayer = function(layer) {
+    that.selectLayer = function(layer, e) {
+	if (e && e.currentTarget.postClick) {
+	    e.currentTarget.postClick();
+	}
+	
         if (that.activeLayer()) {
             that.activeLayer().active(false);
         };
@@ -3000,7 +3041,11 @@ function PlaceModel(data, merc) {
     this.default = data.default;
     this.tag = data.tag;
 
-    this.select = function() {
+    this.select = function(item, e) {
+	if (e && e.currentTarget.postClick) {
+	    e.currentTarget.postClick();
+	}
+	
         this._select();
     }
 
