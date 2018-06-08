@@ -335,9 +335,18 @@ h3 {
 <div id="main">
 
 <div id="titlebar" style="color: white; flex: none;">
+  <span id="title">
   <span style="white-space: nowrap;">
     <span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
     <span style="font-family: &quot;Open Sans&quot;, sans-serif; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
+  </span>
+  </span>
+  <span id="title-small" style="display: none;">
+    <span style="white-space: nowrap;">
+      <a href="http://mrgris.com">
+	<span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">M:<b style="color: #eee;">X</b></span>
+      </a>
+    </span>
   </span>
 
   <div style="float: right;">
@@ -510,6 +519,7 @@ h3 {
           <a href="http://www.icomoon.io" title="Icomoon">Icomoon</a>,
           <a href="http://www.simpleicon.com" title="SimpleIcon">SimpleIcon</a>,
           <a href="http://www.icons8.com" title="Icons8">Icons8</a>,
+	  <a href="http://smashicons.com" title="Smashicons">Smashicons</a>,
           <a href="http://www.freepik.com" title="Freepik">Freepik</a>:
           <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0">CC BY 3.0</a>.
         </p>
@@ -607,6 +617,16 @@ h3 {
       </div>
     </div>
   </div>
+  <div class="dropdown-anchor search-dd" style="float: right; position: relative;">
+    <img class="icon" src="img/search.png" title="Search" />
+    <div class="dropdown" style="white-space: nowrap; padding: 8px 15px 0 15px; right: -200px;">
+      <form class="search" id="searchmenu" style="vertical-align: middle;">
+	<input class="locsearch" placeholder="search for place&hellip;" style="width: 20em;"></input>
+	<input type="submit" value="Go"></input>
+      </form>
+    </div>
+  </div> 
+  
   <div class="dropdown-anchor" id="alerts" style="float: right; position: relative; margin-right: 15px;">
     <img class="icon" src="img/alert.png" title="Alerts" />
     <div class="dropdown" style="width: 15em;">
@@ -626,8 +646,8 @@ h3 {
   </div>
   </div>
 
-  <form id="search" style="float: right; margin: 4px 40px 0 20px; vertical-align: middle;">
-    <input id="locsearch" placeholder="search for place&hellip;" style="width: 20em;"></input>
+  <form id="searchbar" class="search" style="float: right; margin: 4px 40px 0 20px; vertical-align: middle;">
+    <input class="locsearch" placeholder="search for place&hellip;" style="width: 20em;"></input>
     <input type="submit" value="Go"></input>
   </form>
   

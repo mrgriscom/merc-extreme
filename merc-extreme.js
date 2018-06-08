@@ -312,7 +312,7 @@ function init() {
     });
 
     geocoder = new GEOCODERS.google();
-    $('#search').submit(function() {
+    $('form.search').submit(function(e) {
         var callbacks = {
             onresult: function(lat, lon) {
                 merc.poleAt(lat, lon);
@@ -336,8 +336,8 @@ function init() {
             return null;
         }
 
-        var query = $('#locsearch').val().trim();
-        var literal_ll = match_ll(query);
+        var query = $(e.target).find('.locsearch').val().trim();
+	var literal_ll = match_ll(query);
         if (literal_ll) {
             callbacks.onresult(literal_ll[0], literal_ll[1]);        
         } else {
@@ -345,7 +345,10 @@ function init() {
         }
         return false;
     });
-
+    $('#searchmenu').submit(function(e) {
+	$(':focus').blur();
+    });
+	
     // menu management for touch UIs
     // (menu close on item click handled via knockout binding)
     // menu open and close from icon
@@ -1495,7 +1498,20 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	        new THREE.Matrix4().makeScale(this.scale_px, this.scale_px, 1),
         ]);
 
-        $('.dropdown').css('max-height', actual_height + 'px');	
+        $('.dropdown').css('max-height', actual_height + 'px');
+
+	$('.search-dd')[actual_width < 950 ? 'show' : 'hide']();
+	$('#searchbar')[actual_width < 950 ? 'hide' : 'show']();
+	if (actual_width < 600) {
+	    $('#title').hide();
+	    $('#title-small').show();
+	} else {
+	    $('#title').show();
+	    $('#title-small').hide();
+	}
+	$('input.locsearch').on('input', function(e) {
+	    $('input.locsearch').val($(e.target).val());
+	});
     }
     
     this.init = function() {
