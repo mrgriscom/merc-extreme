@@ -2583,7 +2583,8 @@ function EMViewModel(merc) {
                                position.coords.longitude];
                 current.origselect();
             }, function(err) {
-                alert('could not get location');
+		var insecure = (window.location.protocol != 'https:');
+                alert('could not get location' + (insecure ? ' (https:// may be required)' : ''));
             });
         };
         var random = new PlaceModel({name: 'Random', special: 'rand'}, merc);
