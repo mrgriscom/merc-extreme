@@ -255,6 +255,11 @@ function init() {
     merc.start();
 
     $('.companion').click(function() {
+	if (window.COMPANION) {
+	    // already open -- close and then we'll re-open below (this is the only way to raise the window due to anti-popup mitigations)
+	    COMPANION.close();
+	}
+	
         COMPANION = window.open('companion/', 'companion', 'width=600,height=600,location=no,menubar=no,toolbar=no,status=no,personalbar=no');
         COMPANION.onbeforeunload = function() { COMPANION = null; };
         return false;
