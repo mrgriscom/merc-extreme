@@ -2192,7 +2192,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             $('#mouseinfo #scale #label').text(scalebar.label);
             $('#mouseinfo #scale #bar').css('width', scalebar.size + 'px');
 
-            if (window.COMPANION) {
+            if (window.COMPANION && !window.EXPORT_IN_PROGRESS) {
                 var tf = this.layer.curlayer.tilefunc;
                 delete this.layer.curlayer.tilefunc;
                 COMPANION.postMessage({
@@ -2250,6 +2250,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             this.cursor.vertices[1] = new THREE.Vector3(merc.x, merc.y + hl, .1);
             this.cursor.verticesNeedUpdate = true;
         } else {
+	    // don't worry about export mode as pole shouldn't be in motion anyway
 	    this.hideCursor();
         }
 
