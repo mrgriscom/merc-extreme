@@ -2124,6 +2124,12 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.hline.verticesNeedUpdate = true;
     }
 
+    this.hideCursor = function() {
+        this.cursor.vertices[0] = new THREE.Vector3(0, 0, -1);
+        this.cursor.vertices[1] = new THREE.Vector3(0, 0, -1);
+        this.cursor.verticesNeedUpdate = true;
+    }
+
     this.render = function(timestamp) {
         var renderer = this;
 
@@ -2219,7 +2225,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         }
 
         if (window.CURSOR && window.CURSOR_ENABLED) {
-	        var coords = inv_translate_pole(CURSOR, renderer.curPole);
+	    var coords = inv_translate_pole(CURSOR, renderer.curPole);
             var merc = ll_to_xy(coords[0], coords[1]);
             var offset = this.layer.uniforms.blinder_start.value;
             merc.x = (merc.x - offset) % 1. + offset;
@@ -2239,9 +2245,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             this.cursor.vertices[1] = new THREE.Vector3(merc.x, merc.y + hl, .1);
             this.cursor.verticesNeedUpdate = true;
         } else {
-            this.cursor.vertices[0] = new THREE.Vector3(0, 0, -1);
-            this.cursor.vertices[1] = new THREE.Vector3(0, 0, -1);
-            this.cursor.verticesNeedUpdate = true;
+	    this.hideCursor();
         }
 
         var p0 = renderer.xyToWorld(0, this.height_px);
@@ -2290,6 +2294,10 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         }
 
         if (!this.sampling_in_progress && (this.last_sampling == null || timestamp - this.last_sampling > 1./SAMPLE_TIME_FREQ)) {
+	    // need to hide all UI adornments or else they get misinterpreted as tile coords
+	    this.hideLines();
+	    this.hideCursor();
+	    
             this.sampling_in_progress = true;
             this.sampling_started_at = clock();
             setMaterials('sampler');
