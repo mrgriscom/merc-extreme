@@ -42,6 +42,8 @@ var SCREEN_CONFIG_MULTIPLIER = 2.  // overprovision for a screen this times larg
                                    // (alternative is to recompile the shader dynamically)
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 5;               // number of zoom levels early to switch to 'high precision' mode
+var LINEAR_INTERP_MIN_CELL_SIZE = 32;   // (px) limit to subdivision during linear interpolation, to cap # of triangles,
+                                        // at expense of more error and worse 'crinkling'
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
 var GUESS_POLE_COLOR = true;
@@ -649,11 +651,11 @@ GridGeometry = function(maxquads) {
 
     this.maxquads = maxquads;
     this.addAttribute('index', Uint16Array, this.maxquads * 6, 1);
-	this.addAttribute('position', Float32Array, this.maxquads * 4, 3);
-	this.addAttribute('uv', Float32Array, this.maxquads * 4, 2);
-	this.addAttribute('uv2', Float32Array, this.maxquads * 4, 2);
+    this.addAttribute('position', Float32Array, this.maxquads * 4, 3);
+    this.addAttribute('uv', Float32Array, this.maxquads * 4, 2);
+    this.addAttribute('uv2', Float32Array, this.maxquads * 4, 2);
     this.offsets.push({
-		start: 0,
+	start: 0,
         index: 0,
         count: this.attributes.index.array.length
     });
@@ -683,11 +685,7 @@ GridGeometry = function(maxquads) {
     }
 
     this.clearQuads = function(beyond) {
-        var attr = this.attributes.index;
-        for (var i = beyond * 6; i < attr.array.length; i++) {
-            attr.array[i] = 0;
-        }
-        attr.needsUpdate = true;
+	this.offsets[0].count = beyond * 6;
     }
 
 }
@@ -2020,7 +2018,6 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         var r = ll_to_xy(ll[0], ll[1]);
         return [unwraparound(offset.x, r.x), r.y];
     }
-    var MIN_CELL_SIZE = 32;
     this.linearInterp = function(x0, x1, y0, y1, offset) {
         var buf = [];
         if (y0 < y1) {
@@ -2036,7 +2033,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this._linearInterp = function(buf, offset, x0, x1, y0, y1, mp) {
         var width = (y1 - y0);
         var height = (x1 - x0);
-        var min_cell_size = 2. * MIN_CELL_SIZE / this.scale_px;
+        var min_cell_size = 2. * LINEAR_INTERP_MIN_CELL_SIZE / this.scale_px;
         var terminal = width <= min_cell_size && height <= min_cell_size;
 
         if (!terminal) {
@@ -2090,16 +2087,33 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         var plane = new THREE.Mesh(grid, this.layer._materials['image'][geo_mode]);
         plane.frustumCulled = false;
         plane.geo_mode = geo_mode;
+
+	var merc = this;
         plane.update = function(x0, x1, y0, y1, tex) {
             grid.setQuad(0, x0, x1, y0, y1, tex);
         };
         plane.updateAll = function(data) {
+	    if (data.length > grid.maxquads) {
+		var quad = this.resize(data.length);
+		return quad.updateAll(data);
+	    }
+	    
             for (var i = 0; i < data.length; i++) {
                 var q = data[i];
                 grid.setQuad(i, q.x0, q.x1, q.y0, q.y1, q.tex);
             }
             grid.clearQuads(data.length);
+	    return this;
         };
+	plane.resize = function(size) {
+	    for (var newmax = grid.maxquads; newmax < size; newmax *= 2);
+	    console.log('resizing grid ' + grid.maxquads + ' to ' + newmax);
+
+	    merc.pane.remove(this);
+	    merc.currentObjs = _.without(merc.currentObjs, this);
+	    return merc.makeQuad(geo_mode, newmax);
+	}
+	
         this.pane.add(plane);
         this.currentObjs.push(plane);
         return plane;
@@ -2141,10 +2155,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.applyAnimationContext();
 
         if (!this.currentObjs.length) {
+	    var LINEAR_INTERP_DEFAULT_MESH_SIZE = 1024;
             this.qPolar = this.makeQuad('flat');
             this.qPolarAnti = this.makeQuad('flat');
-            this.qLinear = this.makeQuad('linear', 1024);
-            this.qLinearAnti = this.makeQuad('linear', 1024);
+            this.qLinear = this.makeQuad('linear', LINEAR_INTERP_DEFAULT_MESH_SIZE);
+            this.qLinearAnti = this.makeQuad('linear', LINEAR_INTERP_DEFAULT_MESH_SIZE);
             this.qGooeyMiddle = this.makeQuad('sphere');
 
             CURSOR_SIZE = 3;
@@ -2275,21 +2290,21 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         flat_earth_cutoff = Math.max(flat_earth_cutoff, low_prec_cutoff);
 
         this.qPolarAnti.update(xtop, xbottom, yleft, -flat_earth_cutoff);
-        this.qLinearAnti.updateAll(this.linearInterp(
+        this.qLinearAnti = this.qLinearAnti.updateAll(this.linearInterp(
             xtop,
             xbottom,
             Math.max(-flat_earth_cutoff, p0.y),
             Math.min(-low_prec_cutoff, p1.y),
             this.hp_anti_ref_t));
         this.qGooeyMiddle.update(xtop, xbottom, -low_prec_cutoff, low_prec_cutoff);
-        this.qLinear.updateAll(this.linearInterp(
+        this.qLinear = this.qLinear.updateAll(this.linearInterp(
             xtop,
             xbottom,
             Math.max(low_prec_cutoff, p0.y),
             Math.min(flat_earth_cutoff, p1.y),
             this.hp_ref_t));
         this.qPolar.update(xtop, xbottom, flat_earth_cutoff, yright);
-
+	
         this.layer.handlePending();
         this.renderer.render(this.scene, this.camera);
 
