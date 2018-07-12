@@ -33,7 +33,7 @@ var vertex_shader;
 var fragment_shader;
 
 var TILE_SIZE = 256;               // (px) dimensions of a map tile
-var MAX_ZOOM = 22;                 // max zoom level to attempt to fetch image tiles
+var MAX_ZOOM = 23;                 // max zoom level to attempt to fetch image tiles
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
 var PREFERRED_ATLAS_TEX_SIZE = 4096;   // (px) dimensions of single page of texture atlas
@@ -47,7 +47,7 @@ var LINEAR_INTERP_MIN_CELL_SIZE = 32;   // (px) limit to subdivision during line
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
 var GUESS_POLE_COLOR = true;
-var MAX_MERC = 2.5;
+var MAX_MERC = 2.6;
 var DEFAULT_EXTENT_S = .5;
 
 var MIN_TRAVEL_TIME = 2.;
@@ -3138,6 +3138,11 @@ function load_tile_specs() {
         attr: ['Google'],
     },
     {
+        name: 'Google Satellite (deep)',
+	url: 'http://khm{s:0-3}.googleapis.com/kh?v=802&x={x}&y={y}&z={z}',
+        attr: ['Google'],
+    },
+    {
         name: 'Google Terrain',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         max_depth: 15,
@@ -3498,7 +3503,7 @@ function compile_tile_spec(spec, no_guess) {
 // try to deduce from sample tile of known location
 function guess_spec(spec, known_point) {
     var MIN_Z = 6;
-    var MAX_Z = 22;
+    var MAX_Z = MAX_ZOOM;
     var WINDOW_AT_MIN_Z = 3;
 
     var to_tile = function(known_point, axis, z) {
