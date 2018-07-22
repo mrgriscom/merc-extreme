@@ -47,7 +47,8 @@ var LINEAR_INTERP_MIN_CELL_SIZE = 32;   // (px) limit to subdivision during line
 var NORTH_POLE_COLOR = '#ccc';
 var SOUTH_POLE_COLOR = '#aaa';
 var GUESS_POLE_COLOR = true;
-var MAX_MERC = 2.6;
+var MAX_MERC = 2.6;  // ~1m from pole
+var DEFAULT_EXTENT_N = 2.5;
 var DEFAULT_EXTENT_S = .5;
 
 var MIN_TRAVEL_TIME = 2.;
@@ -174,7 +175,7 @@ function init() {
     var merc = new MercatorRenderer(env.gl, $('#container'), function(window) {
 	var $c = $('#container');
         return [$c.width(), $c.height()];
-    }, MAX_MERC, DEFAULT_EXTENT_S);
+    }, DEFAULT_EXTENT_N, DEFAULT_EXTENT_S);
     MERC = merc;
 
     SLIDERS = {};
@@ -2432,10 +2433,11 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         } else {
             var curHeight = this.xyToWorld(0, 0).x - this.xyToWorld(0, this.height_px).x;
             var curRight = this.xyToWorld(this.width_px, 0).y;
-            var targetHeight = (MAX_MERC + (args.extentS || DEFAULT_EXTENT_S)) / this.aspect;
+	    var targetRight = Math.max(curRight, args.extentN || DEFAULT_EXTENT_N);
+            var targetHeight = (targetRight + (args.extentS || DEFAULT_EXTENT_S)) / this.aspect;
             var finalHeight = Math.max(curHeight, targetHeight);
             var zoom = finalHeight / curHeight;
-            var dhoriz = MAX_MERC - curRight;
+            var dhoriz = targetRight - curRight;
             var _ratio = dhoriz / (finalHeight / curHeight - 1);
             var x0 = this.width_px - _ratio * this.scale_px;
             var y0 = this.height_px * .5;
@@ -3106,7 +3108,7 @@ function PlaceModel(data, merc) {
             args.target_heading = this.lon_center;
         }
         if (this.antipode) {
-            args.extentS = MAX_MERC;
+            args.extentS = DEFAULT_EXTENT_N;
         }
         merc.poleAt(this.pos[0], this.pos[1], args);
     }
