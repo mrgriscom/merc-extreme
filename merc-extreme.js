@@ -132,7 +132,7 @@ function setComputedConstants(GL) {
 	console.log('index texture size, max offset', TEX_IX_SIZE, TILE_OFFSET_RESOLUTION);
 	if (GL) {
 	    var glLimits = getGLLimits(GL);
-	    ERR.setError('precision', glLimits.fracment_precision_bits < 23);
+	    ERR.setError('precision', glLimits.fragment_precision_bits < 23);
 	    // it is extremely unlikely the index texture size will exceed device capabilities, even with over-provisioning
 	    ERR.setError('size', TEX_IX_SIZE > glLimits.texsize);
 	    
@@ -2712,16 +2712,35 @@ function EMViewModel(merc) {
     this.toggleWaypointMode = function() {
         this.show_waypoint(!this.show_waypoint());
     }
+
+    this.dismissErrors = function() {
+	ERR.dismissAll();
+    }
 }
 
 function ErrorContext() {
-    var errors = {};
-
+    this.errors = {};
+    this.dismissed = {};
+    
     this.setError = function(name, val) {
-        errors[name] = val;
+	if (this.dismissed[name]) {
+	    return;
+	}
+	
+        this.errors[name] = val;
         $('#err_' + name)[val ? 'show' : 'hide']();
-        var any_errors = _.reduce(_.values(errors), function(memo, val) { return memo || val; }, false);
+        var any_errors = _.reduce(_.values(this.errors), function(memo, val) { return memo || val; }, false);
         $('#alerts')[any_errors ? 'show' : 'hide']();
+    }
+
+    this.dismissAll = function() {
+	var that = this;
+	_.each(this.errors, function(v, k) {
+	    if (v) {
+		that.setError(k, false);
+		that.dismissed[k] = true;
+	    }
+	});
     }
 }
 
