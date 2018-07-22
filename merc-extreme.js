@@ -3084,6 +3084,7 @@ function PlaceModel(data, merc) {
     this.pos = data.pos;
     this.lon_center = data.lon_center;
     this.antipode = data.antipode;
+    this.deep = data.deep;
     this.byline = ko.observable(data.desc);
     this.special = ko.observable(data.special);
     this.default = data.default;
@@ -3110,6 +3111,9 @@ function PlaceModel(data, merc) {
         if (this.antipode) {
             args.extentS = DEFAULT_EXTENT_N;
         }
+	if (this.deep) {
+	    args.extentN = MAX_MERC;
+	}
         merc.poleAt(this.pos[0], this.pos[1], args);
     }
 
@@ -3267,6 +3271,10 @@ landmarks = [{
     pos: [40.7864, -119.2065],
     lon_center: 267,
 }, {
+    name: 'African Market',
+    pos: [-3.002295, 33.090074],
+    deep: true,
+}, {
     name: 'St. Peter\'s Basilica',
     pos: [41.90224, 12.45725]
 }, {
@@ -3325,6 +3333,10 @@ landmarks = [{
     name: 'Bondi Beach',
     pos: [-33.89105, 151.27766],
     lon_center: 220,
+}, {
+    name: 'Sahel Camels',
+    pos: [15.298448, 19.429545],
+    deep: true,
 }, {
     name: 'Panama Canal',
     pos: [9.11925, -79.75897],
