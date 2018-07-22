@@ -3200,14 +3200,16 @@ function load_tile_specs() {
     */
     {
         name: 'VIIRS Night (limited zoom)',
-        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
+	// actually 4 shards, but 3&4 have https errors so don't work
+        url: 'https://map{s:1-2}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
         no_z0: true,
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
         max_depth: 8,
     },
     {
-        name: 'VIIRS Daily (limited zoom)',
-        url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/' + (function() {
+        name: 'VIIRS Live (limited zoom)',
+	// actually 4 shards, but 3&4 have https errors so don't work
+        url: 'https://map{s:1-2}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/' + (function() {
 	    // Most recent snapshot seems to often have data gaps; use slightly stale data
 	    var lookback = 1.5;  // days
 	    return moment().utc().subtract(lookback * 24, 'hours').format('YYYY-MM-DD');
