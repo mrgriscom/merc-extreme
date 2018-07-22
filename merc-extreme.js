@@ -2637,10 +2637,10 @@ function EMViewModel(merc) {
             var layer = $e.attr('layer');
             if (layer) {
                 var actual_layer = {
-                    map: 'Google Map',
-                    sat: 'Google Satellite',
+                    map: 'google:map',
+                    sat: 'google:sat',
                 }[layer];
-                that.selectLayer(_.find(that.layers(), function(e) { return e.name() == actual_layer; }));
+                that.selectLayer(_.find(that.layers(), function(e) { return e.key() == actual_layer; }));
             }
             return false;
         });
@@ -2981,10 +2981,14 @@ function LayerModel(data, merc, root) {
     this.attr = data.attr;
 
     this.url = ko.observable();
+    this.urlgen = ko.observable();
+    this.key = ko.observable();
     this.id = ko.computed(function() {
-        return string_hash(this.url() || '');
+        return string_hash(this.key() || this.url() || '');
     }, this);
     this.url(data.url);
+    this.urlgen(data.urlgen);
+    this.key(data.key);
 
     this.name = ko.observable(data.name);
     this.max_depth = ko.observable(data.max_depth);
@@ -2996,7 +3000,13 @@ function LayerModel(data, merc, root) {
     this.pending = ko.observable(false);
 
     this.tilefunc = ko.computed(function() {
-        return this.url() ? compile_tile_spec(this.url()) : null;
+	if (this.urlgen()) {
+	    return this.urlgen()();
+	} else if (this.url()) {
+	    return compile_tile_spec(this.url());
+	} else {
+	    return null;
+	}
     }, this);
     this.attribution = ko.computed(function() {
         var s = _.map(this.attr, function(e) {
@@ -3135,33 +3145,40 @@ function load_tile_specs() {
     return [
     {
         name: 'Google Map',
+	key: 'google:map',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     {
         name: 'Google Satellite',
-        url: 'https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        attr: ['Google'],
-    },
-    {
-        name: 'Google Satellite (deep)',
-	url: 'http://khm{s:0-3}.googleapis.com/kh?v=802&x={x}&y={y}&z={z}',
+	key: 'google:sat',
+	urlgen: function() {
+	    var base = compile_tile_spec('https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}');
+	    // only this urlspec has ultra-deep tiles, but it is much slower than the usual url
+	    var deep = compile_tile_spec('http://khm{s:0-3}.googleapis.com/kh?v=802&x={x}&y={y}&z={z}');
+	    return function(z, x, y) {
+		return (z > 22 ? deep : base)(z, x, y);
+	    };
+	},
         attr: ['Google'],
     },
     {
         name: 'Google Terrain',
+	key: 'google:terrain',
         url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
         max_depth: 15,
         attr: ['Google'],
     },
     {
         name: 'Google Transit',
+	key: 'google:transit',
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     /*
     {
         name: 'Mapbox Terrain',
+	key: 'mapbox:terrain',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mrgriscom.i8gjfm3i/{z}/{x}/{y}.png',
         max_depth: 14,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
@@ -3169,33 +3186,39 @@ function load_tile_specs() {
     */
     {
         name: '"Space Station" by Mapbox',
+	key: 'mapbox:space',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.4iecw76a/{z}/{x}/{y}.png?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     /* gone!! :'(
     {
         name: '"Zombie World" by Mapbox',
+	key: 'mapbox:zombie',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.fb8f9523/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     */
     {
         name: '"Pencil" by Mapbox',
+	key: 'mapbox:pencil',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/aj.03e9e12d/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         name: '"Woodcut" by Mapbox',
+	key: 'mapbox:wood',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.b0v97egc/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         name: 'Pinterest theme by Stamen',
+	key: 'stamen:pinterest',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/pinterest.map-ho21rkos/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
         name: '"Oilslick" Color Elevation',
+	key: 'mrgriscom:oilslick',
         url: 'http://s3.amazonaws.com/oilslick/{z}/{x}/{y}.jpg',
         attr: [['Drew Roos', 'http://mrgris.com/projects/oilslick/'], ['Jonathan de Ferranti', 'http://www.viewfinderpanoramas.org/dem3.html'], ['NSIDC', 'http://nsidc.org/data/nsidc-0082']],
         max_depth: 11,
@@ -3203,6 +3226,7 @@ function load_tile_specs() {
     /* CORS restricted
     {
         name: 'Strava Heatmap',
+	key: 'strava:',
         url: 'http://{s:abc}-globalheat.strava.com/tiles/both/color7/{z}/{x}/{y}.png?v=6',
         no_z0: true,
         attr: ['Strava'],
@@ -3211,6 +3235,7 @@ function load_tile_specs() {
     */
     {
         name: 'VIIRS Night (limited zoom)',
+	key: 'viirs:night',
         url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
         no_z0: true,
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
@@ -3218,6 +3243,7 @@ function load_tile_specs() {
     },
     {
         name: 'VIIRS Daily (limited zoom)',
+	key: 'viirs:live',
         url: 'http://map{s:1-4}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/' + (function() {
 	    // Most recent snapshot seems to often have data gaps; use slightly stale data
 	    var lookback = 1.5;  // days
@@ -3229,12 +3255,14 @@ function load_tile_specs() {
     /*
     {
         name: 'Bing Map',
+	key: 'bing:map',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=' + API_KEYS.bing,
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
     {
         name: 'Bing Satellite',
+	key: 'bing:sat',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/a{qt}?g=2432&n=z&key=' + API_KEYS.bing,
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
@@ -3242,19 +3270,14 @@ function load_tile_specs() {
     */
     {
         name: 'Bing Hybrid',
+	key: 'bing:hybrid',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
         no_z0: true,
         attr: ['Microsoft', 'Nokia'],
     },
-    /*
-    {
-        name: 'Mapquest Open',
-        url: 'http://otile{s:1-4}.mqcdn.com/tiles/1.0.0/map/{z}/{x}/{y}.png',
-        attr: ['Mapquest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
-    },
-    */
     {
         name: 'OSM Mapnik',
+	key: 'osm:mapnik',
         url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
