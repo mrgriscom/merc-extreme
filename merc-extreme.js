@@ -2425,8 +2425,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             this.setAnimationContext(null);
             this.curPole = [lat, lon];
             this.last_sampling = null;
-            var dlon = (args.target_heading - args.start_heading) || 0;
-            if (dlon != 0) {
+            if (args.target_heading != null) {
+		var dlon = args.target_heading - central_heading();
                 this.setWorldMatrix([new THREE.Matrix4().makeTranslation(0, -dlon / 360 * this.scale_px, 0)], true);
             }
             // TODO support extentS
@@ -2464,7 +2464,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
     this.swapPoles = function() {
         var pole = antipode(this.curPole);
-        this.poleAt(pole[0], pole[1], {duration: MIN_TRAVEL_TIME});
+        this.poleAt(pole[0], pole[1], {duration: MIN_TRAVEL_TIME, antipode_heading: central_heading()});
     }
 
     this.init();
@@ -2912,11 +2912,14 @@ function GoToAnimationContext(start, end, transform, args) {
 
     var dist = distance(start, end);
     var init_heading = bearing(start, end);
+    if (init_heading == null) {
+	init_heading = args.antipode_heading;
+    }
     var plotter = line_plotter(start, init_heading);
     var end_heading = plotter(dist, true).heading;
 
-    if (args.target_heading != null && args.start_heading != null) {
-        this.heading_change = lon_norm((args.target_heading - end_heading) - (args.start_heading - init_heading));
+    if (args.target_heading != null) {
+        this.heading_change = lon_norm((args.target_heading - end_heading) - (central_heading() - init_heading));
     } else {
         this.heading_change = 0;
     }
@@ -3133,8 +3136,6 @@ function PlaceModel(data, merc) {
             args.duration = 0;
         }
         if (this.lon_center != null) {
-            var p = merc.xyToWorld(0, .5 * merc.height_px);
-            args.start_heading = 180 - xy_to_ll(p.x, 0)[1];
             args.target_heading = this.lon_center;
         }
         if (this.antipode) {
@@ -3152,6 +3153,11 @@ function PlaceModel(data, merc) {
             'rand': 'img/dice.png'
         }[this.special()];
     }, this);
+}
+
+function central_heading() {
+    var p = MERC.xyToWorld(0, .5 * MERC.height_px);
+    return 180 - xy_to_ll(p.x, 0)[1];
 }
 
 API_KEYS = {
