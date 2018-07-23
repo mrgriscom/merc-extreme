@@ -1,15 +1,14 @@
 
 TileLayer = L.TileLayer.extend({
     getTileUrl: function (tilePoint) {
-        if (!this._toUrl) {
-            this._toUrl = compile_tile_spec(this._url);
-        }
         return this._toUrl(this._getZoomForUrl(), tilePoint.x, tilePoint.y);
     }
 });
 
 
 function init_companion() {
+    LAYERS = load_tile_specs();
+    
     var map = new L.Map('map', {
         attributionControl: false,
         zoomControl: false,
@@ -153,7 +152,13 @@ function mk_layer(layer) {
         maxZoom: layer.max_depth || 19,
         minZoom: layer.no_z0 ? 1 : 0,
     };
-    var maplayer = new TileLayer(layer.url, opts);
+    var maplayer = new TileLayer(null, opts);
+    if (layer.url != null) {
+        maplayer._toUrl = compile_tile_spec(layer.url);
+    } else {
+	var spec = _.find(LAYERS, function(e) { return e.key == layer.key; });
+	maplayer._toUrl = spec.urlgen();
+    }    
     maplayer.tag = layer.id;
     return maplayer;
 }

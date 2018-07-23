@@ -3086,6 +3086,7 @@ function LayerModel(data, merc, root) {
     this.to_obj = function() {
         return {
             id: this.id(),
+	    key: this.key(),
             url: this.url(),
             tilefunc: this.tilefunc(),
             max_depth: this.max_depth(),
