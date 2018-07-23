@@ -2420,6 +2420,14 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     
 
     this.poleAt = function(lat, lon, args) {
+	// avoid weird discontinuities that occur exactly at the pole -- should still round to 90.0 in display
+	var MAX_LAT = 89.9999999;
+	if (Math.abs(lat) > MAX_LAT) {
+	    lat = MAX_LAT * (lat > 0 ? 1 : -1);
+	    // ensure modified poles are still antipodal
+	    lon = (lat > 0 ? 0 : 180);
+	}
+	
         args = args || {};
         if (args.duration === 0) {
             this.setAnimationContext(null);
@@ -2464,7 +2472,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 
     this.swapPoles = function() {
         var pole = antipode(this.curPole);
-        this.poleAt(pole[0], pole[1], {duration: MIN_TRAVEL_TIME, antipode_heading: central_heading()});
+        this.poleAt(pole[0], pole[1], {duration: MIN_TRAVEL_TIME});
     }
 
     this.init();
@@ -2913,7 +2921,8 @@ function GoToAnimationContext(start, end, transform, args) {
     var dist = distance(start, end);
     var init_heading = bearing(start, end);
     if (init_heading == null) {
-	init_heading = args.antipode_heading;
+	// antipode or current pole
+	init_heading = args.antipode_heading || central_heading();
     }
     var plotter = line_plotter(start, init_heading);
     var end_heading = plotter(dist, true).heading;
@@ -3423,14 +3432,9 @@ landmarks = [{
     pos: [29.14828, -89.25165],
     lon_center: 300
 }, {
-    name: 'North Pole',
-    // Don't set to 90 to avoid directional discontinuity
-    pos: [89.999999, 0],
-    tag: 'np'
-}, {
     name: 'South Pole',
-    // Don't set to 90 to avoid directional discontinuity
-    pos: [-89.999999, 0]
+    pos: [-90, 0],
+    tag: 'sp',
 }];
 
 //=== UTIL ===
