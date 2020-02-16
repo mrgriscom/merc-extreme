@@ -3206,7 +3206,7 @@ function load_tile_specs() {
     },
     {
         name: 'Google Transit',
-	key: 'google:transit',
+        key: 'google:transit',
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
@@ -3219,10 +3219,11 @@ function load_tile_specs() {
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     */
-    {
+	{
         name: '"Space Station" by Mapbox',
-	key: 'mapbox:space',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.4iecw76a/{z}/{x}/{y}.png?access_token=' + API_KEYS.mapbox,
+			key: 'mapbox:space',
+		url: 'https://{s:abcd}.tiles.mapbox.com/v3/eleanor.ipncow29/{z}/{x}/{y}.png',
+		// no longer works -> url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.4iecw76a/{z}/{x}/{y}.png?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     /* gone!! :'(
@@ -3242,7 +3243,8 @@ function load_tile_specs() {
     {
         name: '"Woodcut" by Mapbox',
 	key: 'mapbox:wood',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.b0v97egc/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
+		url: 'https://{s:abcd}.tiles.mapbox.com/v3/eleanor.mnyzxgvi/{z}/{x}/{y}.png',
+        // no longer works -> url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.b0v97egc/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
@@ -3406,7 +3408,7 @@ landmarks = [{
 //    pos: [24.63025, -82.87126]
 }, {
     name: 'Christ the Redeemer',
-    pos: [-22.95227, -43.21070],
+    pos: [-22.95237, -43.21043],
     lon_center: 90
 }, {
     name: 'Great Bend of Brahmaputra',
