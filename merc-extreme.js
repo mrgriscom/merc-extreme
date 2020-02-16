@@ -3254,22 +3254,20 @@ function load_tile_specs() {
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
+        name: 'Strava Heatmap',
+		key: 'strava:',
+		url: 'https://cors-proxy.mrgriscom.workers.dev/?https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
+        no_z0: true,
+        attr: ['Strava'],
+        max_depth: 12,  // login required for higher
+    },
+    {
         name: '"Oilslick" Color Elevation',
 	key: 'mrgriscom:oilslick',
         url: 'http://s3.amazonaws.com/oilslick/{z}/{x}/{y}.jpg',
         attr: [['Drew Roos', 'http://mrgris.com/projects/oilslick/'], ['Jonathan de Ferranti', 'http://www.viewfinderpanoramas.org/dem3.html'], ['NSIDC', 'http://nsidc.org/data/nsidc-0082']],
         max_depth: 11,
     },
-    /* CORS restricted
-    {
-        name: 'Strava Heatmap',
-	key: 'strava:',
-        url: 'http://{s:abc}-globalheat.strava.com/tiles/both/color7/{z}/{x}/{y}.png?v=6',
-        no_z0: true,
-        attr: ['Strava'],
-        max_depth: 16,
-    },
-    */
     {
         name: 'VIIRS Night (limited zoom)',
 	key: 'viirs:night',
