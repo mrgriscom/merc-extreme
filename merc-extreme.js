@@ -2549,6 +2549,21 @@ function load_image(layer, tile, onload) {
         return;
     }
 
+	if (layer.bg) {
+		var _onload = onload;
+		onload = function(img) {
+            if (img != null) {
+				var c = mk_canvas(TILE_SIZE, TILE_SIZE);
+				c.context.fillStyle = layer.bg;
+				c.context.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                c.context.drawImage(img, 0, 0);
+                _onload(c.canvas);
+			} else {
+				_onload(null);
+			}
+        }
+    }
+	
     var img = new Image();
     img.onload = function() { onload(img); };
     img.onerror = function() { onload(null); }; // 404 or CORS denial
@@ -3025,6 +3040,7 @@ function LayerModel(data, merc, root) {
     this.max_depth = ko.observable(data.max_depth);
     this.smin_depth = ko.observable(/* from custom layer save */ data.smin_depth || /* from tile spec */ ("" + (data.no_z0 ? 1 : 0)));
     this.min_depth = ko.computed(function() { return +this.smin_depth(); }, this);
+	this.bg = data.transparency_bg;
     this.custom = ko.observable(data.custom);
     this.active = ko.observable(false);
 
@@ -3086,11 +3102,12 @@ function LayerModel(data, merc, root) {
     this.to_obj = function() {
         return {
             id: this.id(),
-	    key: this.key(),
+     	    key: this.key(),
             url: this.url(),
             tilefunc: this.tilefunc(),
             max_depth: this.max_depth(),
             no_z0: this.min_depth() > 0,
+			bg: this.bg,
         };
     }
 
@@ -3260,6 +3277,7 @@ function load_tile_specs() {
         no_z0: true,
         attr: ['Strava'],
         max_depth: 12,  // login required for higher
+		transparency_bg: '#000',
     },
     {
         name: '"Oilslick" Color Elevation',
