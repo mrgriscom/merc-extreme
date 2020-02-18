@@ -3227,6 +3227,15 @@ function load_tile_specs() {
         url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
+    {
+        name: 'Strava Heatmap',
+		key: 'strava:',
+		url: 'https://cors-proxy.mrgriscom.workers.dev/?https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
+        no_z0: true,
+        attr: ['Strava'],
+        max_depth: 12,  // login required for higher
+		transparency_bg: '#000',
+    },
     /*
     {
         name: 'Mapbox Terrain',
@@ -3265,19 +3274,22 @@ function load_tile_specs() {
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
+        name: '"Wheatpaste" by Mapbox',
+	key: 'mapbox:wheatpaste',
+		url: 'https://{s:abcd}.tiles.mapbox.com/v3/musickey.o4c60m8a/{z}/{x}/{y}.png',
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    {
+        name: '"Watercolor" by Stamen',
+	key: 'stamen:watercolor',
+        url: 'http://{s:abcd}.tile.stamen.com/watercolor/{z}/{x}/{y}.jpg',
+        attr: [['Stamen Design', 'https://stamen.com/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    {
         name: 'Pinterest theme by Stamen',
 	key: 'stamen:pinterest',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/pinterest.map-ho21rkos/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
-    },
-    {
-        name: 'Strava Heatmap',
-		key: 'strava:',
-		url: 'https://cors-proxy.mrgriscom.workers.dev/?https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
-        no_z0: true,
-        attr: ['Strava'],
-        max_depth: 12,  // login required for higher
-		transparency_bg: '#000',
     },
     {
         name: '"Oilslick" Color Elevation',
@@ -3338,7 +3350,7 @@ function load_tile_specs() {
     },
     ];
 }
-    
+
 landmarks = [{
     name: 'Arc de Triomphe',
     pos: [48.87379, 2.29504],
