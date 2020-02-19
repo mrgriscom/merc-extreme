@@ -2202,7 +2202,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             $('#mouseinfo #dist').text(format_with_unit(dist, scale, unit));
             var bearing_prec = prec_digits_for_res(360. / this.scale_px);
             var bearing_cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][mod(Math.floor(bearing / 45. + .5), 8)];
-            $('#mouseinfo #bearing').text(npad(bearing.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0 (' + bearing_cardinal + ')');
+			var bearing_rounded = Math.max(bearing - .5*Math.pow(10., -bearing_prec), 0. /* cap to avoid minus sign */); // simulate round down to avoid 360.000 instead of 0.000
+            $('#mouseinfo #bearing').text(npad(bearing_rounded.toFixed(bearing_prec), bearing_prec + 3 + (bearing_prec > 0 ? 1 : 0)) + '\xb0 (' + bearing_cardinal + ')');
             $('#orient img').css('transform', 'rotate(' + ((this.horizontalOrientation ? 270 : 180) - orient) + 'deg)');
             var scalebar = snap_scale(scale, 33);
             $('#mouseinfo #scale #label').text(scalebar.label);
