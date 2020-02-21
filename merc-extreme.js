@@ -3332,6 +3332,20 @@ function load_tile_specs() {
         attr: ['Esri', 'National Geographic'],
         max_depth: 12,  // higher in US but we've have to detect 'no data' image for rest of world
     },
+    {
+        name: 'World Aeronautical',
+		key: 'skyvector:',
+		no_z0: true,
+		max_depth: 11,
+		no_cors: true,  // ignored due to custom urlgen
+		attr: [['SkyVector', 'https://skyvector.com/']],
+		urlgen: function() {
+			var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4zRihf1nr61/301/2002/{z}/{x}/{y}.jpg'));
+			return function(z, x, y) {
+				return spec(23 - 2*z, x, y);
+			};
+		},
+    },
     /*
     {
         name: 'Bing Map',
