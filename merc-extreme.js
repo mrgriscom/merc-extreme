@@ -3022,6 +3022,10 @@ function DrivingAnimationContext(start, speed, heading, merc) {
     this.onfinish = function() {}
 }
 
+function CORS_PROXY(url) {
+	return 'https://cors-proxy.mrgriscom.workers.dev/?' + url;
+}
+
 function LayerModel(data, merc, root) {
     var that = this;
 
@@ -3033,7 +3037,7 @@ function LayerModel(data, merc, root) {
     this.id = ko.computed(function() {
         return string_hash(this.key() || this.url() || '');
     }, this);
-    this.url(data.url);
+    this.url(data.no_cors ? CORS_PROXY(data.url) : data.url);
     this.urlgen(data.urlgen);
     this.key(data.key);
 
@@ -3231,10 +3235,11 @@ function load_tile_specs() {
     {
         name: 'Strava Heatmap',
 		key: 'strava:',
-		url: 'https://cors-proxy.mrgriscom.workers.dev/?https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
+		url: 'https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
         no_z0: true,
         attr: ['Strava'],
         max_depth: 12,  // login required for higher
+		no_cors: true,
 		transparency_bg: '#000',
     },
     /*
@@ -3319,6 +3324,13 @@ function load_tile_specs() {
 	})() + '/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
         max_depth: 9,
+    },
+    {
+        name: 'National Geographic',
+		key: 'esri:natgeo',
+		url: 'https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+        attr: ['Esri', 'National Geographic'],
+        max_depth: 12,  // higher in US but we've have to detect 'no data' image for rest of world
     },
     /*
     {
