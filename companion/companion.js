@@ -88,6 +88,7 @@ function update(map, data) {
             map.removeLayer(map.cur_layer);
         }
         map.cur_layer = new_layer;
+		$('#map').css('background', data.layer.bg || '#ddd');
     }
 
     if (data.dist == null) {
