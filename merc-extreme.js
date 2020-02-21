@@ -3023,6 +3023,10 @@ function DrivingAnimationContext(start, speed, heading, merc) {
 }
 
 function CORS_PROXY(url) {
+	if (url == null) {
+		// messes with urlgen() in companion mode otherwise
+		return null;
+	}
 	return 'https://cors-proxy.mrgriscom.workers.dev/?' + url;
 }
 
