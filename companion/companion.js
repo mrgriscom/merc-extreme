@@ -157,8 +157,8 @@ function mk_layer(layer) {
     if (layer.url != null) {
         maplayer._toUrl = compile_tile_spec(layer.url);
     } else {
-	var spec = _.find(LAYERS, function(e) { return e.key == layer.key; });
-	maplayer._toUrl = spec.urlgen();
+	    var spec = _.find(LAYERS, function(e) { return e.key == layer.key; });
+	    maplayer._toUrl = spec.urlgen();
     }    
     maplayer.tag = layer.id;
     return maplayer;
