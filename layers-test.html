@@ -8,45 +8,18 @@
 <script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.17.1/moment.min.js"></script>
 <script src="merc-extreme.js"></script>
 <script src="geodesy.js"></script>
-
+<script src="layer-test.js"></script>
 <script>
-
-function layer_test() {
-    var params = new URLSearchParams(window.location.search);
-    var defaults = {z: 2, x: 0, y: 1};
-    var z = params.get('z') || defaults.z;
-    defaults.x = Math.min(defaults.x, Math.pow(2, z) - 1);
-    defaults.y = Math.min(defaults.y, Math.pow(2, z) - 1);
-    var x = params.get('x') || defaults.x;
-    var y = params.get('y') || defaults.y;
-
-    _.each(load_tile_specs(), function(spec) {
-        var lyr = new LayerModel(spec);
-
-        var img = new Image();
-        img.width = TILE_SIZE;
-        img.height = TILE_SIZE;
-        img.crossOrigin = 'anonymous';
-        
-        img.src = lyr.tilefunc()(z, x, y);
-
-        var zstr = (lyr.max_depth() != null ? 'z:' + lyr.min_depth() + '&ndash;' + lyr.max_depth() :
-                    lyr.min_depth() > 0 ? 'z:' + lyr.min_depth() + '+' : '');
-        $title = $('<div>');
-        $title.html(lyr.key() + ' ' + zstr);
-        $(img).css('background', lyr.bg);
-        $('body').append($title);
-        $('body').append(img);
-    });
-}
-  
 $(document).ready(layer_test);
-
 </script>
 
 </head>
 <body>
 
+  <div id="general"></div>
+  <hr />
+  <div id="specialcase"></div>
+  
 </body>
 </html>
 
