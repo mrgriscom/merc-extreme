@@ -20,18 +20,20 @@ function test_tile(lyr, coord, specialcase) {
 
     if (specialcase != null) {
         var $container = $('#specialcase');
-        var zstr = specialcase + ' ' + coord.z + '-' + coord.x + '-' + coord.y;
+        var zstr = specialcase; // + ' ' + coord.z + '-' + coord.x + '-' + coord.y;
     } else {
         var $container = $('#general');
         var zstr = (lyr.max_depth() != null ? 'z:' + lyr.min_depth() + '&ndash;' + lyr.max_depth() :
                     lyr.min_depth() > 0 ? 'z:' + lyr.min_depth() + '+' : '');
     }
-    
+
+    $test = $('<div class="patch">');
     $title = $('<div>');
     $title.html(lyr.key() + ' ' + zstr);
     $(img).css('background', lyr.bg);
-    $container.append($title);
-    $container.append(img);
+    $test.append($title);
+    $test.append(img);
+    $container.append($test);
 }
 
 function layer_test() {
