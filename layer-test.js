@@ -26,8 +26,13 @@ function zoom_out(coord) {
     }
 }
 
-function set_coord(coord) {
-    window.location.search = new URLSearchParams(coord).toString();
+function set_coord(coord, no_reload) {
+    var query = new URLSearchParams(coord).toString();
+    if (no_reload) {
+        history.replaceState(null, null, window.location.pathname + '?' + query);
+    } else {
+        window.location.search = query;
+    }
 }
 
 function test_tile(lyr, coord, specialcase) {
@@ -69,12 +74,15 @@ function test_tile(lyr, coord, specialcase) {
 }
 
 function layer_test() {
-    var tile = tile_coord();
+    var coord = tile_coord();
+    // show full tile coord in url bar
+    set_coord(coord, true);
+    
     var layers = {};
     _.each(load_tile_specs(), function(spec) {
         var lyr = new LayerModel(spec);
         layers[lyr.key()] = lyr;
-        test_tile(lyr, tile);
+        test_tile(lyr, coord);
     });
     test_tile(layers['google:sat'], {z: 23, x:4965358, y: 4264294}, 'deepzoom');
 }
