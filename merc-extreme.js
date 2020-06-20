@@ -3215,8 +3215,8 @@ function load_tile_specs() {
 	key: 'google:sat',
 	urlgen: function() {
 	    var base = compile_tile_spec('https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}');
-	    // only this urlspec has ultra-deep tiles, but it is much slower than the usual url
-	    var deep = compile_tile_spec('http://khm{s:0-3}.googleapis.com/kh?v=802&x={x}&y={y}&z={z}');
+	    // only this urlspec has ultra-deep tiles, but might be slower than the usual url (and requires updating a version param)
+	    var deep = compile_tile_spec('http://khms{s:0-3}.googleapis.com/kh?v=870&x={x}&y={y}&z={z}');
 	    return function(z, x, y) {
 		return (z > 22 ? deep : base)(z, x, y);
 	    };
