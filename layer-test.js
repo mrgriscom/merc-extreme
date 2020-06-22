@@ -66,7 +66,10 @@ function test_tile(lyr, coord, specialcase) {
 
     $test = $('<div class="patch">');
     $title = $('<div>');
-    $title.html(lyr.key() + ' ' + zstr);
+    $link = $('<a target="_blank">');
+    $link.attr('href', img.src);
+    $link.html(lyr.key() + ' ' + zstr);
+    $title.append($link);
     $(img).css('background', lyr.bg);
     $test.append($title);
     $test.append(img);
