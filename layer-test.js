@@ -63,12 +63,13 @@ function test_tile(lyr, coord, specialcase) {
             return false;
         });
     }
+    var name = (lyr.custom() ? 'custom:' + (lyr.name() || '') : lyr.key());
 
     $test = $('<div class="patch">');
     $title = $('<div>');
     $link = $('<a target="_blank">');
     $link.attr('href', img.src);
-    $link.html(lyr.key() + ' ' + zstr);
+    $link.html(name + ' ' + zstr);
     $title.append($link);
     $(img).css('background', lyr.bg);
     $test.append($title);
@@ -82,10 +83,13 @@ function layer_test() {
     set_coord(coord, true);
     
     var layers = {};
-    _.each(load_tile_specs(), function(spec) {
+    _.each(load_layers(), function(spec) {
         var lyr = new LayerModel(spec);
-        layers[lyr.key()] = lyr;
+        if (lyr.key()) {
+            layers[lyr.key()] = lyr;
+        }
         test_tile(lyr, coord);
     });
+    
     test_tile(layers['google:sat'], {z: 23, x:4965358, y: 4264294}, 'deepzoom');
 }

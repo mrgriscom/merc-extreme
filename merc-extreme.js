@@ -234,7 +234,7 @@ function init() {
 	}    
     };
     var koRoot = new EMViewModel(merc);
-    koRoot.load(load_tile_specs(), landmarks);
+    koRoot.load(load_layers(), landmarks);
     ko.applyBindings(koRoot);
 
     if (initState.pole) {
@@ -2623,10 +2623,6 @@ function EMViewModel(merc) {
     });
 
     this.load = function(layers, places) {
-        var custom_layers = JSON.parse(localStorage.custom_layers || '[]');
-        _.each(custom_layers, function(e) { e.custom = true; });
-        layers = layers.concat(custom_layers);
-
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
@@ -3200,6 +3196,13 @@ API_KEYS = {
     bing: 'AsK5lEUmEKKiXE2_QpZBfLW6QJXAUNZL9x0D9u0uOQv5Mfjcz-duXV1qX2GFg-N_',
     mapquest: 'Fmjtd%7Cluur2dubll%2C20%3Do5-9arlqa', // caution: url-encoded
     mapbox: 'pk.eyJ1IjoibXJncmlzY29tIiwiYSI6IjJKYUlRVHcifQ.j4XIpsV19H0CTryO_QIfGg',
+}
+
+function load_layers() {
+    var layers = load_tile_specs();
+    var custom_layers = JSON.parse(localStorage.custom_layers || '[]');
+    _.each(custom_layers, function(e) { e.custom = true; });
+    return layers.concat(custom_layers);
 }
 
 function load_tile_specs() {
