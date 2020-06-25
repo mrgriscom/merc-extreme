@@ -34,6 +34,7 @@ var fragment_shader;
 
 var TILE_SIZE = 256;               // (px) dimensions of a map tile
 var MAX_ZOOM = 23;                 // max zoom level to attempt to fetch image tiles
+var MAX_MIN_DEPTH = 3;             // highest allowable 'min-depth' for a layer (requires fetching 4^min_depth tiles)
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
 var PREFERRED_ATLAS_TEX_SIZE = 4096;   // (px) dimensions of single page of texture atlas
@@ -2545,7 +2546,7 @@ function max_z_overlap(pole_lat, dist, scale, zoom_bias) {
 }
 
 function load_image(layer, tile, onload) {
-    if (tile.z == 0 && layer.no_z0) {
+    if (tile.z < layer.min_depth) {
         load_image_bing_hack(layer, onload);
         return;
     }
@@ -3043,7 +3044,11 @@ function LayerModel(data, merc, root) {
 
     this.name = ko.observable(data.name);
     this.max_depth = ko.observable(data.max_depth);
-    this.smin_depth = ko.observable(/* from custom layer save */ data.smin_depth || /* from tile spec */ ("" + (data.no_z0 ? 1 : 0)));
+    if (data.min_depth > MAX_MIN_DEPTH) {
+        console.log('max min-depth supported is ' + MAX_MIN_DEPTH + '; ignoring...', data);
+        data.min_depth = null;
+    }
+    this.smin_depth = ko.observable(/* from custom layer save */ data.smin_depth || /* from tile spec */ ("" + (data.min_depth || 0)));
     this.min_depth = ko.computed(function() { return +this.smin_depth(); }, this);
 	this.bg = data.transparency_bg;
     this.custom = ko.observable(data.custom);
@@ -3111,7 +3116,7 @@ function LayerModel(data, merc, root) {
             url: this.url(),
             tilefunc: this.tilefunc(),
             max_depth: this.max_depth(),
-            no_z0: this.min_depth() > 0,
+            min_depth: this.min_depth(),
 			bg: this.bg,
         };
     }
@@ -3243,8 +3248,8 @@ function load_tile_specs() {
         name: 'Strava Heatmap',
 		key: 'strava:',
 		url: 'https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
-        no_z0: true,
         attr: ['Strava'],
+        min_depth: 2,
         max_depth: 12,  // login required for higher
 		no_cors: true,
 		transparency_bg: '#000',
@@ -3316,7 +3321,7 @@ function load_tile_specs() {
 	key: 'viirs:night',
 	// actually 4 shards, but 3&4 have https errors so don't work
         url: 'https://map{s:1-2}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
-        no_z0: true,
+        min_depth: 1,
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
         max_depth: 8,
     },
@@ -3342,7 +3347,7 @@ function load_tile_specs() {
     {
         name: 'World Aeronautical',
 		key: 'skyvector:',
-		no_z0: true,
+		min_depth: 1,
 		max_depth: 11,
 		no_cors: true,  // ignored due to custom urlgen
 		attr: [['SkyVector', 'https://skyvector.com/']],
@@ -3358,14 +3363,14 @@ function load_tile_specs() {
         name: 'Bing Map',
 	key: 'bing:map',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/r{qt}?g=2432&shading=hill&n=z&key=' + API_KEYS.bing,
-        no_z0: true,
+        min_depth: 1,
         attr: ['Microsoft', 'Nokia'],
     },
     {
         name: 'Bing Satellite',
 	key: 'bing:sat',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/a{qt}?g=2432&n=z&key=' + API_KEYS.bing,
-        no_z0: true,
+        min_depth: 1,
         attr: ['Microsoft', 'Nokia'],
     },
     */
@@ -3373,7 +3378,7 @@ function load_tile_specs() {
         name: 'Bing Hybrid',
 	key: 'bing:hybrid',
         url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
-        no_z0: true,
+        min_depth: 1,
         attr: ['Microsoft', 'Nokia'],
     },
     {
