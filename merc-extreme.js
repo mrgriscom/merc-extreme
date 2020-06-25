@@ -2545,9 +2545,18 @@ function max_z_overlap(pole_lat, dist, scale, zoom_bias) {
     return Math.ceil(base_z + Math.max(bias, 0));
 }
 
+function tile_canvas(layer) {
+	var c = mk_canvas(TILE_SIZE, TILE_SIZE);
+    if (layer.bg) {
+	    c.context.fillStyle = layer.bg;
+	    c.context.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+    }
+    return c;
+}
+
 function load_image(layer, tile, onload) {
     if (tile.z < layer.min_depth) {
-        load_image_bing_hack(layer, onload);
+        load_composite_image(layer, tile, onload);
         return;
     }
 
@@ -2555,9 +2564,7 @@ function load_image(layer, tile, onload) {
 		var _onload = onload;
 		onload = function(img) {
             if (img != null) {
-				var c = mk_canvas(TILE_SIZE, TILE_SIZE);
-				c.context.fillStyle = layer.bg;
-				c.context.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+				var c = tile_canvas(layer);
                 c.context.drawImage(img, 0, 0);
                 _onload(c.canvas);
 			} else {
@@ -2573,32 +2580,51 @@ function load_image(layer, tile, onload) {
     img.src = layer.tilefunc(tile.z, tile.x, tile.y);
 }
 
-function load_image_bing_hack(layer, onload) {
-    var num_loaded = 0;
-    var num_errors = 0;
-    var c = mk_canvas(TILE_SIZE, TILE_SIZE);
+COMPOSITE_TILES = {};
+function load_composite_image(layer, tile, onload) {
+    var key = layer.id + '-' + tile.z + '-' + tile.x + '-' + tile.y;
+    var state = COMPOSITE_TILES[key];
+    //console.log(key, state);
+    if (state != null) {
+        if (state.img !== undefined) {
+            // tile has already been generated
+            onload(state.img);
+        } else {
+            // tile is pending, save callback for later
+            state.callbacks.push(onload);
+        }
+        return;
+    }
 
+    // create pending entry for tile
+    state = {callbacks: [onload]};
+    COMPOSITE_TILES[key] = state;
+    
+    var c = tile_canvas(layer);
+    var tiles_remaining = 4;
+    var fully_error = true;
     var mk_onload = function(x, y) {
         return function(img) {
-            num_loaded++;
+            tiles_remaining--;
             if (img != null) {
+                // compose child tile
                 c.context.drawImage(img, x * .5*TILE_SIZE, y * .5*TILE_SIZE, .5*TILE_SIZE, .5*TILE_SIZE);
-            } else {
-                num_errors++;
+                fully_error = false;
             }
-            if (num_loaded == 4) {
-                if (num_errors == 4) {
-                    onload(null);
-                } else {
-                    onload(c.canvas);
-                }
+            if (tiles_remaining == 0) {
+                // all children have loaded -- tile is complete
+                state.img = (fully_error ? null : c.canvas);
+                // invoke and remove callbacks
+                _.each(state.callbacks, function(cb) { cb(state.img); });
+                delete state.callbacks;
             }
         }
     };
 
+    // load child tiles for composition
     for (var i = 0; i < 2; i++) {
         for (var j = 0; j < 2; j++) {
-            load_image(layer, {z: 1, x: i, y: j}, mk_onload(i, j));
+            load_image(layer, {z: tile.z + 1, x: 2*tile.x + i, y: 2*tile.y + j}, mk_onload(i, j));
         }
     }
 }
