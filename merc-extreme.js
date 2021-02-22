@@ -3289,21 +3289,14 @@ function load_tile_specs() {
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     */
-	{
+    /* mapbox static tiles have been EOL'ed
+    {
         name: '"Space Station" by Mapbox',
 			key: 'mapbox:space',
 		url: 'https://{s:abcd}.tiles.mapbox.com/v3/eleanor.ipncow29/{z}/{x}/{y}.png',
 		// no longer works -> url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.4iecw76a/{z}/{x}/{y}.png?access_token=' + API_KEYS.mapbox,
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
-    /* gone!! :'(
-    {
-        name: '"Zombie World" by Mapbox',
-	key: 'mapbox:zombie',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.fb8f9523/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
-        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
-    },
-    */
     {
         name: '"Pencil" by Mapbox',
 	key: 'mapbox:pencil',
@@ -3324,17 +3317,26 @@ function load_tile_specs() {
         attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     {
-        name: '"Watercolor" by Stamen',
-	key: 'stamen:watercolor',
-        url: 'http://{s:abcd}.tile.stamen.com/watercolor/{z}/{x}/{y}.jpg',
-        attr: [['Stamen Design', 'https://stamen.com/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
-    },
-    {
         name: 'Pinterest theme by Stamen',
 	key: 'stamen:pinterest',
         url: 'https://{s:abcd}.tiles.mapbox.com/v3/pinterest.map-ho21rkos/{z}/{x}/{y}.jpg',
         attr: ['Pinterest', ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
+    */
+    {
+        name: '"Watercolor" by Stamen',
+	key: 'stamen:watercolor',
+        url: 'http://{s:abcd}.tile.stamen.com/watercolor/{z}/{x}/{y}.jpg',
+        attr: [['Stamen Design', 'https://stamen.com/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    /* gone!! :'(
+    {
+        name: '"Zombie World" by Mapbox',
+	key: 'mapbox:zombie',
+        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mapbox.fb8f9523/{z}/{x}/{y}.jpg?access_token=' + API_KEYS.mapbox,
+        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+    },
+    */
     {
         name: '"Oilslick" Color Elevation',
 	key: 'mrgriscom:oilslick',
@@ -3378,7 +3380,7 @@ function load_tile_specs() {
 		no_cors: true,  // ignored due to custom urlgen
 		attr: [['SkyVector', 'https://skyvector.com/']],
 		urlgen: function() {
-			var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4zRihf1nr61/301/2010/{z}/{x}/{y}.jpg'));
+			var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4zRihflnr61/301/2101/{z}/{x}/{y}.jpg'));
 			return function(z, x, y) {
 				return spec(23 - 2*z, x, y);
 			};
