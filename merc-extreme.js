@@ -3380,7 +3380,7 @@ function load_tile_specs() {
 		no_cors: true,  // ignored due to custom urlgen
 		attr: [['SkyVector', 'https://skyvector.com/']],
 		urlgen: function() {
-			var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4zRihflnr61/301/2104/{z}/{x}/{y}.jpg'));
+			var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4zRihflnr61/301/2204/{z}/{x}/{y}.jpg'));
 			return function(z, x, y) {
 				return spec(23 - 2*z, x, y);
 			};
