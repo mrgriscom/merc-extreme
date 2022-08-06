@@ -237,7 +237,8 @@ function init() {
     var koRoot = new EMViewModel(merc);
     koRoot.load(load_layers(), landmarks);
     ko.applyBindings(koRoot);
-
+    ROOT = koRoot;
+    
     if (initState.pole) {
         new PlaceModel({pos: initState.pole}, merc)._select(true);
     } else {
@@ -257,6 +258,7 @@ function init() {
     }
 
     merc.start();
+    reset_inactivity();
 
     $('.companion').click(function() {
 	if (window.COMPANION) {
@@ -1416,6 +1418,41 @@ function TextureLayer(context) {
     };
 }
 
+INACTIVITY_TIMEOUT = 3; //30; // s
+INACTIVITY_TIMER = null;
+function reset_inactivity() {
+    if (INACTIVITY_TIMER != null) {
+        clearTimeout(INACTIVITY_TIMER);
+    }
+    INACTIVITY_TIMER = setTimeout(on_inactive, INACTIVITY_TIMEOUT * 1000);
+}
+
+function on_inactive() {
+    // placemark
+    // random land
+    // - coast
+    // - interior
+    // - antipode
+    // random population
+
+    var f_eq = function(a, b, tol) {
+        return Math.abs(a - b) < tol;
+    }
+    var places = _.filter(ROOT.places(), function(p) {
+        if (p.special()) {
+            return false;
+        }
+        var same_pos = f_eq(p.pos[0], MERC.pole[0], 1e-4) &&
+                       f_eq(p.pos[1], MERC.pole[1], 1e-4);
+        return !same_pos;
+    });
+    var dest = places[_.random(places.length - 1)];
+    
+    //new PlaceModel({pos: initState.pole}, merc)._select(true);
+
+    dest._select(false, true);
+}
+
 function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.renderer = GL;
     this.glContext = this.renderer.getContext();
@@ -1771,6 +1808,8 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             }
             renderer[drag_context.mode](pos, drag_context);
             drag_context.last_px = pos;
+
+            reset_inactivity();
 	};
 	var dragEnd = function(pos) {
             if (drag_context != null) {
@@ -1795,6 +1834,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
 	};
 	var incrementalZoom = function(pos, increment) {
             renderer.zoom(pos.x, pos.y, increment);
+            reset_inactivity();
 	};
 
 	// warning: hammer also seems to process mouse events... which, while not seeming to currently
@@ -1982,6 +2022,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.applyAnimationContext = function(preempt) {
         if (this.animation_context) {
             this.animation_context.apply();
+            reset_inactivity();
             if (this.animation_context.finished()) {
                 //console.log('animation finished');
                 this.animation_context.onfinish(false);
@@ -2443,9 +2484,9 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         } else {
             var curHeight = this.xyToWorld(0, 0).x - this.xyToWorld(0, this.height_px).x;
             var curRight = this.xyToWorld(this.width_px, 0).y;
-	    var targetRight = Math.max(curRight, args.extentN || DEFAULT_EXTENT_N);
+	    var targetRight = args.extentN || Math.max(curRight, DEFAULT_EXTENT_N);
             var targetHeight = (targetRight + (args.extentS || DEFAULT_EXTENT_S)) / this.aspect;
-            var finalHeight = Math.max(curHeight, targetHeight);
+            var finalHeight = args.extentS != null ? targetHeight : Math.max(curHeight, targetHeight);
             var zoom = finalHeight / curHeight;
             var dhoriz = targetRight - curRight;
             var _ratio = dhoriz / (finalHeight / curHeight - 1);
@@ -2458,7 +2499,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
                 transforms = [];
                 transforms.push(new THREE.Matrix4().makeTranslation(0, -dh / 360 * that.scale_px, 0));
 
-                if (Math.abs(zoom - 1) > 1e-9) {
+                if (Math.abs(zoom - 1) > 1e-5) {
                     var z = Math.pow(zoom, -dt_viewport);
                     transforms.push(new THREE.Matrix4().makeTranslation(-x0, -y0, 0));
                     transforms.push(new THREE.Matrix4().makeScale(z, z, 1));
@@ -3193,11 +3234,16 @@ function PlaceModel(data, merc) {
         this._select();
     }
 
-    this._select = function(hard) {
+    this._select = function(hard, reset_viewport) {
         var args = {};
         if (hard) {
             args.duration = 0;
         }
+        if (reset_viewport) {
+            args.extentN = DEFAULT_EXTENT_N;
+            args.extentS = DEFAULT_EXTENT_S;
+        }
+        
         if (this.lon_center != null) {
             args.target_heading = this.lon_center;
         }
@@ -3530,8 +3576,8 @@ landmarks = [{
     pos: [29.14828, -89.25165],
     lon_center: 300
 }, {
-    name: 'South Pole',
-    pos: [-90, 0],
+    name: 'North Pole',
+    pos: [90, 0],
     tag: 'sp',
 }];
 
