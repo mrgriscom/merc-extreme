@@ -111,7 +111,7 @@ void tex_lookup_val(in float z, in vec2 abs_map, in bool atlas_oob, in int tex_i
         }
       <% } %>
     } else {
-        val = vec4(.65, .7, .75, 1);
+        val = vec4(.1, .1, .1, 1);
     }
 }
 

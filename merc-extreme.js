@@ -385,6 +385,15 @@ function init() {
 	    $('.dropdown').hide();
 	}        
     });
+
+    //$('#poleinfo').hide();
+    //$('#antipoleinfo').hide();
+    $('#mouseinfo').hide();
+    $('#attribution').hide();
+    $('#controls-popup').hide();
+    merc.setSlider('blend', .15);
+    merc.setSlider('travel', 12);
+    ROOT.selectLayer(_.find(ROOT.layers(), function(e) { return e.key() == DEFAULT_LAYER; }));
 }
 
 function parseURLFragment() {
@@ -1418,7 +1427,7 @@ function TextureLayer(context) {
     };
 }
 
-INACTIVITY_TIMEOUT = 3; //30; // s
+INACTIVITY_TIMEOUT = 15; // s
 INACTIVITY_TIMER = null;
 function reset_inactivity() {
     if (INACTIVITY_TIMER != null) {
@@ -1427,30 +1436,38 @@ function reset_inactivity() {
     INACTIVITY_TIMER = setTimeout(on_inactive, INACTIVITY_TIMEOUT * 1000);
 }
 
+DEFAULT_LAYER = 'google:sat';
+OTHER_LAYER_COUNT = -1;
+PLACEDB = {};
+function placekey(pos) { return pos[0].toFixed(3)+':'+pos[1].toFixed(3); }
 function on_inactive() {
-    // placemark
-    // random land
-    // - coast
-    // - interior
-    // - antipode
-    // random population
-
-    var f_eq = function(a, b, tol) {
-        return Math.abs(a - b) < tol;
-    }
-    var places = _.filter(ROOT.places(), function(p) {
-        if (p.special()) {
-            return false;
+    var rand_placemark = function() {
+        var f_eq = function(a, b, tol) {
+            return Math.abs(a - b) < tol;
         }
-        var same_pos = f_eq(p.pos[0], MERC.pole[0], 1e-4) &&
-                       f_eq(p.pos[1], MERC.pole[1], 1e-4);
-        return !same_pos;
-    });
-    var dest = places[_.random(places.length - 1)];
-    
-    //new PlaceModel({pos: initState.pole}, merc)._select(true);
-
+        var places = _.filter(ROOT.places(), function(p) {
+            if (p.special()) {
+                return false;
+            }
+            var same_pos = f_eq(p.pos[0], MERC.pole[0], 1e-4) &&
+                           f_eq(p.pos[1], MERC.pole[1], 1e-4);
+            return !same_pos;
+        });
+        return places[_.random(places.length - 1)];
+    }
+    var dest = rand_placemark();
     dest._select(false, true);
+
+    if (ROOT.activeLayer().key() != DEFAULT_LAYER) {
+        if (OTHER_LAYER_COUNT < 0) {
+            OTHER_LAYER_COUNT = 3;
+        }
+        OTHER_LAYER_COUNT--;
+        console.log(OTHER_LAYER_COUNT);
+        if (OTHER_LAYER_COUNT < 0) {
+            ROOT.selectLayer(_.find(ROOT.layers(), function(e) { return e.key() == DEFAULT_LAYER; }));
+        }
+    }    
 }
 
 function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
@@ -1626,7 +1643,7 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         this.resetViewport();
 
         hstyle = {poleinfo: 'lr', antipoleinfo: 'll'};
-        vstyle = {poleinfo: 'ur', antipoleinfo: 'lr'};
+        vstyle = {poleinfo: 'ul', antipoleinfo: 'll'};
         $.each({h: hstyle, v: vstyle}, function(mode, styles) {
             $.each(styles, function(k, v) {
                 $('#' + k)[(horiz == (mode == 'h')) ? 'addClass' : 'removeClass']('corner-' + v);
@@ -2398,10 +2415,17 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         lon = lon_norm(lon);
 
         if (!this.pole || lat != this.pole[0] || lon != this.pole[1]) {
-            var polefmt = fmt_pos(this.curPole, 5);
-            $('#poleinfo .data').text(polefmt.lat + ' ' + polefmt.lon);
-            var antipolefmt = fmt_pos(antipode(this.curPole), 5);
-            $('#antipoleinfo .data').text(antipolefmt.lat + ' ' + antipolefmt.lon);
+            var pstr = function(pole) {
+                var str = PLACEDB[placekey(pole)];
+                if (str == null) {
+                    var fmtd = fmt_pos(pole, 4);
+                    str = fmtd.lat + ' ' + fmtd.lon;
+                }
+                return str;
+            }
+
+            $('#poleinfo .data').text(pstr(this.curPole));
+            $('#antipoleinfo .data').text(pstr(antipode(this.curPole)));
         }
 
         if (this.pole == null) {
@@ -2412,6 +2436,20 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
         if (POLE_CHANGED_AT != null && clock() - POLE_CHANGED_AT > .5) {
             URLFRAG.setPole(lat, lon);
             POLE_CHANGED_AT = null;
+
+            var f_eq = function(a, b, tol) {
+                return Math.abs(a - b) < tol;
+            }
+            var same_pos = function(a, b) {
+                return f_eq(a[0], b[0], 1e-4) &&
+                       f_eq(a[1], b[1], 1e-4);
+            }
+            var place_match = _.filter(ROOT.places(), function(p) { return same_pos(p.pos, [lat, lon]); });
+            if (place_match.length > 0) {
+                place_match = place_match[0];
+                ROOT.places.splice(ROOT.places.indexOf(place_match), 1);
+                ROOT.places.unshift(place_match);
+            }
         }
 
         this.pole = [lat, lon];
@@ -2694,6 +2732,7 @@ function EMViewModel(merc) {
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
+        /*
         var current = new PlaceModel({name: 'Current Location', special: 'geoloc'}, merc);
         current.origselect = current.select;
         current.select = function() {
@@ -2714,6 +2753,7 @@ function EMViewModel(merc) {
         };
         this.places.splice(0, 0, current);
         this.places.push(random);
+        */
 
         this.active_unit(this.units()[0]);
 
@@ -3221,11 +3261,25 @@ function PlaceModel(data, merc) {
     this.lon_center = data.lon_center;
     this.antipode = data.antipode;
     this.deep = data.deep;
-    this.byline = ko.observable(data.desc);
+    this.byline = ko.observable(); //data.desc);
     this.special = ko.observable(data.special);
     this.default = data.default;
     this.tag = data.tag;
 
+    var placename;
+    if (data.longname) {
+        placename = data.longname;
+    } else {
+        placename = data.name;
+        if (data.suffix) {
+            placename += ', ' + data.suffix;
+        }
+    }
+    PLACEDB[placekey(data.pos)] = placename;
+    if (data.antipode && data.antipname) {
+        PLACEDB[placekey(antipode(data.pos))] = data.antipname;
+    }
+    
     this.select = function(item, e) {
 	if (e && e.currentTarget.postClick) {
 	    e.currentTarget.postClick();
@@ -3242,6 +3296,7 @@ function PlaceModel(data, merc) {
         if (reset_viewport) {
             args.extentN = DEFAULT_EXTENT_N;
             args.extentS = DEFAULT_EXTENT_S;
+            $('#antipoleinfo')[this.antipode ? 'show' : 'hide']();
         }
         
         if (this.lon_center != null) {
@@ -3285,12 +3340,6 @@ function load_layers() {
 function load_tile_specs() {
     return [
     {
-        name: 'Google Map',
-	key: 'google:map',
-        url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        attr: ['Google'],
-    },
-    {
         name: 'Google Satellite',
 	key: 'google:sat',
 	urlgen: function() {
@@ -3304,19 +3353,6 @@ function load_tile_specs() {
         attr: ['Google'],
     },
     {
-        name: 'Google Terrain',
-	key: 'google:terrain',
-        url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
-        max_depth: 15,
-        attr: ['Google'],
-    },
-    {
-        name: 'Google Transit',
-        key: 'google:transit',
-        url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
-        attr: ['Google'],
-    },
-    {
         name: 'Strava Heatmap',
 		key: 'strava:',
 		url: 'https://heatmap-external-{s:abc}.strava.com/tiles/all/blue/{z}/{x}/{y}.png?px=256',
@@ -3326,15 +3362,19 @@ function load_tile_specs() {
 		no_cors: true,
 		transparency_bg: '#000',
     },
-    /*
     {
-        name: 'Mapbox Terrain',
-	key: 'mapbox:terrain',
-        url: 'https://{s:abcd}.tiles.mapbox.com/v3/mrgriscom.i8gjfm3i/{z}/{x}/{y}.png',
-        max_depth: 14,
-        attr: [['Mapbox', 'https://www.mapbox.com/about/maps/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+        name: 'Google Map',
+	key: 'google:map',
+        url: 'https://mts{s:0-3}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attr: ['Google'],
     },
-    */
+    {
+        name: 'Google Terrain',
+	key: 'google:terrain',
+        url: 'https://mts{s:0-3}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+        max_depth: 15,
+        attr: ['Google'],
+    },
     /* mapbox static tiles have been EOL'ed
     {
         name: '"Space Station" by Mapbox',
@@ -3406,7 +3446,7 @@ function load_tile_specs() {
         url: 'https://map{s:1-2}.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/' + (function() {
 	    // Most recent snapshot seems to often have data gaps; use slightly stale data
 	    var lookback = 1.5;  // days
-	    return moment().utc().subtract(lookback * 24, 'hours').format('YYYY-MM-DD');
+	    return '2022-07-20'; //moment().utc().subtract(lookback * 24, 'hours').format('YYYY-MM-DD');
 	})() + '/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
         attr: [['NASA/GSFC/ESDIS', 'https://earthdata.nasa.gov']],
         max_depth: 9,
@@ -3448,33 +3488,26 @@ function load_tile_specs() {
         attr: ['Microsoft', 'Nokia'],
     },
     */
-    {
-        name: 'Bing Hybrid',
-	key: 'bing:hybrid',
-        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
-        min_depth: 1,
-        attr: ['Microsoft', 'Nokia'],
-    },
-    {
-        name: 'OSM Mapnik',
-	key: 'osm:mapnik',
-        url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
-    },
     ];
 }
 
 landmarks = [{
+    name: 'Parry Manor',
+    pos: [-33.95760,18.48725],
+    suffix: 'Rondebosch (you are here!)',
+}, {
     name: 'Arc de Triomphe',
     pos: [48.87379, 2.29504],
     desc: 'the \'spokes\' of this central plaza become parallel lines',
-    tag: 'arc'
+    tag: 'arc',
+    suffix: 'Paris',
 }, {
     name: 'Black Rock City',
     pos: [40.7864, -119.2065],
     lon_center: 267,
+    suffix: 'Nevada',
 }, {
-    name: 'African Market',
+    name: 'East African Market',
     pos: [-3.002295, 33.090074],
     deep: true,
 }, {
@@ -3489,12 +3522,14 @@ landmarks = [{
 }, {
     name: 'Tip of Cape Cod',
     pos: [42.03471, -70.17058],
-    desc: '\'unrolling\' of a natural spiral formation'
+    desc: '\'unrolling\' of a natural spiral formation',
+    suffix: 'Massachusetts',
 }, {
     name: 'Vulcan Point',
     pos: [14.00926, 120.99610],
     desc: 'island inside a lake inside an island inside a lake inside an island',
-    tag: 'vulcan'
+    tag: 'vulcan',
+    suffix: 'Philippines (island in a lake in an island in a lake in an island)'
 }, {
     name: 'St. Helena',
     pos: [-15.94482, -5.70526],
@@ -3507,14 +3542,16 @@ landmarks = [{
     lon_center: 120,
     antipode: true,
     desc: 'two buildings exactly opposite the planet from each other',
-    tag: 'antipode'
+    tag: 'antipode',
+    longname: 'O Valodouro, Spain',
+    antipname: 'Christchurch, New Zealand',
 }, {
     name: 'Atlanta',
     pos: [33.74503, -84.39005],
     desc: 'a dendritic network of highways heading off to destinations near and far',
     tag: 'atl'
 }, {
-    name: 'Dubai',
+    name: 'Palm Jumeirah Dubai',
     pos: [25.11739, 55.13432],
     lon_center: 130
 }, {
@@ -3531,54 +3568,280 @@ landmarks = [{
     pos: [40.76847, -73.98493],
     lon_center: -90,
     desc: 'compare to <a target="_blank" href="http://www.mappery.com/maps/A-View-of-World-from-9th-Avenue-Map.jpg">the original</a>',
-    tag: 'ny'
+    tag: 'ny',
+    suffix: 'New York City',
 }, {
     name: 'Bondi Beach',
     pos: [-33.89105, 151.27766],
     lon_center: 220,
+    suffix: 'Sydney',
 }, {
-    name: 'Sahel Camels',
+    name: 'Sahel Watering Hole',
     pos: [15.298448, 19.429545],
     deep: true,
+    suffix: 'Chad',
 }, {
     name: 'Panama Canal',
-    pos: [9.11925, -79.75897],
+    pos: [9.11506, -79.76368],
     lon_center: 190
 //}, {
 //    name: 'Ft. Jefferson',
 //    pos: [24.63025, -82.87126]
 }, {
     name: 'Christ the Redeemer',
-    pos: [-22.95237, -43.21043],
+    pos: [-22.95242, -43.21055],
     lon_center: 90
 }, {
     name: 'Great Bend of Brahmaputra',
     pos: [29.56799, 95.39003],
-    lon_center: 240
+    lon_center: 240,
+    suffix: 'Brazil',
 }, {
     name: 'Farol do Calcanhar',
     pos: [-5.16004, -35.48571],
-    lon_center: 225
+    lon_center: 225,
+    suffix: 'Brazil',
 }, {
     name: 'Cape Spear',
     pos: [47.52538, -52.61978],
     lon_center: 240,
-    desc: 'easternmost point in North America'
+    desc: 'easternmost point in North America',
+    suffix: 'Newfoundland, Canada',
 }, {
     name: 'Golden Gate Bridge',
     pos: [37.81894, -122.47920],
     lon_center: 60
-//}, {
-//    name: 'UTA Flight 772 Memorial',
-//    pos: [16.86491, 11.95374]
+}, {
+    name: 'UTA Flight 772 Memorial',
+    pos: [16.86491, 11.95374],
+    suffix: 'Niger',
 }, {
     name: 'Mississippi River Delta',
     pos: [29.14828, -89.25165],
-    lon_center: 300
+    lon_center: 300,
+    suffix: 'Louisiana',
 }, {
     name: 'North Pole',
     pos: [90, 0],
+    lon_center: 180,
     tag: 'sp',
+}, {
+    name: 'Ohio State Stadium',
+    pos: [40.0021138, -83.0197394],
+    lon_center: 180,
+    deep: true,
+}, {
+    name: 'CFS Alert',
+    pos: [82.50051, -62.34844],
+    lon_center: 200,
+    longname: 'Canadian Forces Station "Alert"',
+}, {
+    name: 'Venice',
+    pos: [45.43887, 12.32615],
+}, {
+    name: 'Uluru',
+    pos: [-25.34509, 131.03268],
+    suffix: 'Australia',
+}, {
+    name: 'Arecibo',
+    pos: [18.34420, -66.75278],
+    longname: 'Arecibo Observatory ruins, Puerto Rico',
+}, {
+    name: 'Florida Everglades',
+    pos: [25.29916,-80.88385],
+}, {
+    name: 'SpaceX Starbase',
+    pos: [25.98573,-97.19027],
+    lon_center: 260,
+    suffix: 'Texas',
+}, {
+    name: 'Laamu Resort',
+    pos: [1.81927, 73.40333],
+    suffix: 'Maldives',
+}, {
+    name: 'PRC Base Yongshu',
+    pos: [9.55147, 112.89305],
+    longname: 'Chinese Military Base, disputed Spratly Islands'
+}, {
+    name: 'Chichen Itza',
+    pos: [20.68298, -88.56864],
+    suffix: 'Mexico',
+}, {
+    name: 'Versailles',
+    pos: [48.80472, 2.12066],
+}, {
+    name: '\xc5land Archipelago',
+    pos: [59.98507,20.50066],
+    suffix: 'Finland',
+}, {
+    name: 'Antarctic Peninsula',
+    pos: [-63.26925,-57.02934],
+    lon_center: 215,
+}, {
+    name: 'Tierra del Fuego',
+    pos: [-55.17111,-69.45150],
+    antipode: true,
+    lon_center: 45,
+    antipname: 'Lake Baikal, Siberia',
+}, {
+    name: 'Cape Chidley',
+    pos: [60.50685,-64.75089],
+    lon_center: 220,
+    suffix: 'Canada',
+}, {
+    name: 'Pitcairn Island',
+    pos: [-25.06794,-130.09626],
+    lon_center: 235,
+}, {
+    name: 'Edwards AFB',
+    pos: [34.95411,-117.87334],
+    suffix: 'California',
+}, {
+    name: 'Hoover Dam',
+    pos: [36.01680,-114.73759],
+    lon_center: 100,
+    suffix: 'Nevada/Arizona',
+}, {
+    name: 'Rama\'s Bridge',
+    pos: [9.14969,79.44933],
+    lon_center: 215,
+    suffix: 'India \u2192 Sri Lanka',
+}, {
+    name: 'Angkor Wat',
+    pos: [13.41244,103.86701],
+    lon_center: 270,
+    suffix: 'Cambodia',
+}, {
+    name: 'Prudhoe Bay Oilfields',
+    pos: [70.25755,-148.45238],
+    suffix: 'start of Alaska Pipeline',
+}, {
+    name: 'Nouadhibou',
+    pos: [20.91311,-17.04053],
+    suffix: 'Nouadhibou harbor, Mauritania',
+}, {
+    name: 'Dakar',
+    pos: [14.64681,-17.43324],
+    lon_center: 40,
+}, {
+    name: 'Ras Musandam',
+    pos: [26.15075,56.37779],
+}, {
+    name: 'Joint Security Area',
+    pos: [37.95590,126.67697],
+    suffix: 'Korea DMZ',
+}, {
+    name: 'Gibraltar',
+    pos: [36.15121,-5.34847],
+}, {
+    name: 'Victoria Falls',
+    pos: [-17.92889,25.85657],
+}, {
+    name: 'Great Pyramid of Giza',
+    pos: [29.97815,31.13301],
+    lon_center: 75,
+}, {
+    name: 'Bass Pro Shops Pyramid',
+    pos: [35.15606,-90.05192],
+    lon_center: 230,
+    longname: 'Great Pyramid of Bass Pro Shops',
+}, {
+    name: 'Tokyo',
+    pos: [35.65948,139.70055],
+    longname: 'Shibuya Crossing, Tokyo',
+}, {
+    name: 'Chicago',
+    pos: [41.88270,-87.62333],
+}, {
+    name: 'Manaus',
+    pos: [-3.13493,-59.90251],
+    suffix: 'Brazil',
+}, {
+    name: 'Purus River',
+    pos: [-5.93483,-64.37442],
+    suffix: 'Amazon basin',
+}, {
+    name: 'Florida Keys',
+    pos: [24.65483,-81.28272],
+    lon_center: 0,
+    longname: 'Bahia Honda bridge, Florida Keys',
+}, {
+    name: 'Niagara Falls',
+    pos: [43.08029,-79.07564],
+    lon_center: 260,
+}, {
+    name: 'Canal Walk',
+    pos: [-33.89374,18.51069],
+}, {
+    name: 'Barcelona',
+    pos: [41.38991,2.15735],
+}, {
+    name: 'Dubai Airport',
+    pos: [25.24918,55.36073],
+}, {
+    name: 'Lake Victoria',
+    pos: [0.01750,32.53924],
+}, {
+    name: 'Ryugyong Hotel',
+    pos: [39.03592,125.73220],
+    lon_center: 300,
+    suffix: 'Pyongyang',
+}, {
+    name: 'Rice Terraces, Bali',
+    pos: [-8.37144,115.13870],
+    antipode: true,
+    antipname: 'Venezuela',
+}, {
+    name: 'Bora Bora',
+    pos: [-16.49934,-151.75125],
+}, {
+    name: 'Diamond Head',
+    pos: [21.25910,-157.80968],
+    antipode: true,
+    suffix: 'Hawaii',
+    antipname: 'Botswana',
+}, {
+    name: 'Kerguelen',
+    pos: [-49.20192,68.82851],
+    antipode: true,
+    antipname: 'Lucky Strike, Alberta',
+}, {
+    name: 'Ganges River Delta',
+    pos: [21.92553,89.42827],
+}, {
+    name: 'Very Large Array',
+    pos: [34.07882,-107.61823],
+}, {
+    name: 'Naples',
+    pos: [40.84948,14.26446],
+}, {
+    name: 'SANAE IV',
+    pos: [-71.67266,-2.84192],
+    lon_center: 100,
+    suffix: 'Antarctic Research Base',
+}, {
+    name: 'Bouvet Island',
+    pos: [-54.42633,3.29570],
+}, {
+    name: 'Prince Edward Island',
+    pos: [-46.63320,37.90623],
+    suffix: 'South Africa',
+}, {
+    name: 'Istanbul',
+    pos: [41.00857,28.97999],
+    longname: 'Hagia Sofia, Istanbul',
+}, {
+    name: 'Ashalim Solar Plant',
+    pos: [30.96254,34.73012],
+    suffix: 'Israel',
+}, {
+    name: 'Gates of Hell',
+    pos: [40.25261,58.43971],
+    suffix: 'Turkmenistan',
+}, {
+    name: 'Statue of Liberty',
+    pos: [40.68938,-74.04455],
+    lon_center: 150,
 }];
 
 //=== UTIL ===

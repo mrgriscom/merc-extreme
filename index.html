@@ -175,6 +175,14 @@ a:hover {
   border-top: 2px solid rgba(100, 100, 100, .4);
 }
 
+.corner-ul {
+  left: 0;
+  top: 0;
+  border-radius: 0 0 5px 0;
+  border-right: 2px solid rgba(100, 100, 100, .4);
+  border-bottom: 2px solid rgba(100, 100, 100, .4);
+}
+
 .corner-lr {
   text-align: right;
   right: 0;
@@ -321,7 +329,6 @@ h3 {
   <!-- duplicated -->
   <div id="titlebar" style="color: white;">
     <span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
-    <span style="font-family: &quot;Open Sans&quot;, sans-serif; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
   </div>
 
   <div style="width: 100%; height: 100%; display: table;">
@@ -336,9 +343,8 @@ h3 {
 
 <div id="titlebar" style="color: white; flex: none;">
   <span id="title">
-  <span style="white-space: nowrap;">
+    <span style="white-space: nowrap;">
     <span style="font-family: &quot;Open Sans Condensed&quot;, sans-serif; font-size: 150%;">MERCATOR: <b style="color: #eee;">EXTREME</b></span>
-    <span style="font-family: &quot;Open Sans&quot;, sans-serif; font-size: 80%;">by <a href="http://mrgris.com">Drew Roos</a></span>
   </span>
   </span>
   <span id="title-small" style="display: none;">
@@ -350,6 +356,7 @@ h3 {
   </span>
 
   <div style="float: right;">
+  <!--
   <div class="dropdown-anchor" style="float: right; position: relative; margin-right: 30px;">
     <img class="icon" src="img/help.png" title="Help" />
     <div class="dropdown" style="text-align: left; overflow: auto;" id="help">
@@ -531,7 +538,7 @@ h3 {
           - inability to explicitly choose mipmapping level or generate mipmaps for a texture subarea (texture atlases are a hack, basically, in the eyes of opengl)
           - can't choose which texture to access via a variable in shader code; need to unroll everything
           - coordinate system transforms are fucking hard to keep straight
-      -->
+      ->
 
       <div style="height: 3em;"></div>
     </div>
@@ -584,7 +591,8 @@ h3 {
   </div> 
   <div class="companion" style="float: right;">
     <img class="icon" src="img/map.png" style="cursor: pointer;" title="View on a normal map" />
-  </div> 
+  </div>
+  -->
   <div class="dropdown-anchor" style="float: right; position: relative;">
     <img class="icon" src="img/placemark.png" title="Places" />
     <div class="dropdown" data-bind="foreach: places" style="width: 15em; overflow: auto;">
@@ -763,13 +771,19 @@ h3 {
 
 <div id="attribution" style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;"><span style="background: rgba(200, 200, 200, .7); display: inline-block; border-radius: 5px 5px 0 0; pointer-events: auto; font-size: 10px; padding: 3px;" data-bind="visible: curAttr, html: curAttr"></span></div>
 <div id="poleinfo" class="poleinfo corner-lr">
-  <span class="polehdr">POLE</span><br><img class="swap" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" /><span class="data"></span>
+  <!--
+  <span class="polehdr">POLE</span><br>
+  <img class="swap" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" />
+-->
+  <span class="data"></span>
 </div>
 <div id="antipoleinfo" class="poleinfo corner-ll">
-  <span class="polehdr">ANTI-POLE</span><br>
+  <!--
+  <span class="polehdr">ANTIPODE</span><br>
   <img class="swap swapleft" src="img/swap.png" title="Swap poles" style="margin-right: 3px;" />
+-->
   <span class="data"></span>
-  <img class="swap swapright" src="img/swap.png" title="Swap poles" style="margin-left: 3px;" />
+  <!--<img class="swap swapright" src="img/swap.png" title="Swap poles" style="margin-left: 3px;" />-->
 </div>
 <div id="mouseinfo" class="pointerinfo">
   <span class="polehdr">POINTER</span><br>
