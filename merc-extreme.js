@@ -3865,7 +3865,35 @@ landmarks = [{
     pos: [25.08609,-77.32354],
     lon_center: 235,
     suffix: 'Bahamas',
+}, {
+    name: 'Canal du Midi',
+    pos: [43.33524,3.21540],
+    suffix: 'France',
+}, {
+    name: 'Cape Hangklip',
+    pos: [-34.38757,18.82781],
+    lon_center: 0,
+}, {
+    name: 'Skagen Odde',
+    pos: [57.74591,10.65614],
+    suffix: 'Denmark',
+    lon_center: 240,
+}, {
+    name: 'Cape St. Vincent',
+    pos: [37.02200,-8.99764],
+    suffix: 'Portugal',
+    lon_center: 45,
+}, {
+    name: 'Diomede Islands',
+    pos: [65.75915,-168.95432],
+    suffix: 'Bering Strait, Alaska/Russia',
+    lon_center: 180,
+}, {
+    name: 'The Pentagon',
+    pos: [38.87101,-77.05597],
+    suffix: 'Washington DC',
 }];
+
 
 //=== UTIL ===
 
