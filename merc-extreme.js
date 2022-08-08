@@ -324,15 +324,6 @@ function init() {
 
     geocoder = new GEOCODERS.google();
     $('form.search').submit(function(e) {
-        var callbacks = {
-            onresult: function(lat, lon) {
-                merc.poleAt(lat, lon);
-            },
-            onnoresult: function() {
-                alert('no results found');
-            },
-        };
-
         var match_ll = function(q) {
             var FLOAT_PATTERN = '[+-]?(?:\\d*\\.\\d+|\\d+\\.?)';
             var LL_PATTERN = '^(' + FLOAT_PATTERN + ')(?: |,|, )(' + FLOAT_PATTERN + ')$';
@@ -346,9 +337,21 @@ function init() {
             }
             return null;
         }
-
+        
         var query = $(e.target).find('.locsearch').val().trim();
 	var literal_ll = match_ll(query);
+        var callbacks = {
+            onresult: function(lat, lon) {
+                merc.poleAt(lat, lon);
+                if (!literal_ll) {
+                    PLACEDB[placekey([lat, lon])] = query;
+                }
+            },
+            onnoresult: function() {
+                alert('no results found');
+            },
+        };
+
         if (literal_ll) {
             callbacks.onresult(literal_ll[0], literal_ll[1]);        
         } else {
@@ -1442,17 +1445,7 @@ PLACEDB = {};
 function placekey(pos) { return pos[0].toFixed(3)+':'+pos[1].toFixed(3); }
 function on_inactive() {
     var rand_placemark = function() {
-        var f_eq = function(a, b, tol) {
-            return Math.abs(a - b) < tol;
-        }
-        var places = _.filter(ROOT.places(), function(p) {
-            if (p.special()) {
-                return false;
-            }
-            var same_pos = f_eq(p.pos[0], MERC.pole[0], 1e-4) &&
-                           f_eq(p.pos[1], MERC.pole[1], 1e-4);
-            return !same_pos;
-        });
+        var places = _.filter(ROOT.places(), function(p) { return !p.special() && distance(p.pos, MERC.pole) > 10.; });
         return places[_.random(places.length - 1)];
     }
     var dest = rand_placemark();
@@ -2414,16 +2407,15 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
     this.setPole = function(lat, lon) {
         lon = lon_norm(lon);
 
-        if (!this.pole || lat != this.pole[0] || lon != this.pole[1]) {
-            var pstr = function(pole) {
-                var str = PLACEDB[placekey(pole)];
-                if (str == null) {
-                    var fmtd = fmt_pos(pole, 4);
-                    str = fmtd.lat + ' ' + fmtd.lon;
-                }
-                return str;
+        var pstr = function(pole) {
+            var str = PLACEDB[placekey(pole)];
+            if (str == null) {
+                var fmtd = fmt_pos(pole, 4);
+                str = fmtd.lat + ' ' + fmtd.lon;
             }
-
+            return str;
+        }
+        if (!this.pole || lat != this.pole[0] || lon != this.pole[1]) {
             $('#poleinfo .data').text(pstr(this.curPole));
             $('#antipoleinfo .data').text(pstr(antipode(this.curPole)));
         }
@@ -2437,19 +2429,14 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             URLFRAG.setPole(lat, lon);
             POLE_CHANGED_AT = null;
 
-            var f_eq = function(a, b, tol) {
-                return Math.abs(a - b) < tol;
-            }
-            var same_pos = function(a, b) {
-                return f_eq(a[0], b[0], 1e-4) &&
-                       f_eq(a[1], b[1], 1e-4);
-            }
-            var place_match = _.filter(ROOT.places(), function(p) { return same_pos(p.pos, [lat, lon]); });
+            var place_match = _.filter(ROOT.places(), function(p) { return distance(p.pos, [lat, lon]) < 500.; });
             if (place_match.length > 0) {
                 place_match = place_match[0];
-                ROOT.places.splice(ROOT.places.indexOf(place_match), 1);
-                ROOT.places.unshift(place_match);
+            } else {
+                place_match = new PlaceModel({name: pstr([lat, lon]), pos: [lat, lon]}, this);
             }
+            ROOT.places.splice(ROOT.places.indexOf(place_match), 1);
+            ROOT.places.unshift(place_match);
         }
 
         this.pole = [lat, lon];
