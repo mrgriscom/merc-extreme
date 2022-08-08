@@ -1445,7 +1445,10 @@ PLACEDB = {};
 function placekey(pos) { return pos[0].toFixed(3)+':'+pos[1].toFixed(3); }
 function on_inactive() {
     var rand_placemark = function() {
-        var places = _.filter(ROOT.places(), function(p) { return !p.special() && distance(p.pos, MERC.pole) > 10.; });
+        var places = _.filter(ROOT.places(), function(p) {
+            return !p.special() && p.tag != 'adhoc'
+                && distance(p.pos, MERC.pole) > 10.;
+        });
         return places[_.random(places.length - 1)];
     }
     var dest = rand_placemark();
@@ -2433,9 +2436,12 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             if (place_match.length > 0) {
                 place_match = place_match[0];
             } else {
-                place_match = new PlaceModel({name: pstr([lat, lon]), pos: [lat, lon]}, this);
+                place_match = new PlaceModel({name: pstr([lat, lon]), pos: [lat, lon], tag: 'adhoc'}, this);
             }
-            ROOT.places.splice(ROOT.places.indexOf(place_match), 1);
+            var ix = ROOT.places.indexOf(place_match);
+            if (ix >= 0) {
+                ROOT.places.splice(ix, 1);
+            }
             ROOT.places.unshift(place_match);
         }
 
@@ -3829,6 +3835,36 @@ landmarks = [{
     name: 'Statue of Liberty',
     pos: [40.68938,-74.04455],
     lon_center: 150,
+}, {
+    name: 'Miami Beach',
+    pos: [25.7771428, -80.1289162],
+    lon_center: 275,
+    deep: true,
+}, {
+    name: 'Singapore',
+    pos: [1.2820469, 103.8642911],
+    lon_center: 330,
+}, {
+    name: 'Grand Lisboa Macau',
+    pos: [22.1904456, 113.5433687],
+    lon_center: 2,
+    antipode: true,
+    antipname: 'Atacama Desert, Chile',
+}, {
+    name: 'Port of Rotterdam',
+    pos: [51.88545,4.43851],
+    lon_center: 330,
+    suffix: 'Netherlands',
+}, {
+    name: 'Linden Powerplant',
+    pos: [40.63756,-74.22162],
+    lon_center: 305,
+    suffix: 'New Jersey',
+}, {
+    name: 'Atlantis Resort Nassau',
+    pos: [25.08609,-77.32354],
+    lon_center: 235,
+    suffix: 'Bahamas',
 }];
 
 //=== UTIL ===
