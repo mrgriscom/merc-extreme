@@ -37,9 +37,9 @@ var MAX_ZOOM = 23;                 // max zoom level to attempt to fetch image t
 var MAX_MIN_DEPTH = 3;             // highest allowable 'min-depth' for a layer (requires fetching 4^min_depth tiles)
 var SAMPLE_FREQ = 8.;              // (px) spatial frequency to sample tile coverage
 var SAMPLE_TIME_FREQ = 2.;         // (hz) temporal frequency to sample tile coverage
-var PREFERRED_ATLAS_TEX_SIZE = 4096;   // (px) dimensions of single page of texture atlas
+var PREFERRED_ATLAS_TEX_SIZE = 8192;   // (px) dimensions of single page of texture atlas
 var MAX_SCREEN_DIM = [7680, 4320]  // don't try to cater to displays larger than this
-var SCREEN_CONFIG_MULTIPLIER = 2.  // overprovision for a screen this times larger than the actual screen
+var SCREEN_CONFIG_MULTIPLIER = 1.2; //2.  // overprovision for a screen this times larger than the actual screen
                                    // (alternative is to recompile the shader dynamically)
 var APPROXIMATION_THRESHOLD = 0.5; // (px) maximum error when using schemes to circumvent lack of opengl precision
 var PREC_BUFFER = 5;               // number of zoom levels early to switch to 'high precision' mode
@@ -346,6 +346,7 @@ function init() {
                 if (!literal_ll) {
                     PLACEDB[placekey([lat, lon])] = query;
                 }
+                $('.locsearch').val('');
             },
             onnoresult: function() {
                 alert('no results found');
@@ -1289,7 +1290,13 @@ function TextureLayer(context) {
                     }
                 }
 
-                delete layer.tile_index[tilekey(e.layer, e.tile)].pending;
+                var entry = layer.tile_index[tilekey(e.layer, e.tile)];
+                if (entry !== undefined) {
+                    delete entry.pending;
+                } else {
+                    // not sure why this is happening on large displays
+                    console.log('freezing bug trapped');
+                }
             } else {
                 // z0 tile already had special handling in separate texture;
                 // just need to update the fringe color for border tiles currently loaded
@@ -2438,11 +2445,15 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             } else {
                 place_match = new PlaceModel({name: pstr([lat, lon]), pos: [lat, lon], tag: 'adhoc'}, this);
             }
+            var _len = ROOT.places().length;
             var ix = ROOT.places.indexOf(place_match);
             if (ix >= 0) {
                 ROOT.places.splice(ix, 1);
             }
             ROOT.places.unshift(place_match);
+            if (ROOT.places().length < _len) {
+                console.log('lost a location!!');
+            }
         }
 
         this.pole = [lat, lon];
@@ -3485,9 +3496,9 @@ function load_tile_specs() {
 }
 
 landmarks = [{
-    name: 'Parry Manor',
+    name: 'Parry Manor (you are here!)',
     pos: [-33.95760,18.48725],
-    suffix: 'Rondebosch (you are here!)',
+    longname: 'Parry Manor, Rondebosch (you are here!)',
 }, {
     name: 'Arc de Triomphe',
     pos: [48.87379, 2.29504],
@@ -3505,10 +3516,12 @@ landmarks = [{
     deep: true,
 }, {
     name: 'St. Peter\'s Basilica',
-    pos: [41.90224, 12.45725]
+    pos: [41.90224, 12.45725],
+    suffix: 'Vatican City',
 }, {
     name: 'Mecca',
-    pos: [21.42251, 39.82616]
+    pos: [21.42251, 39.82616],
+    longname: 'The Kaaba, Mecca',
 }, {
     name: 'US Capitol',
     pos: [38.88978, -77.00916]
@@ -3801,6 +3814,7 @@ landmarks = [{
 }, {
     name: 'Ganges River Delta',
     pos: [21.92553,89.42827],
+    suffix: 'Bangladesh',
 }, {
     name: 'Very Large Array',
     pos: [34.07882,-107.61823],
@@ -3892,6 +3906,10 @@ landmarks = [{
     name: 'The Pentagon',
     pos: [38.87101,-77.05597],
     suffix: 'Washington DC',
+}, {
+    name: 'Lake Manicouagan',
+    pos: [51.39412,-68.69234],
+    suffix: 'Quebec',
 }];
 
 
