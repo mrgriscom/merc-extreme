@@ -3356,7 +3356,8 @@ function load_tile_specs() {
 	urlgen: function() {
 	    var base = compile_tile_spec('https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}');
 	    // only this urlspec has ultra-deep tiles, but might be slower than the usual url (and requires updating a version param)
-	    var deep = compile_tile_spec('http://khms{s:0-3}.googleapis.com/kh?v=870&x={x}&y={y}&z={z}');
+	    var deep = compile_tile_spec('http://khms{s:0-3}.googleapis.com/kh?v=928&x={x}&y={y}&z={z}');
+
 	    return function(z, x, y) {
 		return (z > 22 ? deep : base)(z, x, y);
 	    };
@@ -3521,6 +3522,7 @@ landmarks = [{
     name: 'East African Market',
     pos: [-3.002295, 33.090074],
     deep: true,
+    suffix: 'Tanzania',
 }, {
     name: 'St. Peter\'s Basilica',
     pos: [41.90224, 12.45725],
@@ -3556,7 +3558,7 @@ landmarks = [{
     antipode: true,
     desc: 'two buildings exactly opposite the planet from each other',
     tag: 'antipode',
-    longname: 'O Valodouro, Spain',
+    longname: 'O Valadouro, Spain',
     antipname: 'Christchurch, New Zealand',
 }, {
     name: 'Atlanta',
@@ -3603,12 +3605,13 @@ landmarks = [{
 }, {
     name: 'Christ the Redeemer',
     pos: [-22.95242, -43.21055],
-    lon_center: 90
+    lon_center: 90,
+    suffix: 'Brazil',
 }, {
     name: 'Great Bend of Brahmaputra',
     pos: [29.56799, 95.39003],
     lon_center: 240,
-    suffix: 'Brazil',
+    suffix: 'Tibet',
 }, {
     name: 'Farol do Calcanhar',
     pos: [-5.16004, -35.48571],
@@ -3623,7 +3626,8 @@ landmarks = [{
 }, {
     name: 'Golden Gate Bridge',
     pos: [37.81894, -122.47920],
-    lon_center: 60
+    lon_center: 60,
+    suffix: 'San Francisco',
 }, {
     name: 'UTA Flight 772 Memorial',
     pos: [16.86491, 11.95374],
@@ -3739,6 +3743,7 @@ landmarks = [{
 }, {
     name: 'Ras Musandam',
     pos: [26.15075,56.37779],
+    suffix: 'Oman, Persian Gulf',
 }, {
     name: 'Joint Security Area',
     pos: [37.95590,126.67697],
@@ -3757,10 +3762,10 @@ landmarks = [{
     name: 'Bass Pro Shops Pyramid',
     pos: [35.15606,-90.05192],
     lon_center: 230,
-    longname: 'Great Pyramid of Bass Pro Shops',
+    longname: 'Great Pyramid of Bass Pro Shops, Memphis',
 }, {
     name: 'Tokyo',
-    pos: [35.65948,139.70055],
+    pos: [35.65964, 139.70070],
     longname: 'Shibuya Crossing, Tokyo',
 }, {
     name: 'Chicago',
@@ -3768,7 +3773,7 @@ landmarks = [{
 }, {
     name: 'Manaus',
     pos: [-3.13493,-59.90251],
-    suffix: 'Brazil',
+    longname: 'Brazil (sploosh)',
 }, {
     name: 'Purus River',
     pos: [-5.93483,-64.37442],
@@ -3824,6 +3829,7 @@ landmarks = [{
 }, {
     name: 'Very Large Array',
     pos: [34.07882,-107.61823],
+    suffix: 'New Mexico',
 }, {
     name: 'Naples',
     pos: [40.84948,14.26446],
