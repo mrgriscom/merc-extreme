@@ -339,6 +339,9 @@ function init() {
         }
         
         var query = $(e.target).find('.locsearch').val().trim();
+        if (query == '') {
+            return false;
+        }
 	var literal_ll = match_ll(query);
         var callbacks = {
             onresult: function(lat, lon) {
@@ -1449,7 +1452,11 @@ function reset_inactivity() {
 DEFAULT_LAYER = 'google:sat';
 OTHER_LAYER_COUNT = -1;
 PLACEDB = {};
-function placekey(pos) { return pos[0].toFixed(3)+':'+pos[1].toFixed(3); }
+function placekey(pos) {
+    var slat = pos[0].toFixed(3);
+    var lon = Math.abs(+slat) < 90. ? pos[1] : 0;
+    return slat+':'+lon.toFixed(3);
+}
 function on_inactive() {
     var rand_placemark = function() {
         var places = _.filter(ROOT.places(), function(p) {
@@ -3724,7 +3731,7 @@ landmarks = [{
 }, {
     name: 'Nouadhibou',
     pos: [20.91311,-17.04053],
-    suffix: 'Nouadhibou harbor, Mauritania',
+    longname: 'Nouadhibou harbor, Mauritania',
 }, {
     name: 'Dakar',
     pos: [14.64681,-17.43324],
@@ -3793,10 +3800,9 @@ landmarks = [{
     lon_center: 300,
     suffix: 'Pyongyang',
 }, {
-    name: 'Rice Terraces, Bali',
-    pos: [-8.37144,115.13870],
-    antipode: true,
-    antipname: 'Venezuela',
+    name: 'Yuanyang Rice Terraces',
+    pos: [23.09555,102.81631],
+    suffix: 'Yunnan Province, China',
 }, {
     name: 'Bora Bora',
     pos: [-16.49934,-151.75125],
@@ -3910,6 +3916,35 @@ landmarks = [{
     name: 'Lake Manicouagan',
     pos: [51.39412,-68.69234],
     suffix: 'Quebec',
+}, {
+    name: 'Chefchaouen, Morocco',
+    pos: [35.17007,-5.25941],
+}, {
+    name: 'Cape Agulhas',
+    pos: [-34.8331081, 19.9999612],
+    lon_center: 0,
+    suffix: 'Southernmost Point of Africa',
+}, {
+    name: 'Unisphere',
+    pos: [40.7464474, -73.8450734],
+    suffix: 'New York City',
+}, {
+    name: 'Fenway Park',
+    pos: [42.3467477, -71.0971050],
+    lon_center: 225,
+    suffix: 'Boston',
+}, {
+    name: 'Inhambane',
+    pos: [-23.86524,35.38605],
+    suffix: 'Mozambique',
+}, {
+    name: 'Kilauea Volcano',
+    pos: [19.38995,-155.10452],
+    suffix: 'Hawaii',
+}, {
+    name: 'Iao Valley, Maui',
+    pos: [20.89048,-156.58621],
+    suffix: 'Hawaii',
 }];
 
 
