@@ -1443,10 +1443,13 @@ function TextureLayer(context) {
 INACTIVITY_TIMEOUT = 15; // s
 INACTIVITY_TIMER = null;
 function reset_inactivity() {
+    suspend_inactivity();
+    INACTIVITY_TIMER = setTimeout(on_inactive, INACTIVITY_TIMEOUT * 1000);
+}
+function suspend_inactivity() {
     if (INACTIVITY_TIMER != null) {
         clearTimeout(INACTIVITY_TIMER);
     }
-    INACTIVITY_TIMER = setTimeout(on_inactive, INACTIVITY_TIMEOUT * 1000);
 }
 
 DEFAULT_LAYER = 'google:sat';
@@ -2017,11 +2020,14 @@ function MercatorRenderer(GL, $container, getViewportDims, extentN, extentS) {
             setAsPole(mouse_pos(e));
         }        
         $(this.renderer.domElement).bind('mousewheel wheel', function(e) {
+            var SENSITIVITY = 1;
+            
             e = e.originalEvent;
             var pos = mouse_pos(e);
             // TODO think i need to normalize this more (mac uses a different scale? (seemed to work fine on an MBP))
             var delta = (e.wheelDelta ? e.wheelDelta / 120.
-                                      : e.deltaY / -3.);
+                         : e.deltaY / -3.);
+            delta *= SENSITIVITY;
             if (e.shiftKey) {
                 // slow zoom
                 delta /= 50;
@@ -2743,6 +2749,7 @@ function EMViewModel(merc) {
         this.layers(_.map(layers, function(e) { return new LayerModel(e, merc, that); }));
 
         this.places(_.map(places, function(e) { return new PlaceModel(e, merc); }));
+        console.log(this.places().length + ' waypoints');
         /*
         var current = new PlaceModel({name: 'Current Location', special: 'geoloc'}, merc);
         current.origselect = current.select;
@@ -2786,6 +2793,10 @@ function EMViewModel(merc) {
     }
 
     that.selectLayer = function(layer, e) {
+        if (e != null) {
+            // layer changed manually
+            reset_inactivity();
+        }
 	if (e && e.currentTarget.postClick) {
 	    e.currentTarget.postClick();
 	}
@@ -3688,7 +3699,7 @@ landmarks = [{
     pos: [48.80472, 2.12066],
 }, {
     name: '\xc5land Archipelago',
-    pos: [59.98507,20.50066],
+    pos: [60.29907,21.31857],
     suffix: 'Finland',
 }, {
     name: 'Antarctic Peninsula',
@@ -3951,6 +3962,16 @@ landmarks = [{
     name: 'Iao Valley, Maui',
     pos: [20.89048,-156.58621],
     suffix: 'Hawaii',
+}, {
+    name: 'Magic Roundabout',
+    pos: [51.5628436, -1.7714532],
+    suffix: 'Swindon, UK',
+}, {
+    name: 'Putrajaya, Malaysia',
+    pos: [2.93522,101.69113],
+}, {
+    name: 'Shanghai',
+    pos: [31.24276,121.49473],
 }];
 
 
@@ -4725,6 +4746,63 @@ function highres_export_tile(x0, y0, res, width, height, overzoom, filename, onc
             return 'cancelling export';
         }
     });
+}
+
+// TODO: merge with highres_export_tile
+function waitUntilReady(onReady, delay, viewportChangedAt) {
+    if (viewportChangedAt == null) {
+        viewportChangedAt = clock();
+    }
+    
+    var wait = true;
+    var needsResample = false;
+    if (MERC.last_sampling == null || MERC.last_sampling < viewportChangedAt) {
+        needsResample = true;
+        //console.log('hasnt resampled yet');
+    } else if (MERC.sampling_started_at < viewportChangedAt) {
+        needsResample = true;
+        //console.log('sampling is stale (was in progress when we changed viewport)');
+    } else if (MERC.layer.numLoadingTiles() > 0) {
+        //console.log('not all tiles loaded');
+    } else if (MERC.layer.pending.length > 0) {
+        //console.log('tiles not yet committed to texture atlas');
+    } else {
+        wait = false;
+    }
+    
+    if (wait) {
+        if (needsResample) {
+            MERC.last_sampling = null;
+        }
+        setTimeout(function() { waitUntilReady(onReady, delay, viewportChangedAt); }, delay);
+    } else {
+        onReady();
+    }
+}
+
+function initCache(overzoom) {
+    // overzoom can cache some additional buffer, but too much and we'll exceed the tile cache.
+    // unclear if this still caches all the tiles as desired, but the renderer will show
+    // artifacts so it's hard to tell. would have to change to call into the image export
+    // code to be sure.
+    MERC.setSlider('overzoom', -(overzoom || 0));
+    
+    clearTimeout(INACTIVITY_TIMER);
+
+    var places = [...ROOT.places()];    
+    var cachePlace = function(i) {
+        if (i >= places.length) {
+            return;
+        }
+        var p = places[i];
+        p._select(true, true);
+        waitUntilReady(function() {
+            cachePlace(i + 1);
+        }, 100);
+    }
+    cachePlace(0);
+
+    MERC.setSlider('overzoom', 0);
 }
 
 function chunker(process, width, height, x0, y0, res, chunkWidth, chunkHeight, trim, dim) {
