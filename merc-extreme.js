@@ -3739,6 +3739,8 @@ landmarks = [{
     pos: [13.41244,103.86701],
     lon_center: 270,
     suffix: 'Cambodia',
+    //antipode: true,
+    antipname: 'Chincha Alta, Peru'
 }, {
     name: 'Prudhoe Bay Oilfields',
     pos: [70.25755,-148.45238],
@@ -4041,6 +4043,24 @@ landmarks = [{
 }, {
     name: 'Northern Cyprus Flag',
     pos: [35.28281,33.37669],
+}, {
+    name: 'Nazca Spiral',
+    pos: [-14.6882707, -75.1227841],
+    //lon_center: 45,
+    suffix: 'Peru',
+    //antipode: true,
+    antipname: 'Thailand',
+}, {
+    name: 'Al Safi Farm',
+    pos: [23.77118,49.10777],
+    suffix: 'Saudi Arabia',
+}, {
+    name: 'Holocaust Memorial',
+    pos: [52.51390,13.37863],
+    suffix: 'Berlin',
+}, {
+    name: 'West Kansas Farms',
+    pos: [37.69642,-100.71628],
 }];
 
 
