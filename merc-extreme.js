@@ -4003,9 +4003,45 @@ landmarks = [{
 }, {
     name: 'Orange River, Lesotho',
     pos: [-29.14216,28.95611],
+}, {
+    name: 'Breckenridge Ski Resort',
+    pos: [39.47148,-106.08130],
+    lon_center: 50,
+    suffix: 'Colorado',
+}, {
+    name: 'Biosphere 2',
+    pos: [32.57885,-110.85112],
+    suffix: 'Arizona',
+}, {
+    name: 'Victoria Island',
+    pos: [72.48137,-106.64747],
+    suffix: 'Canadian Arctic Archipelago',
+}, {
+    name: 'Airplane Boneyard',
+    pos: [32.15125,-110.83789],
+    suffix: 'Arizona',
+}, {
+    name: 'The Empty Quarter',
+    pos: [21.99339,54.62820],
+    suffix: 'Saudi Arabia',
+}, {
+    name: 'Marina del Rey',
+    pos: [33.97710,-118.45087],
+    lon_center: 45,
+    suffix: 'Los Angeles',
+}, {
+    name: 'Hippos',
+    pos: [-6.89808,31.18773],
+    suffix: 'Katavi NP, Tanzania',
+    deep: true,
+}, {
+    name: 'Grand Prismatic Spring',
+    pos: [44.525049, -110.83819],
+    suffix: 'Yellowstone, Wyoming',
+}, {
+    name: 'Northern Cyprus Flag',
+    pos: [35.28281,33.37669],
 }];
-
-
 
 
 //=== UTIL ===
