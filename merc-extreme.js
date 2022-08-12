@@ -3992,6 +3992,17 @@ landmarks = [{
 }, {
     name: 'Kiritimati',
     pos: [1.85915,-157.41668],
+}, {
+    name: 'Joe Slovo',
+    pos: [-33.95230,18.53868],
+    longname: 'Joe Slovo Informal Settlement',
+}, {
+    name: 'Guatemala City',
+    pos: [14.64519,-90.51665],
+    lon_center: 30,
+}, {
+    name: 'Orange River, Lesotho',
+    pos: [-29.14216,28.95611],
 }];
 
 
