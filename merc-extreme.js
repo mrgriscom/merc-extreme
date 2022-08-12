@@ -3848,7 +3848,7 @@ landmarks = [{
     name: 'SANAE IV',
     pos: [-71.67266,-2.84192],
     lon_center: 100,
-    suffix: 'Antarctic Research Base',
+    suffix: 'South African Antarctic Research Base',
 }, {
     name: 'Bouvet Island',
     pos: [-54.42633,3.29570],
@@ -3954,6 +3954,7 @@ landmarks = [{
     name: 'Inhambane',
     pos: [-23.86524,35.38605],
     suffix: 'Mozambique',
+    lon_center: 325,
 }, {
     name: 'Kilauea Volcano',
     pos: [19.38995,-155.10452],
@@ -3972,7 +3973,28 @@ landmarks = [{
 }, {
     name: 'Shanghai',
     pos: [31.24276,121.49473],
+}, {
+    name: 'Orlando Towers',
+    pos: [-26.25421,27.92685],
+    suffix: 'Johannesburg',
+}, {
+    name: 'Tankwa Padstal',
+    pos: [-32.87089,19.77597],
+}, {
+    name: 'Mudge Point',
+    pos: [-34.41448,19.12325],
+    lon_center: 235,
+    longname: 'Raimondo Compound, Mudge Point',
+}, {
+    name: 'Storms River Mouth',
+    pos: [-34.02089,23.90293],
+    lon_center: 0,
+}, {
+    name: 'Kiritimati',
+    pos: [1.85915,-157.41668],
 }];
+
+
 
 
 //=== UTIL ===
