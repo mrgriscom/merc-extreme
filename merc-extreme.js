@@ -4061,7 +4061,13 @@ landmarks = [{
 }, {
     name: 'West Kansas Farms',
     pos: [37.69642,-100.71628],
+}, {
+    name: 'Lady of the North',
+    pos: [55.08883,-1.62884],
+    lon_center: 260,
+    suffix: 'England',
 }];
+
 
 
 //=== UTIL ===
