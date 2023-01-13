@@ -4066,6 +4066,13 @@ landmarks = [{
     pos: [55.08883,-1.62884],
     lon_center: 260,
     suffix: 'England',
+}, {
+    name: 'Peachoid',
+    pos: [35.095285, -81.685906],
+    lon_center: 140,
+}, {
+    name: 'Longleat Hedge Maze',
+    pos: [51.18799, -2.27753],
 }];
 
 
