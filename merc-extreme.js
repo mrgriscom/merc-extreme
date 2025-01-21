@@ -3412,8 +3412,8 @@ function load_tile_specs() {
     {
         name: 'OSM Mapnik',
 	key: 'osm:mapnik',
-        url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attr: [['OpenStreetMap contributors', 'https://www.openstreetmap.org/copyright']],
     },
     ];
 }
