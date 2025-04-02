@@ -3236,6 +3236,7 @@ function load_layers() {
     return layers.concat(custom_layers);
 }
 
+// note: https/http mixed content is no longer allowed in browsers; http only tile urls probably won't work in prod
 function load_tile_specs() {
     return [
     {
@@ -3250,6 +3251,7 @@ function load_tile_specs() {
 	urlgen: function() {
 	    var base = compile_tile_spec('https://mts{s:0-3}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}');
 	    // only this urlspec has ultra-deep tiles, but might be slower than the usual url (and requires updating a version param)
+            // update: ultra-deep tiles don't seem to be there anymore
 	    var deep = compile_tile_spec('http://khms{s:0-3}.googleapis.com/kh?v=870&x={x}&y={y}&z={z}');
 	    return function(z, x, y) {
 		return (z > 22 ? deep : base)(z, x, y);
@@ -3267,7 +3269,7 @@ function load_tile_specs() {
     {
         name: 'Google Transit',
         key: 'google:transit',
-        url: 'http://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
+        url: 'https://mts{s:0-3}.google.com/vt/lyrs=m,transit&opts=r&x={x}&y={y}&z={z}',
         attr: ['Google'],
     },
     {
@@ -3326,7 +3328,7 @@ function load_tile_specs() {
     {
         name: '"Watercolor" by Stamen',
 	key: 'stamen:watercolor',
-        url: 'http://{s:abcd}.tile.stamen.com/watercolor/{z}/{x}/{y}.jpg',
+        url: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
         attr: [['Stamen Design', 'https://stamen.com/'], ['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     /* gone!! :'(
@@ -3340,7 +3342,7 @@ function load_tile_specs() {
     {
         name: '"Oilslick" Color Elevation',
 	key: 'mrgriscom:oilslick',
-        url: 'http://s3.amazonaws.com/oilslick/{z}/{x}/{y}.jpg',
+        url: 'https://s3.amazonaws.com/oilslick/{z}/{x}/{y}.jpg',
         attr: [['Drew Roos', 'http://mrgris.com/projects/oilslick/'], ['Jonathan de Ferranti', 'http://www.viewfinderpanoramas.org/dem3.html'], ['NSIDC', 'http://nsidc.org/data/nsidc-0082']],
         max_depth: 11,
     },
@@ -3374,17 +3376,17 @@ function load_tile_specs() {
     },
     {
         name: 'World Aeronautical',
-		key: 'skyvector:',
-		min_depth: 1,
-		max_depth: 11,
-		no_cors: true,  // ignored due to custom urlgen
-		attr: [['SkyVector', 'https://skyvector.com/']],
-		urlgen: function() {
-			var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4zRihflnr61/301/2301/{z}/{x}/{y}.jpg'));
-			return function(z, x, y) {
-				return spec(23 - 2*z, x, y);
-			};
-		},
+	key: 'skyvector:',
+	min_depth: 1,
+	max_depth: 11,
+	no_cors: true,  // ignored due to custom urlgen
+	attr: [['SkyVector', 'https://skyvector.com/']],
+	urlgen: function() {
+	    var spec = compile_tile_spec(CORS_PROXY('https://t.skyvector.com/V7pMh4xRihf1nr61/301/2503/{z}/{x}/{y}.jpg'));
+	    return function(z, x, y) {
+		return spec(23 - 2*z, x, y);
+	    };
+	},
     },
     /*
     {
@@ -3405,14 +3407,14 @@ function load_tile_specs() {
     {
         name: 'Bing Hybrid',
 	key: 'bing:hybrid',
-        url: 'http://ak.t{s:0-3}.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
+        url: 'https://t{s:0-7}.ssl.ak.tiles.virtualearth.net/tiles/h{qt}?g=2432&n=z&key=' + API_KEYS.bing,
         min_depth: 1,
         attr: ['Microsoft', 'Nokia'],
     },
     {
         name: 'OSM Mapnik',
 	key: 'osm:mapnik',
-        url: 'http://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        url: 'https://{s:abc}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         attr: [['OpenStreetMap contributors', 'http://www.openstreetmap.org/copyright']],
     },
     ];
